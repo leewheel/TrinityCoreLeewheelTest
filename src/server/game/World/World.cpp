@@ -2599,8 +2599,12 @@ bool World::SetInitialWorldSettings()
     uint32 startupDuration = GetMSTimeDiffToNow(startupBegin);
 
     TC_LOG_INFO("server.worldserver", "World initialized in {} minutes {} seconds", (startupDuration / 60000), ((startupDuration % 60000) / 1000));
+    TC_LOG_INFO("server.worldserver", "335 Plus 超高清版 链接：https://pan.baidu.com/s/1mQn44iD52JUNA67ZXtFQnA?pwd=264j");
+
 
     TC_METRIC_EVENT("events", "World initialized", "World initialized in " + std::to_string(startupDuration / 60000) + " minutes " + std::to_string((startupDuration % 60000) / 1000) + " seconds");
+
+
     return true;
 }
 

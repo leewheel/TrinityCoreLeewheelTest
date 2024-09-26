@@ -32,6 +32,9 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(      \/_/\/_/   \/_/\/_/\/_/\/_/\/__/ `/___/> \)");
     log(R"(                                 C O R E  /\___/)");
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
+    
+
+    log(R"( 335 Plus 超高清版 链接：https://pan.baidu.com/s/1mQn44iD52JUNA67ZXtFQnA?pwd=264j )");
 
     if (logExtraInfo)
         logExtraInfo();
