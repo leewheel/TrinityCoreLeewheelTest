@@ -16,10 +16,13 @@
  */
 
 // This is where scripts' loading functions should be declared:
-void AddSC_elwynn_forest();
+
 // The name of this function should match:
 // void Add${NameOfDirectory}Scripts()
+void AddSC_elwynn_forest_Fix();
+
+
 void AddCustomScripts()
 {
-    AddSC_elwynn_forest();
+  AddSC_elwynn_forest_Fix();
 }
