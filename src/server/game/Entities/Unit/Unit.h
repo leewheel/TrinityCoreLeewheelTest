@@ -361,6 +361,51 @@ enum UnitTypeMask
     UNIT_MASK_ACCESSORY             = 0x00000200
 };
 
+enum class MovementChangeType : uint8
+{
+    INVALID,
+
+    ROOT,
+    WATER_WALK,
+    SET_HOVER,
+    SET_CAN_FLY,
+    SET_CAN_TRANSITION_BETWEEN_SWIM_AND_FLY,
+    FEATHER_FALL,
+    GRAVITY_DISABLE,
+
+    SPEED_CHANGE_WALK,
+    SPEED_CHANGE_RUN,
+    SPEED_CHANGE_RUN_BACK,
+    SPEED_CHANGE_SWIM,
+    SPEED_CHANGE_SWIM_BACK,
+    RATE_CHANGE_TURN,
+    SPEED_CHANGE_FLIGHT_SPEED,
+    SPEED_CHANGE_FLIGHT_BACK_SPEED,
+    RATE_CHANGE_PITCH,
+
+    SET_COLLISION_HGT,
+    TELEPORT,
+    KNOCK_BACK
+};
+struct PlayerMovementPendingChange
+{
+    PlayerMovementPendingChange();
+
+    uint32 movementCounter = 0;
+    MovementChangeType movementChangeType = MovementChangeType::INVALID;
+    uint32 time;
+
+    float newValue = 0.0f; // used if speed or height change
+    bool apply = false; // used if movement flag change
+    struct KnockbackInfo
+    {
+        float vcos = 0.0f;
+        float vsin = 0.0f;
+        float speedXY = 0.0f;
+        float speedZ = 0.0f;
+    } knockbackInfo; // used if knockback
+};
+
 struct DiminishingReturn
 {
     DiminishingReturn() : stack(0), hitTime(0), hitCount(DIMINISHING_LEVEL_1) { }
@@ -1236,6 +1281,9 @@ class TC_GAME_API Unit : public WorldObject
         // returns the player that this unit is BEING CONTROLLED BY
         Player* GetPlayerMovingMe() const { return m_playerMovingMe; }
 
+        // real time client control status of this unit (possess effects, vehicles and similar). For example, if this unit is a player temporarly under fear, it will return false.
+
+
         SharedVisionList const& GetSharedVisionList() { return m_sharedVision; }
         void AddPlayerToVision(Player* player);
         void RemovePlayerFromVision(Player* player);
@@ -1743,6 +1791,8 @@ class TC_GAME_API Unit : public WorldObject
 
         float GetHoverOffset() const { return HasUnitMovementFlag(MOVEMENTFLAG_HOVER) ? *m_unitData->HoverHeight : 0.0f; }
 
+
+
         void RewardRage(uint32 baseRage);
 
         virtual float GetFollowAngle() const { return static_cast<float>(M_PI/2); }
@@ -1878,7 +1928,7 @@ class TC_GAME_API Unit : public WorldObject
         AreaTriggerList m_areaTrigger;
 
         uint32 m_transformSpell;
-
+            
         std::array<Spell*, CURRENT_MAX_SPELL> m_currentSpells;
 
         AuraMap m_ownedAuras;
@@ -2014,6 +2064,9 @@ class TC_GAME_API Unit : public WorldObject
         uint32 _healthRegenerationTimer;
         std::array<float, MAX_POWERS_PER_CLASS> _powerFraction;
         std::array<Powers, MAX_POWERS_PER_CLASS> _usedPowerTypes;
+
+
+
     public:
         // Returns an array that contains information about which power type is used at which power index. MAX_POWERS implies that a power at given index is not used.
         std::array<Powers, MAX_POWERS_PER_CLASS> const& GetUsedPowerTypes() const { return _usedPowerTypes; }

@@ -1466,7 +1466,7 @@ bool Player::TeleportTo(TeleportLocation const& teleportLocation, TeleportToOpti
         if (!GetSession()->PlayerLogout())
         {
             WorldPackets::Movement::SuspendToken suspendToken;
-            suspendToken.SequenceIndex = m_movementCounter; // not incrementing
+
             suspendToken.Reason = options & TELE_TO_SEAMLESS ? 2 : 1;
             SendDirectMessage(suspendToken.Write());
         }
@@ -21099,7 +21099,7 @@ void Player::GetSpellModValues(SpellInfo const* spellInfo, SpellModOp op, Spell*
                 continue;
         }
 
-        *pct *= 1.0f + CalculatePct(1.0f, value);
+        *pct += CalculatePct(1.0f, value);
         Player::ApplyModToSpell(mod, spell);
     }
 
@@ -23102,7 +23102,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
 {
     if (!(m_teleport_options & TELE_TO_SEAMLESS))
     {
-        m_movementCounter = 0;
+
         GetSession()->ResetTimeSync();
     }
 
@@ -23246,33 +23246,7 @@ void Player::SendInitialPacketsAfterAddToMap()
         SetRooted(true);
 
     WorldPackets::Movement::MoveSetCompoundState setCompoundState;
-    // manual send package (have code in HandleEffect(this, AURA_EFFECT_HANDLE_SEND_FOR_CLIENT, true); that must not be re-applied.
-    if (HasAuraType(SPELL_AURA_MOD_ROOT) || HasAuraType(SPELL_AURA_MOD_ROOT_2) || HasAuraType(SPELL_AURA_MOD_ROOT_DISABLE_GRAVITY))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_ROOT, m_movementCounter++);
 
-    if (HasAuraType(SPELL_AURA_FEATHER_FALL))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_FEATHER_FALL, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_WATER_WALK))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_WATER_WALK, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_HOVER))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_HOVERING, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_MOD_ROOT_DISABLE_GRAVITY) || HasAuraType(SPELL_AURA_MOD_STUN_DISABLE_GRAVITY))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_DISABLE_GRAVITY, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_CAN_TURN_WHILE_FALLING))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_CAN_TURN_WHILE_FALLING, m_movementCounter++);
-
-    if (HasAura(SPELL_DH_DOUBLE_JUMP))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_ENABLE_DOUBLE_JUMP, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_IGNORE_MOVEMENT_FORCES))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_IGNORE_MOVEMENT_FORCES, m_movementCounter++);
-
-    if (HasAuraType(SPELL_AURA_DISABLE_INERTIA))
-        setCompoundState.StateChanges.emplace_back(SMSG_MOVE_DISABLE_INERTIA, m_movementCounter++);
 
     if (!setCompoundState.StateChanges.empty())
     {
@@ -27064,7 +27038,7 @@ void Player::SendMovementSetCollisionHeight(float height, WorldPackets::Movement
 {
     WorldPackets::Movement::MoveSetCollisionHeight setCollisionHeight;
     setCollisionHeight.MoverGUID = GetGUID();
-    setCollisionHeight.SequenceIndex = m_movementCounter++;
+
     setCollisionHeight.Height = height;
     setCollisionHeight.Scale = GetObjectScale();
     setCollisionHeight.MountDisplayID = GetMountDisplayId();
