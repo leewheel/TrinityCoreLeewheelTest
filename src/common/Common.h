@@ -24,6 +24,8 @@
 
 #define STRINGIZE(a) #a
 
+std::string ThisVersion = "大地的裂变 观光版-20240928";
+
 enum TimeConstants
 {
     MINUTE          = 60,

@@ -1827,6 +1827,17 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         bool LearnTalent(uint32 talentId, uint8 rank);
         void UpdateAvailableTalentPoints();
 
+        bool addTalent(uint32 spellId, uint8 addSpecMask, uint8 oldTalentRank);
+        void _removeTalent(PlayerTalentMap::iterator& itr, uint8 specMask);
+        void _removeTalent(uint32 spellId, uint8 specMask);
+        void _removeTalentAurasAndSpells(uint32 spellId);
+        void _addTalentAurasAndSpells(uint32 spellId);
+        [[nodiscard]] bool HasTalent(uint32 spell_id, uint8 spec) const;
+
+        [[nodiscard]] uint8 GetActiveSpec() const { return m_activeSpec; }
+        [[nodiscard]] uint8 GetActiveSpecMask() const { return (1 << m_activeSpec); }
+
+
         bool ResetTalents(bool noCost = false);
         uint32 GetNextResetTalentsCost() const;
         uint32 GetTalentResetCost() const { return _resetTalentsCost; }
@@ -2581,6 +2592,8 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         void SetMap(Map* map) override;
         void ResetMap() override;
 
+        [[nodiscard]] const PlayerTalentMap& GetTalentMap() const { return m_talents; }
+
         bool isAllowedToLoot(Creature const* creature) const;
 
         UF::DeclinedNames const* GetDeclinedNames() const { return m_playerData->DeclinedNames.has_value() ? &*m_playerData->DeclinedNames : nullptr; }
@@ -3068,6 +3081,14 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         bool IsAlwaysDetectableFor(WorldObject const* seer) const override;
 
         uint8 m_fishingSteps;
+
+        PlayerMails m_mail;
+        PlayerSpellMap m_spells;
+        PlayerTalentMap m_talents;
+        uint32 m_lastPotionId;
+
+        uint8 m_activeSpec;
+        uint8 m_specsCount;
 
         std::array<std::unique_ptr<CUFProfile>, MAX_CUF_PROFILES> _CUFProfiles;
 

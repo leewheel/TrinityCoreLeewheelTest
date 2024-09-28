@@ -3340,6 +3340,8 @@ struct TactKeyEntry
     std::array<uint8, TACTKEY_SIZE> Key;
 };
 
+#define MAX_TALENT_RANK 5
+
 struct TalentEntry
 {
     uint32 ID;
@@ -3353,6 +3355,7 @@ struct TalentEntry
     int32 SpellID;
     int32 OverridesSpellID;
     int32 RequiredSpellID;
+    uint32    RankID[MAX_TALENT_RANK];
     std::array<int32, 2> CategoryMask;
     std::array<int32, 9> SpellRank;
     std::array<int32, 3> PrereqTalent;
