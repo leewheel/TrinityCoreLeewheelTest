@@ -35,7 +35,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     
 
     log(R"( 335 Plus 超高清版 链接：https://pan.baidu.com/s/1mQn44iD52JUNA67ZXtFQnA?pwd=264j )");
-
+    log(R"( 请使用客户端版本 11.0.2.56819 )");
     if (logExtraInfo)
         logExtraInfo();
 }
