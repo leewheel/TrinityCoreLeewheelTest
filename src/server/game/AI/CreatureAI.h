@@ -114,6 +114,17 @@ class TC_GAME_API CreatureAI : public UnitAI
         virtual void SummonedCreatureDespawn(Creature* /*summon*/) { }
         virtual void SummonedCreatureDies(Creature* /*summon*/, Unit* /*killer*/) { }
 
+        //leewheel
+        // 被法术击中时
+        virtual void SpellHit(Unit* /*caster*/, SpellInfo const* /*spell*/) { }
+        // 当法术击中目标时调用
+        virtual void SpellHitTarget(Unit* /*target*/, SpellInfo const* /*spell*/) { }
+        //施放法术后调用
+        virtual void SpellCasted(Spell const* spell) { }
+        // 当施法因任何原因被打断时调用
+        virtual void CastInterrupted(SpellInfo const* /*spell*/) {}
+        //end leewheel
+
         // Called when the creature successfully summons a gameobject
         virtual void JustSummonedGameobject(GameObject* /*gameobject*/) { }
         virtual void SummonedGameobjectDespawn(GameObject* /*gameobject*/) { }

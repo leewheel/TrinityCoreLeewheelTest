@@ -72,4 +72,18 @@ class AssistanceMovementGenerator : public PointMovementGenerator
         MovementGeneratorType GetMovementGeneratorType() const override;
 };
 
+// Does almost nothing - just doesn't allows previous movegen interrupt current effect.
+class EffectMovementGenerator : public MovementGenerator
+{
+public:
+    explicit EffectMovementGenerator(uint32 Id) : m_Id(Id) { }
+    void Initialize(Unit*);
+    void Finalize(Unit*);
+    void Reset(Unit*) { }
+    bool Update(Unit*, uint32);
+    MovementGeneratorType GetMovementGeneratorType() { return EFFECT_MOTION_TYPE; }
+private:
+    uint32 m_Id;
+};
+
 #endif

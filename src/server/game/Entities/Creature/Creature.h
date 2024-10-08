@@ -352,6 +352,10 @@ class TC_GAME_API Creature : public Unit, public GridObject<Creature>, public Ma
         bool CanNotReachTarget() const { return m_cannotReachTarget; }
 
         void SetDefaultMount(Optional<uint32> mountCreatureDisplayId);
+        //leewheel
+        void SetPosition(float x, float y, float z, float o);
+        void SetPosition(const Position& pos) { SetPosition(pos.GetPositionX(), pos.GetPositionY(), pos.GetPositionZ(), pos.GetOrientation()); }
+        //end leewheel
 
         void SetHomePosition(float x, float y, float z, float o) { m_homePosition.Relocate(x, y, z, o); }
         void SetHomePosition(Position const& pos) { m_homePosition.Relocate(pos); }
@@ -578,5 +582,37 @@ class TC_GAME_API ForcedDespawnDelayEvent : public BasicEvent
         Creature& m_owner;
         Seconds const m_respawnTimer;
 };
+
+// from `creature` table
+//struct CreatureData
+//{
+//    CreatureData() : dbData(true) { }
+//    uint32 id;                                              // entry in creature_template
+//    uint16 mapid;
+//    uint32 phaseMask;
+//    uint32 displayid;
+//    int8 equipmentId;
+//    float posX;
+//    float posY;
+//    float posZ;
+//    float orientation;
+//    uint32 spawntimesecs;
+//    uint32 spawntimesecs_max;
+//    float wander_distance;
+//    uint32 currentwaypoint;
+//    uint32 curhealth;
+//    uint32 curmana;
+//    uint8 movementType;
+//    uint16 spawnMask;
+//    uint32 npcflag;
+//    uint32 npcflag2;
+//    uint32 unit_flags;                                      // enum UnitFlags mask values
+//    uint32 unit_flags2;                                     // enum UnitFlags2 mask values
+//    uint32 dynamicflags;
+//    uint32 ScriptId{};
+//    float WalkMode;
+//    bool dbData;
+//    uint32 gameEventId = 0;
+//};
 
 #endif

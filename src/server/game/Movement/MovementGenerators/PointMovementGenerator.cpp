@@ -224,6 +224,40 @@ void AssistanceMovementGenerator::Finalize(Unit* owner, bool active, bool moveme
     }
 }
 
+//leewheel
+bool EffectMovementGenerator::Update(Unit* unit, uint32)
+{
+    bool done = unit->movespline->Finalized();
+
+    if (unit->GetTypeId() == TYPEID_UNIT && done)
+        if (unit->ToCreature()->AI())
+            unit->ToCreature()->AI()->MovementInform(EFFECT_MOTION_TYPE, m_Id);
+
+    return !done;
+}
+
+void EffectMovementGenerator::Initialize(Unit* unit)
+{
+    if (Player* player = unit->ToPlayer())
+        player->SetFallInformation(0, player->GetPositionZ());
+}
+
+void EffectMovementGenerator::Finalize(Unit* unit)
+{
+    if (unit->GetTypeId() != TYPEID_UNIT)
+        return;
+
+    // Need restore previous movement since we have no proper states system
+    if (unit->IsAlive() && !unit->HasUnitState(UNIT_STATE_CONFUSED | UNIT_STATE_FLEEING))
+    {
+        if (Unit* victim = unit->GetVictim())
+            unit->GetMotionMaster()->MoveChase(victim);
+        else
+            unit->GetMotionMaster()->Initialize();
+    }
+}
+//end leewheel
+
 MovementGeneratorType AssistanceMovementGenerator::GetMovementGeneratorType() const
 {
     return ASSISTANCE_MOTION_TYPE;

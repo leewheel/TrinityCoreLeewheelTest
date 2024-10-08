@@ -68,6 +68,13 @@ enum MotionMasterDelayedActionType : uint8
     MOTIONMASTER_DELAYED_INITIALIZE
 };
 
+enum MMCleanFlag
+{
+    MMCF_NONE = 0,
+    MMCF_UPDATE = 1, // Clear or Expire called from update
+    MMCF_RESET = 2  // Flag if need top()->Reset()
+};
+
 struct MovementGeneratorDeleter
 {
     void operator()(MovementGenerator* a);
@@ -95,6 +102,31 @@ static bool EmptyValidator()
 
 class TC_GAME_API MotionMaster
 {
+private:
+    //typedef std::stack<MovementGenerator *> Impl;
+    typedef MovementGenerator* _Ty;
+
+    void pop()
+    {
+        ASSERT(_top < MAX_MOTION_SLOT && _top >= 0);
+        Impl[_top] = NULL;
+        while (!Empty() && !top())
+            --_top;
+    }
+    void push(_Ty _Val)
+    {
+        ++_top;
+        ASSERT(_top < MAX_MOTION_SLOT && _top >= 0);
+        Impl[_top] = _Val;
+    }
+
+    bool needInitTop() const
+    {
+        if (Empty())
+            return false;
+        return _needInit[_top];
+    }
+    void InitTop();
     public:
         typedef std::function<void()> DelayedActionDefine;
         typedef std::function<bool()> DelayedActionValidator;
@@ -122,6 +154,11 @@ class TC_GAME_API MotionMaster
 
         bool Empty() const;
         uint32 Size() const;
+        _Ty top() const { ASSERT(_top < MAX_MOTION_SLOT && _top >= 0);  return Impl[_top]; }
+        _Ty GetMotionSlot(int slot) const { ASSERT(_top < MAX_MOTION_SLOT && _top >= 0); return Impl[slot]; }
+        void DirectDelete(int slot);
+        void DirectDelete(_Ty curr);
+        void DelayedDelete(_Ty curr);
         std::vector<MovementGeneratorInformation> GetMovementGeneratorsInformation() const;
         MovementSlot GetCurrentSlot() const;
         MovementGenerator* GetCurrentMovementGenerator() const;
@@ -197,6 +234,7 @@ class TC_GAME_API MotionMaster
         void MoveJumpWithGravity(Position const& pos, float speedXY, float gravity, uint32 id = EVENT_JUMP, MovementFacingTarget const& facing = {},
             bool orientationFixed = false, JumpArrivalCastArgs const* arrivalCast = nullptr, Movement::SpellEffectExtraData const* spellEffectExtraData = nullptr,
             Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {});
+        void MoveSmoothPath(uint32 pointId, Position const* pathPoints, size_t pathSize, bool walk = false, bool fly = false);
         void MoveCirclePath(float x, float y, float z, float radius, bool clockwise, uint8 stepCount,
             Optional<Milliseconds> duration = {}, Optional<float> speed = {},
             MovementWalkRunSpeedSelectionMode speedSelectionMode = MovementWalkRunSpeedSelectionMode::Default,
@@ -264,13 +302,24 @@ class TC_GAME_API MotionMaster
         void AddBaseUnitState(MovementGenerator const* movement);
         void ClearBaseUnitState(MovementGenerator const* movement);
         void ClearBaseUnitStates();
-
+        //leewheel
+        void Mutate(MovementGenerator* m, MovementSlot slot);                  // use Move* functions instead
+        void DirectClean(bool reset);
+        void DelayedClean();
+        //end leewheel
         Unit* _owner;
         MovementGeneratorPointer _defaultGenerator;
         MotionMasterContainer _generators;
         MotionMasterUnitStatesContainer _baseUnitStatesMap;
         std::deque<DelayedAction> _delayedActions;
         uint8 _flags;
+        typedef std::vector<_Ty> ExpireList;
+        ExpireList* _expList;
+        _Ty Impl[MAX_MOTION_SLOT];
+        int _top;
+        Unit* _owner;
+        bool _needInit[MAX_MOTION_SLOT];
+        uint8 _cleanFlag;
 };
 
 #endif // MOTIONMASTER_H

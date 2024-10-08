@@ -624,6 +624,12 @@ struct CreatureData : public SpawnData
     Optional<uint32> unit_flags;                                  // enum UnitFlags mask values
     Optional<uint32> unit_flags2;                                 // enum UnitFlags2 mask values
     Optional<uint32> unit_flags3;                                 // enum UnitFlags3 mask values
+    //leewheel
+    float posX;
+    float posY;
+    float posZ;
+    float orientation;
+    //end leewheel
 };
 
 struct CreatureModelInfo

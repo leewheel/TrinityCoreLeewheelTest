@@ -829,6 +829,31 @@ void MotionMaster::MoveKnockbackFrom(Position const& origin, float speedXY, floa
     Add(movement);
 }
 
+void MotionMaster::Mutate(MovementGenerator* m, MovementSlot slot)
+{
+    if (MovementGenerator* curr = Impl[slot])
+    {
+        Impl[slot] = NULL; // in case a new one is generated in this slot during directdelete
+        if (_top == slot && (_cleanFlag & MMCF_UPDATE))
+            DelayedDelete(curr);
+        else
+            DirectDelete(curr);
+    }
+    else if (_top < slot)
+    {
+        _top = slot;
+    }
+
+    Impl[slot] = m;
+    if (_top > slot)
+        _needInit[slot] = true;
+    else
+    {
+        _needInit[slot] = false;
+        m->Initialize(_owner);
+    }
+}
+
 void MotionMaster::MoveJumpTo(float angle, float speedXY, float speedZ)
 {
     // This function may make players fall below map
@@ -935,6 +960,33 @@ void MotionMaster::MoveJumpWithGravity(Position const& pos, float speedXY, float
     movement->AddFlag(MOVEMENTGENERATOR_FLAG_PERSIST_ON_DEATH);
     Add(movement);
 }
+
+//leewheel
+void MotionMaster::MoveSmoothPath(uint32 pointId, Position const* pathPoints, size_t pathSize, bool walk, bool fly)
+{
+    Movement::MoveSplineInit init(_owner);
+
+    if (fly)
+    {
+        init.SetFly();
+        init.SetUncompressed();
+        init.SetSmooth();
+    }
+
+    Movement::PointsArray path;
+    path.reserve(pathSize);
+    std::transform(pathPoints, pathPoints + pathSize, std::back_inserter(path), [](Position const& point)
+        {
+            return G3D::Vector3(point.GetPositionX(), point.GetPositionY(), point.GetPositionZ());
+        });
+
+    init.MovebyPath(path);
+    init.SetWalk(walk);
+    init.Launch();
+
+    //Mutate(new EffectMovementGenerator(pointId), MOTION_SLOT_ACTIVE);
+}
+//end leewheel
 
 void MotionMaster::MoveCirclePath(float x, float y, float z, float radius, bool clockwise, uint8 stepCount,
     Optional<Milliseconds> duration /*= {}*/, Optional<float> speed /*= {}*/,
