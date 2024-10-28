@@ -181,7 +181,14 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
     buf << uint8(objectType);
 
     BuildMovementUpdate(&buf, flags, target);
-    BuildValuesCreate(&buf, target);
+
+    UF::UpdateFieldFlag fieldFlags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = buf.wpos();
+    buf << uint32(0);
+    buf << uint8(fieldFlags);
+    BuildValuesCreate(&buf, fieldFlags, target);
+    buf.put<uint32>(sizePos, buf.wpos() - sizePos - 4);
+
     data->AddUpdateBlock();
 }
 
@@ -203,7 +210,11 @@ void Object::BuildValuesUpdateBlockForPlayer(UpdateData* data, Player const* tar
 {
     ByteBuffer& buf = PrepareValuesUpdateBuffer(data);
 
-    BuildValuesUpdate(&buf, target);
+    EnumFlag<UF::UpdateFieldFlag> fieldFlags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = buf.wpos();
+    buf << uint32(0);
+    BuildValuesUpdate(&buf, fieldFlags, target);
+    buf.put<uint32>(sizePos, buf.wpos() - sizePos - 4);
 
     data->AddUpdateBlock();
 }
@@ -212,7 +223,10 @@ void Object::BuildValuesUpdateBlockForPlayerWithFlag(UpdateData* data, UF::Updat
 {
     ByteBuffer& buf = PrepareValuesUpdateBuffer(data);
 
+    std::size_t sizePos = buf.wpos();
+    buf << uint32(0);
     BuildValuesUpdateWithFlag(&buf, flags, target);
+    buf.put<uint32>(sizePos, buf.wpos() - sizePos - 4);
 
     data->AddUpdateBlock();
 }
@@ -257,7 +271,7 @@ void Object::SendOutOfRangeForPlayer(Player* target) const
     target->SendDirectMessage(&packet);
 }
 
-void Object::BuildMovementUpdate(ByteBuffer* data, CreateObjectBits flags, Player* target) const
+void Object::BuildMovementUpdate(ByteBuffer* data, CreateObjectBits flags, Player const* target) const
 {
     std::vector<uint32> const* PauseTimes = nullptr;
     if (GameObject const* go = ToGameObject())
@@ -811,15 +825,7 @@ void Object::ClearUpdateMask(bool remove)
 
 void Object::BuildFieldsUpdate(Player* player, UpdateDataMapType& data_map) const
 {
-    UpdateDataMapType::iterator iter = data_map.find(player);
-
-    if (iter == data_map.end())
-    {
-        std::pair<UpdateDataMapType::iterator, bool> p = data_map.emplace(player, UpdateData(player->GetMapId()));
-        ASSERT(p.second);
-        iter = p.first;
-    }
-
+    UpdateDataMapType::iterator iter = data_map.try_emplace(player, player->GetMapId()).first;
     BuildValuesUpdateBlockForPlayer(&iter->second, iter->first);
 }
 
