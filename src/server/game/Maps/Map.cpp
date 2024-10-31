@@ -1915,6 +1915,9 @@ void Map::SendInitTransports(Player* player)
         }
     }
 
+    if (!transData.HasData())
+        return;
+
     WorldPacket packet;
     transData.BuildPacket(&packet);
     player->SendDirectMessage(&packet);
@@ -1932,6 +1935,9 @@ void Map::SendRemoveTransports(Player* player)
             player->m_visibleTransports.erase(transport->GetGUID());
         }
     }
+
+    if (!transData.HasData())
+        return;
 
     WorldPacket packet;
     transData.BuildPacket(&packet);
@@ -1962,6 +1968,9 @@ void Map::SendUpdateTransportVisibility(Player* player)
             player->m_visibleTransports.erase(transportItr);
         }
     }
+
+    if (!transData.HasData())
+        return;
 
     WorldPacket packet;
     transData.BuildPacket(&packet);
