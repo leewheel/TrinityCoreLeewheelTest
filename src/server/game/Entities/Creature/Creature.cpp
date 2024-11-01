@@ -1370,7 +1370,7 @@ void Creature::SaveToDB(uint32 mapid, std::vector<Difficulty> const& spawnDiffic
     CreatureData& data = sObjectMgr->NewOrExistCreatureData(m_spawnId);
 
     uint32 displayId = GetNativeDisplayId();
-    uint64 spawnNpcFlags = (uint64(m_unitData->NpcFlags[1]) << 32) | m_unitData->NpcFlags[0];
+    uint64 spawnNpcFlags = (uint64(GetNpcFlags2()) << 32) | GetNpcFlags();
     Optional<uint64> npcflag;
     Optional<uint32> unitFlags;
     Optional<uint32> unitFlags2;
@@ -3582,19 +3582,6 @@ void Creature::InitializeInteractSpellId()
         SetInteractSpellId(clickBounds.begin()->second.spellId);
     else
         SetInteractSpellId(0);
-}
-
-UF::UpdateFieldFlag Creature::GetUpdateFieldFlagsFor(Player const* target) const
-{
-    UF::UpdateFieldFlag flags = UF::UpdateFieldFlag::None;
-    if (GetOwnerGUID() == target->GetGUID())
-        flags |= UF::UpdateFieldFlag::Owner;
-
-    if (HasDynamicFlag(UNIT_DYNFLAG_SPECIALINFO))
-        if (HasAuraTypeWithCaster(SPELL_AURA_EMPATHY, target->GetGUID()))
-            flags |= UF::UpdateFieldFlag::Empath;
-
-    return flags;
 }
 
 void Creature::BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const

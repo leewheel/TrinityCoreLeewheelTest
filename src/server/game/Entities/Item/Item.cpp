@@ -1182,8 +1182,7 @@ void Item::ClearEnchantment(EnchantmentSlot slot)
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::ID), 0);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Duration), 0);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Charges), 0);
-    SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Field_A), 0);
-    SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Field_B), 0);
+    SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Inactive), 0);
     SetState(ITEM_CHANGED, GetOwner());
 }
 
@@ -1202,7 +1201,7 @@ void Item::SetGem(uint16 slot, ItemDynamicFieldGems const* gem, uint32 gemScalin
     {
         if (GemPropertiesEntry const* gemProperties = sGemPropertiesStore.LookupEntry(gemTemplate->GetGemProperties()))
         {
-            if (SpellItemEnchantmentEntry const* gemEnchant = sSpellItemEnchantmentStore.LookupEntry(gemProperties->EnchantId))
+            if (SpellItemEnchantmentEntry const* gemEnchant = sSpellItemEnchantmentStore.LookupEntry(gemProperties->EnchantID))
             {
                 BonusData gemBonus;
                 gemBonus.Initialize(gemTemplate);
