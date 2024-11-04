@@ -33,7 +33,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(                                 C O R E  /\___/)");
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
 
-    log(R"( 大地的裂变怀旧服试玩版 请使用客户端版本V4.4.0.56713 )" "\n");
+    log(R"( 大地的裂变怀旧服试玩版 请使用客户端版本V4.4.1 )" "\n");
 
 
     if (logExtraInfo)
