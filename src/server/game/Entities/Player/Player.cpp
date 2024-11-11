@@ -4151,7 +4151,7 @@ Corpse* Player::CreateCorpse()
 
 void Player::SpawnCorpseBones(bool triggerSave /*= true*/)
 {
-    _corpseLocation.WorldRelocate();
+    _corpseLocation.WorldRelocate(MAPID_INVALID, 0.0f, 0.0f, 0.0f, 0.0f);
     if (GetMap()->ConvertCorpseToBones(GetGUID()))
         if (triggerSave && !GetSession()->PlayerLogoutWithSave())   // at logout we will already store the player
             SaveToDB();                                             // prevent loading as ghost without corpse
@@ -8150,7 +8150,7 @@ void Player::RemovedInsignia(Player* looterPlr)
         RepopAtGraveyard();
     }
 
-    _corpseLocation.WorldRelocate();
+    _corpseLocation.WorldRelocate(MAPID_INVALID, 0.0f, 0.0f, 0.0f, 0.0f);
 
     // We have to convert player corpse to bones, not to be able to resurrect there
     // SpawnCorpseBones isn't handy, 'cos it saves player while he in BG
@@ -15304,15 +15304,11 @@ QuestGiverStatus Player::GetQuestDialogStatus(Object const* questgiver) const
 
         if (quest->IsTurnIn() && CanTakeQuest(quest, false))
         {
+            bool isTrivial = GetLevel() > (GetQuestLevel(quest) + sWorld->getIntConfig(CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF));
             if (quest->IsRepeatable())
-            {
-                if (GetLevel() > (GetQuestLevel(quest) + sWorld->getIntConfig(CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF)))
-                    result |= QuestGiverStatus::RepeatableTurnin;
-                else
-                    result |= QuestGiverStatus::TrivialRepeatableTurnin;
-            }
+                result |= isTrivial ? QuestGiverStatus::TrivialRepeatableTurnin : QuestGiverStatus::RepeatableTurnin;
             else
-                result |= quest->HasFlag(QUEST_FLAGS_HIDE_REWARD_POI) ? QuestGiverStatus::RewardCompleteNoPOI : QuestGiverStatus::RewardCompletePOI;
+                result |= isTrivial ? QuestGiverStatus::Trivial : QuestGiverStatus::Quest;
         }
     }
 
@@ -22520,7 +22516,7 @@ void Player::SetBattlegroundEntryPoint()
         if (GetMap()->IsDungeon())
         {
             if (WorldSafeLocsEntry const* entry = sObjectMgr->GetClosestGraveyard(*this, GetTeam(), this))
-                m_bgData.joinPos.WorldRelocate(entry->Loc.GetMapId(), entry->Loc.GetPositionX(), entry->Loc.GetPositionY(), entry->Loc.GetPositionZ());
+                m_bgData.joinPos.WorldRelocate(entry->Loc.GetMapId(), entry->Loc.GetPositionX(), entry->Loc.GetPositionY(), entry->Loc.GetPositionZ(), 0.0f);
             else
                 TC_LOG_ERROR("entities.player", "Player::SetBattlegroundEntryPoint: Dungeon (MapID: {}) has no linked graveyard, setting home location as entry point.", GetMapId());
         }
@@ -23286,7 +23282,7 @@ void Player::SendInitialPacketsAfterAddToMap()
     if (HasAuraType(SPELL_AURA_HOVER))
         setCompoundState.StateChanges.emplace_back(SMSG_MOVE_SET_HOVERING, m_movementCounter++);
 
-    if (HasAuraType(SPELL_AURA_MOD_ROOT_DISABLE_GRAVITY) || HasAuraType(SPELL_AURA_MOD_STUN_DISABLE_GRAVITY))
+    if (HasAuraType(SPELL_AURA_MOD_ROOT_DISABLE_GRAVITY) || HasAuraType(SPELL_AURA_MOD_STUN_DISABLE_GRAVITY) || HasAuraType(SPELL_AURA_DISABLE_GRAVITY))
         setCompoundState.StateChanges.emplace_back(SMSG_MOVE_DISABLE_GRAVITY, m_movementCounter++);
 
     if (HasAuraType(SPELL_AURA_CAN_TURN_WHILE_FALLING))
