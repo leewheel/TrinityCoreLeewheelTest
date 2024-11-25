@@ -365,8 +365,8 @@ public:
                 if (!receiver->CanSeeSpellClickOn(creature))
                     npcFlag &= ~UNIT_NPC_FLAG_SPELLCLICK;
 
-                if (!creature->IsClassTrainerFor(receiver))
-                    npcFlag &= ~UNIT_NPC_FLAG_TRAINER_CLASS;
+                if (creature->HasNpcFlag(UNIT_NPC_FLAG_TRAINER_CLASS) && !creature->IsClassTrainerFor(receiver))
+                    npcFlag &= ~(UNIT_NPC_FLAG_TRAINER_CLASS | UNIT_NPC_FLAG_TRAINER);
             }
         }
         return npcFlag;
