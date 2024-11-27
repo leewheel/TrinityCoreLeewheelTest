@@ -30,6 +30,8 @@
 #include <set>
 #include <unordered_map>
 #include <vector>
+#include <bitset>
+#include <complex>
 
 class PathGenerator;
 class Unit;
@@ -202,6 +204,7 @@ class TC_GAME_API MotionMaster
             MovementWalkRunSpeedSelectionMode speedSelectionMode = MovementWalkRunSpeedSelectionMode::Default,
             Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {});
         // Walk along spline chain stored in DB (script_spline_chain_meta and script_spline_chain_waypoints)
+        void MoveSmoothPath(uint32 pointId, Position const* pathPoints, size_t pathSize, bool walk = false, bool fly = false);
         void MoveAlongSplineChain(uint32 pointId, uint16 dbChainId, bool walk);
         void MoveAlongSplineChain(uint32 pointId, std::vector<SplineChainLink> const& chain, bool walk);
         void ResumeSplineChain(SplineChainResumeInfo const& info);
@@ -245,7 +248,7 @@ class TC_GAME_API MotionMaster
         typedef std::unique_ptr<MovementGenerator, MovementGeneratorDeleter> MovementGeneratorPointer;
         typedef std::multiset<MovementGenerator*, MovementGeneratorComparator> MotionMasterContainer;
         typedef std::unordered_multimap<uint32, MovementGenerator const*> MotionMasterUnitStatesContainer;
-
+        
         void AddFlag(uint8 const flag) { _flags |= flag; }
         bool HasFlag(uint8 const flag) const { return (_flags & flag) != 0; }
         void RemoveFlag(uint8 const flag) { _flags &= ~flag; }
@@ -271,6 +274,7 @@ class TC_GAME_API MotionMaster
         MotionMasterUnitStatesContainer _baseUnitStatesMap;
         std::deque<DelayedAction> _delayedActions;
         uint8 _flags;
+
 };
 
 #endif // MOTIONMASTER_H

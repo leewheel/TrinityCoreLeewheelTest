@@ -990,6 +990,31 @@ void MotionMaster::MoveCirclePath(float x, float y, float z, float radius, bool 
     Add(new GenericMovementGenerator(std::move(initializer), EFFECT_MOTION_TYPE, 0, { .Duration = duration, .ScriptResult = std::move(scriptResult) }));
 }
 
+void MotionMaster::MoveSmoothPath(uint32 pointId, Position const* pathPoints, size_t pathSize, bool walk, bool fly)
+{
+    Movement::MoveSplineInit init(_owner);
+
+    if (fly)
+    {
+        init.SetFly();
+        init.SetUncompressed();
+        init.SetSmooth();
+    }
+
+    Movement::PointsArray path;
+    path.reserve(pathSize);
+    std::transform(pathPoints, pathPoints + pathSize, std::back_inserter(path), [](Position const& point)
+        {
+            return G3D::Vector3(point.GetPositionX(), point.GetPositionY(), point.GetPositionZ());
+        });
+
+    init.MovebyPath(path);
+    init.SetWalk(walk);
+    init.Launch();
+}
+
+
+
 void MotionMaster::MoveAlongSplineChain(uint32 pointId, uint16 dbChainId, bool walk)
 {
     Creature* owner = _owner->ToCreature();
