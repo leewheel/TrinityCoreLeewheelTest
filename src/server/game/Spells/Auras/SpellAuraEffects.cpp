@@ -684,7 +684,7 @@ NonDefaultConstructible<pAuraEffectHandler> AuraEffectHandler[TOTAL_AURAS]=
     &AuraEffect::HandleNULL,                                      //612
     &AuraEffect::HandleNULL,                                      //613
     &AuraEffect::HandleNULL,                                      //614
-    &AuraEffect::HandleNULL,                                      //615 SPELL_AURA_MOD_RANGED_HASTE_2
+    &AuraEffect::HandleAuraModRangedHaste,                        //615 SPELL_AURA_MOD_RANGED_HASTE_2
     &AuraEffect::HandleNULL,                                      //616
     &AuraEffect::HandleNULL,                                      //617
     &AuraEffect::HandleNULL,                                      //618
@@ -4441,9 +4441,10 @@ void AuraEffect::HandleModMeleeSpeedPct(AuraApplication const* aurApp, uint8 mod
     if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
         return;
 
-    //! ToDo: Haste auras with the same handler _CAN'T_ stack together
     Unit* target = aurApp->GetTarget();
-    int32 spellGroupVal = target->GetHighestExclusiveSameEffectSpellGroupValue(this, SPELL_AURA_MOD_MELEE_HASTE);
+    int32 spellGroupVal = target->GetHighestExclusiveSameEffectSpellGroupValue(this, GetAuraType());
+    bool applyHasteRegenMod = GetAuraType() == SPELL_AURA_MOD_MELEE_HASTE;
+
     if (std::abs(spellGroupVal) >= std::abs(GetAmount()))
         return;
 
@@ -4451,11 +4452,14 @@ void AuraEffect::HandleModMeleeSpeedPct(AuraApplication const* aurApp, uint8 mod
     {
         target->ApplyAttackTimePercentMod(BASE_ATTACK, float(spellGroupVal), !apply);
         target->ApplyAttackTimePercentMod(OFF_ATTACK, float(spellGroupVal), !apply);
-        target->ApplyHasteRegenMod(float(spellGroupVal), !apply);
+        if (applyHasteRegenMod)
+            target->ApplyHasteRegenMod(float(spellGroupVal), !apply);
     }
     target->ApplyAttackTimePercentMod(BASE_ATTACK, float(GetAmount()), apply);
     target->ApplyAttackTimePercentMod(OFF_ATTACK,  float(GetAmount()), apply);
-    target->ApplyHasteRegenMod(float(GetAmount()), apply);
+
+    if (applyHasteRegenMod)
+        target->ApplyHasteRegenMod(float(GetAmount()), apply);
 }
 
 void AuraEffect::HandleAuraModRangedHaste(AuraApplication const* aurApp, uint8 mode, bool apply) const
@@ -4463,10 +4467,23 @@ void AuraEffect::HandleAuraModRangedHaste(AuraApplication const* aurApp, uint8 m
     if (!(mode & (AURA_EFFECT_HANDLE_CHANGE_AMOUNT_MASK | AURA_EFFECT_HANDLE_STAT)))
         return;
 
-    //! ToDo: Haste auras with the same handler _CAN'T_ stack together
     Unit* target = aurApp->GetTarget();
+    int32 spellGroupVal = target->GetHighestExclusiveSameEffectSpellGroupValue(this, GetAuraType());
+    bool applyHasteRegenMod = GetAuraType() == SPELL_AURA_MOD_RANGED_HASTE;
 
-    target->ApplyAttackTimePercentMod(RANGED_ATTACK, (float)GetAmount(), apply);
+    if (std::abs(spellGroupVal) >= std::abs(GetAmount()))
+        return;
+
+    if (spellGroupVal)
+    {
+        target->ApplyAttackTimePercentMod(RANGED_ATTACK, float(spellGroupVal), !apply);
+        if (applyHasteRegenMod)
+            target->ApplyHasteRegenMod(float(spellGroupVal), !apply);
+    }
+    target->ApplyAttackTimePercentMod(RANGED_ATTACK, float(GetAmount()), apply);
+
+    if (applyHasteRegenMod)
+        target->ApplyHasteRegenMod(float(GetAmount()), apply);
 }
 
 /********************************/
