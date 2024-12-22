@@ -390,7 +390,7 @@ NonDefaultConstructible<SpellEffectHandlerFn> SpellEffectHandlers[TOTAL_SPELL_EF
     &Spell::EffectNULL,                                     //303 SPELL_EFFECT_CREATE_TRAIT_TREE_CONFIG
     &Spell::EffectNULL,                                     //304 SPELL_EFFECT_CHANGE_ACTIVE_COMBAT_TRAIT_CONFIG
     &Spell::EffectNULL,                                     //305 SPELL_EFFECT_305
-    &Spell::EffectNULL,                                     //306 SPELL_EFFECT_UPDATE_INTERACTIONS
+    &Spell::EffectUpdateInteractions,                       //306 SPELL_EFFECT_UPDATE_INTERACTIONS
     &Spell::EffectNULL,                                     //307 SPELL_EFFECT_307
     &Spell::EffectNULL,                                     //308 SPELL_EFFECT_CANCEL_PRELOAD_WORLD
     &Spell::EffectNULL,                                     //309 SPELL_EFFECT_PRELOAD_WORLD
@@ -2867,7 +2867,7 @@ void Spell::EffectWeaponDmg()
     weaponDamage = std::max(weaponDamage, 0);
 
     // Add melee damage bonuses (also check for negative)
-    weaponDamage = unitCaster->MeleeDamageBonusDone(unitTarget, weaponDamage, m_attackType, SPELL_DIRECT_DAMAGE, m_spellInfo, mechanic, m_spellSchoolMask, this);
+    weaponDamage = unitCaster->MeleeDamageBonusDone(unitTarget, weaponDamage, m_attackType, SPELL_DIRECT_DAMAGE, m_spellInfo, effectInfo, mechanic, m_spellSchoolMask, this);
     m_damage += unitTarget->MeleeDamageBonusTaken(unitCaster, weaponDamage, m_attackType, SPELL_DIRECT_DAMAGE, m_spellInfo);
 }
 
@@ -5901,6 +5901,18 @@ void Spell::EffectTeleportGraveyard()
     target->RepopAtGraveyard();
 }
 
+void Spell::EffectUpdateInteractions()
+{
+    if (effectHandleMode != SPELL_EFFECT_HANDLE_HIT_TARGET)
+        return;
+
+    Player* target = Object::ToPlayer(unitTarget);
+    if (!target)
+        return;
+
+    target->UpdateVisibleObjectInteractions(true, false, true, true);
+}
+
 void Spell::EffectAddComboPoints()
 {
     if (effectHandleMode != SPELL_EFFECT_HANDLE_HIT_TARGET)
@@ -5929,15 +5941,15 @@ void Spell::EffectActivateRune()
     m_runesState = player->GetRunesState();
 
     uint32 count = damage;
-    int32 miscValue = (1 << effectInfo->MiscValue);
-
-    // Death Runes may also activate Blood Runes (Blood Tap)
-    if (miscValue & (1 << AsUnderlyingType(RuneType::Death)))
-        miscValue |= (1 << AsUnderlyingType(RuneType::Blood));
+    RuneType runeType = static_cast<RuneType>(effectInfo->MiscValue);
 
     for (uint32 i = 0; i < MAX_RUNES && count > 0; ++i)
     {
-        if ((1 << AsUnderlyingType(player->GetCurrentRune(i))) & miscValue && G3D::fuzzyNe(player->GetRuneCooldown(i), 0.0f))
+        // We will check for base and current rune because some spell effects also activate Death Runes while specifying Blood Runes in their misc value
+        if (player->GetBaseRune(i) != runeType && player->GetCurrentRune(i) != runeType)
+            continue;
+
+        if (player->IsRuneFullyDepleted(i))
         {
             player->SetRuneCooldown(i, 0.0f);
             --count;

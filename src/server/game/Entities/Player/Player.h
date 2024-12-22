@@ -2604,7 +2604,13 @@ class TC_GAME_API Player final : public Unit, public GridObject<Player>
         RuneType GetCurrentRune(uint8 index) const { return RuneType(m_runes->_Runes[index].CurrentRune); }
         Powers GetPowerTypeForBaseRune(uint8 index) const;
         float GetRuneCooldown(uint8 index) const { return m_runes->_Runes[index].Cooldown; }
-        bool IsBaseRuneSlotsOnCooldown(RuneType runeType) const;
+        bool IsRuneFullyDepleted(uint8 index) const;
+        /// <summary>
+        /// Checks if there is a fully depleted rune. A rune is considered fully depleted when it's on cooldown and isn't recovering yet ('waiting' for another rune to finish regenerating)
+        /// </summary>
+        /// <param name="runeType">The kind of base rune that is being checked (Blood, Unholy, Frost). Death Runes are no base rune and can't be checked with this method. Use the underlying base rune instead.</param>
+        /// <returns>true when there is a fully depleted rune</returns>
+        bool HasFullyDepletedRune(RuneType runeType) const;
         RuneType GetLastUsedRune() { return m_runes->LastUsedRune; }
         uint8 GetLastUsedRuneMask() { return m_runes->LastUsedRuneMask; }
         void ClearLastUsedRuneMask() { m_runes->LastUsedRuneMask = 0; }
