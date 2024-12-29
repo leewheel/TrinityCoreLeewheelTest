@@ -29,7 +29,7 @@ EndScriptData */
 #include "Config.h"
 #include "Language.h"
 #include "Player.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "World.h"
 #include "WorldSession.h"
 
@@ -83,8 +83,7 @@ public:
         if (account.IsConnected())
             return { account.GetConnectedSession()->GetRBACData(), false };
 
-        uint32 realmId = sRealmList->GetCurrentRealmId().Realm;
-        rbac::RBACData* rbac = new rbac::RBACData(account.GetID(), account.GetName(), realmId, AccountMgr::GetSecurity(account.GetID(), realmId));
+        rbac::RBACData* rbac = new rbac::RBACData(account.GetID(), account.GetName(), realm.Id.Realm, AccountMgr::GetSecurity(account.GetID(), realm.Id.Realm));
         rbac->LoadFromDB();
 
         return { rbac, true };

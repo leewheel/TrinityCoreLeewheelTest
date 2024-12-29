@@ -30,8 +30,8 @@ BossBoundaryData const boundaries =
 
 DoorData const doorData[] =
 {
-    { GO_MAGTHERIDON_DOOR,      DATA_MAGTHERIDON,           EncounterDoorBehavior::OpenWhenNotInProgress },
-    { 0,                        0,                          EncounterDoorBehavior::OpenWhenNotInProgress } // END
+    { GO_MAGTHERIDON_DOOR,      DATA_MAGTHERIDON,           DOOR_TYPE_ROOM },
+    { 0,                        0,                          DOOR_TYPE_ROOM } // END
 };
 
 ObjectData const creatureData[] =
@@ -64,11 +64,6 @@ static MLDataTypes const collapseObjectDatas[] =
     DATA_MAGTHERIDON_COLUMN_5,
 };
 
-DungeonEncounterData const encounters[] =
-{
-    { DATA_MAGTHERIDON, {{ 651 }} }
-};
-
 class instance_magtheridons_lair : public InstanceMapScript
 {
     public:
@@ -83,7 +78,6 @@ class instance_magtheridons_lair : public InstanceMapScript
                 LoadDoorData(doorData);
                 LoadBossBoundaries(boundaries);
                 LoadObjectData(creatureData, gameObjectData);
-                LoadDungeonEncounterData(encounters);
             }
 
             void OnGameObjectCreate(GameObject* go) override

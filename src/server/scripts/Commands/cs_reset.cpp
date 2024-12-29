@@ -135,15 +135,14 @@ public:
         uint8 oldLevel = target->GetLevel();
 
         // set starting level
-        uint8 startLevel = target->GetStartLevel(target->GetClass(), {});
+        uint8 startLevel = target->GetStartLevel(target->GetRace(), target->GetClass(), {});
 
         target->_ApplyAllLevelScaleItemMods(false);
         target->SetLevel(startLevel);
         target->InitRunes();
         target->InitStatsForLevel(true);
         target->InitTaxiNodesForLevel();
-        target->UpdateAvailableTalentPoints();
-        target->SendTalentsInfoData();
+        target->InitTalentForLevel();
         target->SetXP(0);
 
         target->_ApplyAllLevelScaleItemMods(true);
@@ -198,8 +197,7 @@ public:
         target->InitRunes();
         target->InitStatsForLevel(true);
         target->InitTaxiNodesForLevel();
-        target->UpdateAvailableTalentPoints();
-        target->SendTalentsInfoData();
+        target->InitTalentForLevel();
 
         return true;
     }
@@ -239,7 +237,8 @@ public:
         if (target)
         {
             target->ResetTalents(true);
-            target->SendTalentsInfoData();
+            //target->ResetTalentSpecialization();
+            target->SendTalentsInfoData(false);
             ChatHandler(target->GetSession()).SendSysMessage(LANG_RESET_TALENTS);
             if (!handler->GetSession() || handler->GetSession()->GetPlayer() != target)
                 handler->PSendSysMessage(LANG_RESET_TALENTS_ONLINE, handler->GetNameLink(target).c_str());

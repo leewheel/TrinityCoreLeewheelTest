@@ -43,7 +43,7 @@ enum Events
 
 struct boss_rokmar_the_crackler : public BossAI
 {
-    boss_rokmar_the_crackler(Creature* creature) : BossAI(creature, DATA_ROKMAR_THE_CRACKLER)
+    boss_rokmar_the_crackler(Creature* creature) : BossAI(creature, DATA_MENNU_THE_BETRAYER)
     {
         Initialize();
     }
@@ -113,6 +113,8 @@ struct boss_rokmar_the_crackler : public BossAI
             DoCast(me, SPELL_FRENZY);
             rokmarFrenzy = true;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

@@ -21,7 +21,13 @@
 #include "GroupReference.h"
 #include "RefManager.h"
 
-class GroupRefManager : public RefManager<GroupReference>
+class Group;
+class Player;
+
+class GroupRefManager : public RefManager<Group, Player>
 {
+    public:
+        GroupReference* getFirst() { return ((GroupReference*)RefManager<Group, Player>::getFirst()); }
+        GroupReference const* getFirst() const { return ((GroupReference const*)RefManager<Group, Player>::getFirst()); }
 };
 #endif

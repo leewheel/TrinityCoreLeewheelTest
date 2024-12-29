@@ -22,6 +22,21 @@ void WorldPackets::BlackMarket::BlackMarketOpen::Read()
     _worldPacket >> Guid;
 }
 
+WorldPacket const* WorldPackets::BlackMarket::BlackMarketOpenResult::Write()
+{
+    _worldPacket << Guid;
+    _worldPacket.WriteBit(Enable);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+void WorldPackets::BlackMarket::BlackMarketRequestItems::Read()
+{
+    _worldPacket >> Guid;
+    _worldPacket >> LastUpdateID;
+}
+
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::BlackMarket::BlackMarketItem const& blackMarketItem)
 {
     data << int32(blackMarketItem.MarketID);
@@ -64,6 +79,14 @@ WorldPacket const* WorldPackets::BlackMarket::BlackMarketRequestItemsResult::Wri
         _worldPacket << item;
 
     return &_worldPacket;
+}
+
+void WorldPackets::BlackMarket::BlackMarketBidOnItem::Read()
+{
+    _worldPacket >> Guid;
+    _worldPacket >> MarketID;
+    _worldPacket >> BidAmount;
+    _worldPacket >> Item;
 }
 
 WorldPacket const* WorldPackets::BlackMarket::BlackMarketBidOnItemResult::Write()

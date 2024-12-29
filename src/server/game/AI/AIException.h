@@ -19,12 +19,17 @@
 #define TRINITY_AIEXCEPTION_H
 
 #include "Define.h"
-#include <stdexcept>
+#include <exception>
+#include <string>
 
-class TC_GAME_API InvalidAIException : public std::logic_error
+class TC_GAME_API InvalidAIException : public std::exception
 {
 public:
-    using std::logic_error::logic_error;
+    InvalidAIException(char const* msg) : msg_(msg) {}
+    char const* what() const noexcept override { return msg_.c_str(); }
+
+private:
+    std::string const msg_;
 };
 
 #endif

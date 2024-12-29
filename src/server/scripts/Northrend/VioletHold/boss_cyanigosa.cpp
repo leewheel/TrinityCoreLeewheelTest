@@ -72,7 +72,8 @@ struct boss_cyanigosa : public BossAI
         if (!UpdateVictim())
             return;
 
-        scheduler.Update(diff);
+        scheduler.Update(diff,
+            std::bind(&BossAI::DoMeleeAttackIfReady, this));
     }
 
     void ScheduleTasks() override
@@ -135,6 +136,8 @@ class achievement_defenseless : public AchievementCriteriaScript
 // 58694 - Arcane Vacuum
 class spell_cyanigosa_arcane_vacuum : public SpellScript
 {
+    PrepareSpellScript(spell_cyanigosa_arcane_vacuum);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SUMMON_PLAYER });

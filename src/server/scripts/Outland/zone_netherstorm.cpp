@@ -27,7 +27,6 @@ npc_commander_dawnforge
 EndContentData */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
@@ -454,6 +453,8 @@ public:
                     me->SetInCombatWith(player);
                 }
             } // end: support for quest 10190
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -475,6 +476,8 @@ enum DetonateTeleporter
 // 38920 - Detonate Teleporter
 class spell_detonate_teleporter : public SpellScript
 {
+    PrepareSpellScript(spell_detonate_teleporter);
+
     bool Load() override
     {
         return GetCaster()->GetTypeId() == TYPEID_UNIT;

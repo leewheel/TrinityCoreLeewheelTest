@@ -86,6 +86,8 @@ public:
                 DoCast(me, SPELL_FRENZY);
                 hp15 = true;
             }
+
+            DoMeleeAttackIfReady();
         }
 
     private:

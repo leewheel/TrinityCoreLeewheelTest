@@ -17,6 +17,7 @@
 
 #include "ConnectionService.h"
 #include "Duration.h"
+#include "Session.h"
 #include "Util.h"
 #include "BattlenetRpcErrorCodes.h"
 

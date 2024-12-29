@@ -33,9 +33,9 @@ enum Ironaya
     SPELL_WSTOMP                = 11876
 };
 
-struct boss_ironaya : public BossAI
+struct boss_ironaya : public ScriptedAI
 {
-    boss_ironaya(Creature* creature) : BossAI(creature, BOSS_IRONAYA)
+    boss_ironaya(Creature* creature) : ScriptedAI(creature)
     {
         Initialize();
     }
@@ -48,7 +48,7 @@ struct boss_ironaya : public BossAI
 
     void Reset() override
     {
-        _Reset();
+        _scheduler.CancelAll();
         Initialize();
     }
 
@@ -68,10 +68,9 @@ struct boss_ironaya : public BossAI
         }
     }
 
-    void JustEngagedWith(Unit* who) override
+    void JustEngagedWith(Unit* /*who*/) override
     {
-        _JustEngagedWith(who);
-        scheduler.Schedule(3s, [this](TaskContext task)
+        _scheduler.Schedule(3s, [this](TaskContext task)
         {
             DoCastSelf(SPELL_ARCINGSMASH);
             task.Repeat(13s);
@@ -83,10 +82,14 @@ struct boss_ironaya : public BossAI
         if (!UpdateVictim())
             return;
 
-        scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
 private:
+    TaskScheduler _scheduler;
     bool _hasCastKnockaway;
     bool _hasCastWstomp;
 };

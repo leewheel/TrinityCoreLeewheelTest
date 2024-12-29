@@ -507,6 +507,8 @@ class boss_hodir : public CreatureScript
                 }
                 else
                     gettingColdInHereTimer -= diff;
+
+                DoMeleeAttackIfReady();
             }
 
             void DoAction(int32 action) override
@@ -661,7 +663,6 @@ class npc_hodir_priest : public CreatureScript
             npc_hodir_priestAI(Creature* creature) : ScriptedAI(creature)
             {
                 instance = me->GetInstanceScript();
-                me->SetCanMelee(false); // DoSpellAttackIfReady
             }
 
             void Reset() override
@@ -719,10 +720,10 @@ class npc_hodir_priest : public CreatureScript
             }
 
             void JustDied(Unit* /*killer*/) override
-            {
+             {
                 if (Creature* hodir = instance->GetCreature(DATA_HODIR))
                     hodir->AI()->DoAction(ACTION_I_HAVE_THE_COOLEST_FRIENDS);
-            }
+              }
 
         private:
             InstanceScript* instance;
@@ -745,7 +746,6 @@ class npc_hodir_shaman : public CreatureScript
             npc_hodir_shamanAI(Creature* creature) : ScriptedAI(creature)
             {
                 instance = me->GetInstanceScript();
-                me->SetCanMelee(false); // DoSpellAttackIfReady
             }
 
             void Reset() override
@@ -811,7 +811,6 @@ class npc_hodir_druid : public CreatureScript
             npc_hodir_druidAI(Creature* creature) : ScriptedAI(creature)
             {
                 instance = me->GetInstanceScript();
-                me->SetCanMelee(false); // DoSpellAttackIfReady
             }
 
             void Reset() override
@@ -876,7 +875,6 @@ class npc_hodir_mage : public CreatureScript
             npc_hodir_mageAI(Creature* creature) : ScriptedAI(creature), summons(me)
             {
                 instance = me->GetInstanceScript();
-                me->SetCanMelee(false); // DoSpellAttackIfReady
             }
 
             void Reset() override
@@ -934,10 +932,10 @@ class npc_hodir_mage : public CreatureScript
             }
 
             void JustDied(Unit* /*killer*/) override
-            {
+             {
                 if (Creature* hodir = instance->GetCreature(DATA_HODIR))
                     hodir->AI()->DoAction(ACTION_I_HAVE_THE_COOLEST_FRIENDS);
-            }
+              }
 
         private:
             InstanceScript* instance;
@@ -993,6 +991,8 @@ class spell_biting_cold : public SpellScriptLoader
 
         class spell_biting_cold_AuraScript : public AuraScript
         {
+            PrepareAuraScript(spell_biting_cold_AuraScript);
+
             void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
             {
                 Unit* target = GetTarget();
@@ -1048,6 +1048,8 @@ public:
 
     class spell_biting_cold_dot_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_biting_cold_dot_AuraScript);
+
         void HandleEffectPeriodic(AuraEffect const* /*aurEff*/)
         {
             Unit* caster = GetCaster();

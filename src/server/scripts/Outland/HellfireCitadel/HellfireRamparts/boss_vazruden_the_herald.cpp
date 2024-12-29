@@ -182,6 +182,8 @@ class boss_nazan : public CreatureScript
                         else
                             BellowingRoar_Timer -= diff;
                     }
+
+                    DoMeleeAttackIfReady();
                 }
             }
 
@@ -271,6 +273,8 @@ class boss_vazruden : public CreatureScript
                 }
                 else
                     Revenge_Timer -= diff;
+
+                DoMeleeAttackIfReady();
             }
 
             private:
@@ -511,6 +515,8 @@ class npc_hellfire_sentry : public CreatureScript
                 }
                 else
                     KidneyShot_Timer -= diff;
+
+                DoMeleeAttackIfReady();
             }
 
             private:

@@ -27,18 +27,18 @@ enum TotemType
     TOTEM_STATUE     = 2 // copied straight from MaNGOS, may need more implementation to work
 };
 
-class TC_GAME_API Totem final : public Minion
+class TC_GAME_API Totem : public Minion
 {
     public:
         Totem(SummonPropertiesEntry const* properties, Unit* owner);
         virtual ~Totem() { }
-        void Update(uint32 diff) override;
-        void InitStats(WorldObject* summoner, Milliseconds duration) override;
-        void InitSummon(WorldObject* summoner) override;
+        void Update(uint32 time) override;
+        void InitStats(uint32 duration) override;
+        void InitSummon() override;
         void UnSummon(uint32 msTime = 0) override;
         uint32 GetSpell(uint8 slot = 0) const { return m_spells[slot]; }
-        Milliseconds GetTotemDuration() const { return m_duration; }
-        void SetTotemDuration(Milliseconds duration) { m_duration = duration; }
+        uint32 GetTotemDuration() const { return m_duration; }
+        void SetTotemDuration(uint32 duration) { m_duration = duration; }
         TotemType GetTotemType() const { return m_type; }
 
         bool UpdateStats(Stats /*stat*/) override { return true; }
@@ -54,6 +54,6 @@ class TC_GAME_API Totem final : public Minion
 
     protected:
         TotemType m_type;
-        Milliseconds m_duration;
+        uint32 m_duration;
 };
 #endif

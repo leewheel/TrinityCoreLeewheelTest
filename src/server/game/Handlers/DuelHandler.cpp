@@ -79,6 +79,8 @@ void WorldSession::HandleDuelAccepted(ObjectGuid arbiterGuid)
     WorldPacket const* worldPacket = packet.Write();
     player->GetSession()->SendPacket(worldPacket);
     target->GetSession()->SendPacket(worldPacket);
+    player->EnablePvpRules();
+    target->EnablePvpRules();
 }
 
 void WorldSession::HandleDuelCancelled()

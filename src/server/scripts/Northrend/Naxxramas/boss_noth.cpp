@@ -99,7 +99,7 @@ struct boss_noth : public BossAI
         _Reset();
 
         me->SetReactState(REACT_AGGRESSIVE);
-        me->SetUninteractible(false);
+        me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
 
         balconyCount = 0;
         events.SetPhase(PHASE_NONE);
@@ -120,7 +120,7 @@ struct boss_noth : public BossAI
         DoZoneInCombat();
 
         if (!me->IsThreatened())
-            EnterEvadeMode(EvadeReason::NoHostiles);
+            EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
         else
         {
             uint8 timeGround;
@@ -235,7 +235,7 @@ struct boss_noth : public BossAI
                 case EVENT_BALCONY:
                     events.SetPhase(PHASE_BALCONY);
                     me->SetReactState(REACT_PASSIVE);
-                    me->SetUninteractible(true);
+                    me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                     me->AttackStop();
                     me->StopMoving();
                     me->RemoveAllAuras();
@@ -291,7 +291,7 @@ struct boss_noth : public BossAI
                     EnterPhaseGround();
                     break;
                 case EVENT_GROUND_ATTACKABLE:
-                    me->SetUninteractible(false);
+                    me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                     me->SetReactState(REACT_AGGRESSIVE);
                     break;
             }
@@ -310,6 +310,8 @@ struct boss_noth : public BossAI
                 me->GetMotionMaster()->MoveChase(me->EnsureVictim());
                 justBlinked = false;
             }
+            else
+                DoMeleeAttackIfReady();
         }
     }
 

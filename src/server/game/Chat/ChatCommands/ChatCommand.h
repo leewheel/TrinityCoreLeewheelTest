@@ -18,6 +18,7 @@
 #ifndef TRINITY_CHATCOMMAND_H
 #define TRINITY_CHATCOMMAND_H
 
+#include "advstd.h"
 #include "ChatCommandArgs.h"
 #include "ChatCommandTags.h"
 #include "Define.h"
@@ -92,8 +93,8 @@ namespace Trinity::Impl::ChatCommands
             if (result1.HasErrorMessage() && result2.HasErrorMessage())
             {
                 return Trinity::StringFormat("{} \"{}\"\n{} \"{}\"",
-                    GetTrinityString(handler, LANG_CMDPARSER_EITHER), result2.GetErrorMessage(),
-                    GetTrinityString(handler, LANG_CMDPARSER_OR), result1.GetErrorMessage());
+                    GetTrinityString(handler, LANG_CMDPARSER_EITHER), result2.GetErrorMessage().c_str(),
+                    GetTrinityString(handler, LANG_CMDPARSER_OR), result1.GetErrorMessage().c_str());
             }
             else if (result1.HasErrorMessage())
                 return result1;
@@ -114,7 +115,7 @@ namespace Trinity::Impl::ChatCommands
     }
 
     template <typename T> struct HandlerToTuple { static_assert(Trinity::dependant_false_v<T>, "Invalid command handler signature"); };
-    template <typename... Ts> struct HandlerToTuple<bool(ChatHandler*, Ts...)> { using type = std::tuple<ChatHandler*, std::remove_cvref_t<Ts>...>; };
+    template <typename... Ts> struct HandlerToTuple<bool(ChatHandler*, Ts...)> { using type = std::tuple<ChatHandler*, advstd::remove_cvref_t<Ts>...>; };
     template <typename T> using TupleType = typename HandlerToTuple<T>::type;
 
     struct CommandInvoker
@@ -227,6 +228,8 @@ namespace Trinity::ChatCommands
             Trinity::Impl::ChatCommands::CommandInvoker _invoker;
             TrinityStrings _help;
             Trinity::Impl::ChatCommands::CommandPermissions _permissions;
+
+            auto operator*() const { return std::tie(_invoker, _help, _permissions); }
         };
         using SubCommandEntry = std::reference_wrapper<std::vector<ChatCommandBuilder> const>;
 

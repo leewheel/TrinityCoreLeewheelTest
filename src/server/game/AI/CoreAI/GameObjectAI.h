@@ -30,7 +30,7 @@ class Quest;
 class SpellInfo;
 class Unit;
 class WorldObject;
-enum class QuestGiverStatus : uint64;
+enum class QuestGiverStatus : uint32;
 
 namespace WorldPackets
 {
@@ -70,7 +70,7 @@ class TC_GAME_API GameObjectAI
         static int32 Permissible(GameObject const* go);
 
         // Called when the dialog status between a player and the gameobject is requested.
-        virtual Optional<QuestGiverStatus> GetDialogStatus(Player const* player);
+        virtual Optional<QuestGiverStatus> GetDialogStatus(Player* player);
 
         // Called when a player opens a gossip dialog with the gameobject.
         virtual bool OnGossipHello(Player* /*player*/) { return false; }

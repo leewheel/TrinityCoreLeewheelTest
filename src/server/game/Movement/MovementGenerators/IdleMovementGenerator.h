@@ -19,8 +19,6 @@
 #define TRINITY_IDLEMOVEMENTGENERATOR_H
 
 #include "MovementGenerator.h"
-#include "Optional.h"
-#include "Timer.h"
 
 enum RotateDirection : uint8;
 
@@ -40,11 +38,7 @@ class IdleMovementGenerator : public MovementGenerator
 class RotateMovementGenerator : public MovementGenerator
 {
     public:
-        static constexpr float MIN_ANGLE_DELTA_FOR_FACING_UPDATE = 0.05f;
-
-        explicit RotateMovementGenerator(uint32 id, RotateDirection direction, Optional<Milliseconds> duration,
-            Optional<float> turnSpeed, Optional<float> totalTurnAngle,
-            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult);
+        explicit RotateMovementGenerator(uint32 id, uint32 time, RotateDirection direction);
 
         void Initialize(Unit*) override;
         void Reset(Unit*) override;
@@ -54,12 +48,8 @@ class RotateMovementGenerator : public MovementGenerator
         MovementGeneratorType GetMovementGeneratorType() const override;
 
     private:
-        uint32 _id;
-        Optional<TimeTracker> _duration;
-        Optional<float> _turnSpeed;         ///< radians per sec
-        Optional<float> _totalTurnAngle;
+        uint32 _id, _duration, _maxDuration;
         RotateDirection _direction;
-        uint32 _diffSinceLastUpdate;
 };
 
 class DistractMovementGenerator : public MovementGenerator

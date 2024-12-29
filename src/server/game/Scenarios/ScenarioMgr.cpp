@@ -30,7 +30,7 @@ ScenarioMgr* ScenarioMgr::Instance()
     return &instance;
 }
 
-InstanceScenario* ScenarioMgr::CreateInstanceScenario(InstanceMap* map, TeamId team) const
+InstanceScenario* ScenarioMgr::CreateInstanceScenario(Map const* map, TeamId team) const
 {
     auto dbDataItr = _scenarioDBData.find(std::make_pair(map->GetId(), map->GetDifficultyID()));
     // No scenario registered for this map and difficulty in the database
@@ -119,7 +119,7 @@ void ScenarioMgr::LoadDB2Data()
     for (ScenarioStepEntry const* step : sScenarioStepStore)
     {
         scenarioSteps[step->ScenarioID][step->OrderIndex] = step;
-        if (CriteriaTree const* tree = sCriteriaMgr->GetCriteriaTree(step->CriteriatreeID))
+        if (CriteriaTree const* tree = sCriteriaMgr->GetCriteriaTree(step->Criteriatreeid))
         {
             uint32 criteriaTreeSize = 0;
             CriteriaMgr::WalkCriteriaTree(tree, [&criteriaTreeSize](CriteriaTree const* /*tree*/)

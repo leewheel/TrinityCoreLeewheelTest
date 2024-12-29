@@ -18,6 +18,7 @@
 #ifndef DatabaseEnvFwd_h__
 #define DatabaseEnvFwd_h__
 
+#include <future>
 #include <memory>
 
 struct QueryResultFieldMetadata;
@@ -25,6 +26,8 @@ class Field;
 
 class ResultSet;
 using QueryResult = std::shared_ptr<ResultSet>;
+using QueryResultFuture = std::future<QueryResult>;
+using QueryResultPromise = std::promise<QueryResult>;
 
 class CharacterDatabaseConnection;
 class HotfixDatabaseConnection;
@@ -43,6 +46,8 @@ using WorldDatabasePreparedStatement = PreparedStatement<WorldDatabaseConnection
 
 class PreparedResultSet;
 using PreparedQueryResult = std::shared_ptr<PreparedResultSet>;
+using PreparedQueryResultFuture = std::future<PreparedQueryResult>;
+using PreparedQueryResultPromise = std::promise<PreparedQueryResult>;
 
 class QueryCallback;
 
@@ -52,6 +57,9 @@ class AsyncCallbackProcessor;
 using QueryCallbackProcessor = AsyncCallbackProcessor<QueryCallback>;
 
 class TransactionBase;
+
+using TransactionFuture = std::future<bool>;
+using TransactionPromise = std::promise<bool>;
 
 template<typename T>
 class Transaction;
@@ -67,6 +75,8 @@ using LoginDatabaseTransaction = SQLTransaction<LoginDatabaseConnection>;
 using WorldDatabaseTransaction = SQLTransaction<WorldDatabaseConnection>;
 
 class SQLQueryHolderBase;
+using QueryResultHolderFuture = std::future<void>;
+using QueryResultHolderPromise = std::promise<void>;
 
 template<typename T>
 class SQLQueryHolder;

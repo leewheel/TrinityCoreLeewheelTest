@@ -173,7 +173,6 @@ public:
         void Reset() override
         {
             Initialize();
-            me->SetCanMelee(true);
 
             // Not in progress
             instance->SetBossState(DATA_ARAN, NOT_STARTED);
@@ -489,7 +488,8 @@ public:
                 } else FlameWreathCheckTime -= diff;
             }
 
-            me->SetCanMelee(ArcaneCooldown && FireCooldown && FrostCooldown);
+            if (ArcaneCooldown && FireCooldown && FrostCooldown)
+                DoMeleeAttackIfReady();
         }
 
         void DamageTaken(Unit* /*pAttacker*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override

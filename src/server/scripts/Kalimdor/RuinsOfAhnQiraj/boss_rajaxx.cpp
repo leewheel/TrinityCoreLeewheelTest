@@ -110,6 +110,8 @@ class boss_rajaxx : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
             private:
                 bool enraged;
@@ -124,14 +126,20 @@ class boss_rajaxx : public CreatureScript
 // 25599 - Thundercrash
 class spell_rajaxx_thundercrash : public SpellScript
 {
-    static void HandleDamageCalc(SpellEffectInfo const& /*spellEffectInfo*/, Unit const* victim, int32& damage, int32& /*flatMod*/, float& /*pctMod*/)
+    PrepareSpellScript(spell_rajaxx_thundercrash);
+
+    void HandleDamageCalc(SpellEffIndex /*effIndex*/)
     {
-        damage = victim->CountPctFromCurHealth(50);
+        int32 damage = GetHitUnit()->GetHealth() / 2;
+        if (damage < 200)
+            damage = 200;
+
+        SetEffectValue(damage);
     }
 
     void Register() override
     {
-        CalcDamage += SpellCalcDamageFn(spell_rajaxx_thundercrash::HandleDamageCalc);
+        OnEffectLaunchTarget += SpellEffectFn(spell_rajaxx_thundercrash::HandleDamageCalc, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
 

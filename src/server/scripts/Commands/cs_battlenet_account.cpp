@@ -90,9 +90,9 @@ public:
                 if (handler->GetSession())
                 {
                     TC_LOG_INFO("entities.player.character", "Account: {} (IP: {}) Character:[{}] ({}) created Battle.net account {}{}{}",
-                        handler->GetSession()->GetAccountId(), handler->GetSession()->GetRemoteAddress(),
-                        handler->GetSession()->GetPlayer()->GetName(), handler->GetSession()->GetPlayer()->GetGUID().ToString(),
-                        accountName, createGameAccount != false ? " with game account " : "", createGameAccount != false ? gameAccountName.c_str() : "");
+                        handler->GetSession()->GetAccountId(), handler->GetSession()->GetRemoteAddress().c_str(),
+                        handler->GetSession()->GetPlayer()->GetName().c_str(), handler->GetSession()->GetPlayer()->GetGUID().ToString().c_str(),
+                        accountName.c_str(), createGameAccount != false ? " with game account " : "", createGameAccount != false ? gameAccountName.c_str() : "");
                 }
                 break;
             }
@@ -175,8 +175,8 @@ public:
             handler->SendSysMessage(LANG_COMMAND_WRONGOLDPASSWORD);
             handler->SetSentErrorMessage(true);
             TC_LOG_INFO("entities.player.character", "Battle.net account: {} (IP: {}) Character:[{}] ({}) Tried to change password, but the provided old password is wrong.",
-                handler->GetSession()->GetBattlenetAccountId(), handler->GetSession()->GetRemoteAddress(),
-                handler->GetSession()->GetPlayer()->GetName(), handler->GetSession()->GetPlayer()->GetGUID().ToString());
+                handler->GetSession()->GetBattlenetAccountId(), handler->GetSession()->GetRemoteAddress().c_str(),
+                handler->GetSession()->GetPlayer()->GetName().c_str(), handler->GetSession()->GetPlayer()->GetGUID().ToString().c_str());
             return false;
         }
 
@@ -195,8 +195,8 @@ public:
             case AccountOpResult::AOR_OK:
                 handler->SendSysMessage(LANG_COMMAND_PASSWORD);
                 TC_LOG_INFO("entities.player.character", "Battle.net account: {} (IP: {}) Character:[{}] ({}) Changed Password.",
-                    handler->GetSession()->GetBattlenetAccountId(), handler->GetSession()->GetRemoteAddress(),
-                    handler->GetSession()->GetPlayer()->GetName(), handler->GetSession()->GetPlayer()->GetGUID().ToString());
+                    handler->GetSession()->GetBattlenetAccountId(), handler->GetSession()->GetRemoteAddress().c_str(),
+                    handler->GetSession()->GetPlayer()->GetName().c_str(), handler->GetSession()->GetPlayer()->GetGUID().ToString().c_str());
                 break;
             case AccountOpResult::AOR_PASS_TOO_LONG:
                 handler->SendSysMessage(LANG_PASSWORD_TOO_LONG);
@@ -323,9 +323,9 @@ public:
                 if (handler->GetSession())
                 {
                     TC_LOG_INFO("entities.player.character", "Account: {} (IP: {}) Character:[{}] ({}) created Account {} (Email: '{}')",
-                        handler->GetSession()->GetAccountId(), handler->GetSession()->GetRemoteAddress(),
-                        handler->GetSession()->GetPlayer()->GetName(), handler->GetSession()->GetPlayer()->GetGUID().ToString(),
-                        accountName, bnetAccountName);
+                        handler->GetSession()->GetAccountId(), handler->GetSession()->GetRemoteAddress().c_str(),
+                        handler->GetSession()->GetPlayer()->GetName().c_str(), handler->GetSession()->GetPlayer()->GetGUID().ToString().c_str(),
+                        accountName.c_str(), bnetAccountName.c_str());
                 }
                 break;
             case AccountOpResult::AOR_NAME_TOO_LONG:

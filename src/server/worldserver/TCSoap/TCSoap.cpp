@@ -28,12 +28,12 @@
 std::thread* CreateSoapThread(const std::string& host, uint16 port)
 {
     auto soap = Trinity::make_unique_ptr_with_deleter(new struct soap(), [](struct soap* soap)
-    {
-        soap_destroy(soap);
-        soap_end(soap);
-        soap_done(soap);
-        delete soap;
-    });
+        {
+            soap_destroy(soap);
+            soap_end(soap);
+            soap_done(soap);
+            delete soap;
+        });
 
     soap_init(soap.get());
     soap_set_imode(soap.get(), SOAP_C_UTFSTRING);
@@ -56,17 +56,17 @@ std::thread* CreateSoapThread(const std::string& host, uint16 port)
     TC_LOG_INFO("network.soap", "Bound to http://{}:{}", host, port);
 
     return new std::thread([soap = std::move(soap)]
-    {
-        while (!World::IsStopped())
         {
-            if (!soap_valid_socket(soap_accept(soap.get())))
-                continue;   // ran into an accept timeout
+            while (!World::IsStopped())
+            {
+                if (!soap_valid_socket(soap_accept(soap.get())))
+                    continue;   // ran into an accept timeout
 
-            struct soap* thread_soap = soap_copy(soap.get());// make a safe copy
-            TC_LOG_DEBUG("network.soap", "Accepted connection from IP={}", Trinity::Net::make_address_v4(thread_soap->ip).to_string());
-            process_message(thread_soap);
-        }
-    });
+                struct soap* thread_soap = soap_copy(soap.get());// make a safe copy
+                TC_LOG_DEBUG("network.soap", "Accepted connection from IP={}", Trinity::Net::make_address_v4(thread_soap->ip).to_string());
+                process_message(thread_soap);
+            }
+        });
 }
 
 void process_message(struct soap* soap_message)
@@ -151,7 +151,7 @@ void SOAPCommand::commandFinished(void* soapconnection, bool success)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct Namespace namespaces[] =
-{   { "SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/", nullptr, nullptr }, // must be first
+{ { "SOAP-ENV", "http://schemas.xmlsoap.org/soap/envelope/", nullptr, nullptr }, // must be first
     { "SOAP-ENC", "http://schemas.xmlsoap.org/soap/encoding/", nullptr, nullptr }, // must be second
     { "xsi", "http://www.w3.org/1999/XMLSchema-instance", "http://www.w3.org/*/XMLSchema-instance", nullptr },
     { "xsd", "http://www.w3.org/1999/XMLSchema",          "http://www.w3.org/*/XMLSchema", nullptr },

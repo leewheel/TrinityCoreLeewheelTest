@@ -64,7 +64,7 @@ enum Misc
 {
     WEAPON_KIRTONOS_STAFF             = 11365,
     POINT_KIRTONOS_LAND               = 13,
-    KIRTONOS_PATH                     = 840488
+    KIRTONOS_PATH                     = 105061
 };
 
 Position const PosMove[2] =
@@ -128,8 +128,7 @@ class boss_kirtonos_the_herald : public CreatureScript
                 events.ScheduleEvent(INTRO_1, 500ms);
                 me->SetDisableGravity(true);
                 me->SetReactState(REACT_PASSIVE);
-                me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
-                me->SetUninteractible(true);
+                me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
                 Talk(EMOTE_SUMMONED);
             }
 
@@ -179,8 +178,7 @@ class boss_kirtonos_the_herald : public CreatureScript
                             case INTRO_5:
                                 me->HandleEmoteCommand(EMOTE_ONESHOT_ROAR);
                                 me->SetVirtualItem(0, uint32(WEAPON_KIRTONOS_STAFF));
-                                me->SetUninteractible(false);
-                                me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+                                me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
                                 me->SetReactState(REACT_AGGRESSIVE);
                                 events.ScheduleEvent(INTRO_6, 5s);
                                 break;
@@ -252,6 +250,8 @@ class boss_kirtonos_the_herald : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
         };
 

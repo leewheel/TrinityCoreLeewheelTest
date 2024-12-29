@@ -239,6 +239,8 @@ struct boss_garfrost : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -248,6 +250,8 @@ private:
 // 68786, 70336 - Permafrost
 class spell_garfrost_permafrost : public SpellScript
 {
+    PrepareSpellScript(spell_garfrost_permafrost);
+
 public:
     spell_garfrost_permafrost()
     {
@@ -270,7 +274,7 @@ private:
             {
                 for (std::list<GameObject*>::const_iterator itr = blockList.begin(); itr != blockList.end(); ++itr)
                 {
-                    if (!(*itr)->IsInvisibleDueToDespawn(target))
+                    if (!(*itr)->IsInvisibleDueToDespawn())
                     {
                         if ((*itr)->IsInBetween(caster, target, 4.0f))
                         {

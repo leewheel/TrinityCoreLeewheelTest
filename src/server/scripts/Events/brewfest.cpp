@@ -45,6 +45,8 @@ enum RamBlaBla
 // 42924 - Giddyup!
 class spell_brewfest_giddyup : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_giddyup);
+
     void OnChange(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
@@ -103,6 +105,8 @@ class spell_brewfest_giddyup : public AuraScript
 // 42994 - Ram - Gallop
 class spell_brewfest_ram : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_ram);
+
     void OnPeriodic(AuraEffect const* aurEff)
     {
         Unit* target = GetTarget();
@@ -154,6 +158,8 @@ class spell_brewfest_ram : public AuraScript
 // 43052 - Ram Fatigue
 class spell_brewfest_ram_fatigue : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_ram_fatigue);
+
     void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
@@ -179,6 +185,8 @@ class spell_brewfest_ram_fatigue : public AuraScript
 // 43450 - Brewfest - apple trap - friendly DND
 class spell_brewfest_apple_trap : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_apple_trap);
+
     void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         GetTarget()->RemoveAura(SPELL_RAM_FATIGUE);
@@ -193,6 +201,8 @@ class spell_brewfest_apple_trap : public AuraScript
 // 43332 - Exhausted Ram
 class spell_brewfest_exhausted_ram : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_exhausted_ram);
+
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
@@ -208,12 +218,14 @@ class spell_brewfest_exhausted_ram : public AuraScript
 // 43714 - Brewfest - Relay Race - Intro - Force - Player to throw- DND
 class spell_brewfest_relay_race_intro_force_player_to_throw : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_relay_race_intro_force_player_to_throw);
+
     void HandleForceCast(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
         // All this spells trigger a spell that requires reagents; if the
         // triggered spell is cast as "triggered", reagents are not consumed
-        GetHitUnit()->CastSpell(nullptr, GetEffectInfo().TriggerSpell, TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST);
+        GetHitUnit()->CastSpell(nullptr, GetEffectInfo().TriggerSpell, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST));
     }
 
     void Register() override
@@ -225,6 +237,8 @@ class spell_brewfest_relay_race_intro_force_player_to_throw : public SpellScript
 // 43755 - Brewfest - Daily - Relay Race - Player - Increase Mount Duration - DND
 class spell_brewfest_relay_race_turn_in : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_relay_race_turn_in);
+
     void HandleDummy(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
@@ -245,6 +259,8 @@ class spell_brewfest_relay_race_turn_in : public SpellScript
 // 43876 - Dismount Ram
 class spell_brewfest_dismount_ram : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_dismount_ram);
+
     void HandleScript(SpellEffIndex /*effIndex*/)
     {
         GetCaster()->RemoveAura(SPELL_RENTAL_RACING_RAM);
@@ -297,6 +313,8 @@ enum RamBlub
 // 43262 Brewfest  - Barker Bunny 4
 class spell_brewfest_barker_bunny : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_barker_bunny);
+
     bool Load() override
     {
         return GetUnitOwner()->GetTypeId() == TYPEID_PLAYER;
@@ -348,6 +366,8 @@ enum BrewfestMountTransformation
 // 52845 - Brewfest Mount Transformation (Faction Swap)
 class spell_brewfest_mount_transformation : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_mount_transformation);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo(
@@ -431,6 +451,8 @@ enum WildWinterPilsner
 // 50098 - The Beast Within
 class spell_brewfest_botm_the_beast_within : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_botm_the_beast_within);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_UNLEASH_THE_BEAST });
@@ -455,6 +477,8 @@ enum IzzardsEverFlavor
 // 49864 - Gassy
 class spell_brewfest_botm_gassy : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_botm_gassy);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_BELCH_BREW_BELCH_VISUAL });
@@ -479,6 +503,8 @@ enum MetoksBubbleBock
 // 49822 - Bloated
 class spell_brewfest_botm_bloated : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_botm_bloated);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_BUBBLE_BREW_TRIGGER_MISSILE });
@@ -503,6 +529,8 @@ enum BlackrockLager
 // 49738 - Internal Combustion
 class spell_brewfest_botm_internal_combustion : public AuraScript
 {
+    PrepareAuraScript(spell_brewfest_botm_internal_combustion);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_BELCH_FIRE_VISUAL });
@@ -527,6 +555,8 @@ enum StranglethornBrew
 // 49962 - Jungle Madness!
 class spell_brewfest_botm_jungle_madness : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_botm_jungle_madness);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_JUNGLE_BREW_VISION_EFFECT });
@@ -552,6 +582,8 @@ enum BinaryBrew
 // 50243 - Teach Language
 class spell_brewfest_botm_teach_language : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_botm_teach_language);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_LEARN_GNOMISH_BINARY, SPELL_LEARN_GOBLIN_BINARY });
@@ -577,6 +609,8 @@ enum CreateEmptyBrewBottle
 // 42254, 42255, 42256, 42257, 42258, 42259, 42260, 42261, 42263, 42264, 43959, 43961 - Weak Alcohol
 class spell_brewfest_botm_weak_alcohol : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_botm_weak_alcohol);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BOTM_CREATE_EMPTY_BREW_BOTTLE });
@@ -602,6 +636,8 @@ enum EmptyBottleThrow
 // 51694 - BOTM - Empty Bottle Throw - Resolve
 class spell_brewfest_botm_empty_bottle_throw_resolve : public SpellScript
 {
+    PrepareSpellScript(spell_brewfest_botm_empty_bottle_throw_resolve);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(

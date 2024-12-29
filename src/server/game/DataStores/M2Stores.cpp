@@ -21,7 +21,6 @@
 #include "Log.h"
 #include "M2Structure.h"
 #include "Timer.h"
-#include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
 #include <G3D/Vector4.h>
 #include <fstream>
@@ -192,17 +191,19 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
             continue;
 
         // Get file size
-        std::streamoff fileSize = boost::filesystem::file_size(filename);
+        m2file.seekg(0, std::ios::end);
+        std::streamoff fileSize = m2file.tellg();
 
         // Reject if not at least the size of the header
         if (static_cast<uint32>(fileSize) < sizeof(M2Header) + 4)
         {
-            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File is smaller than header size", filename.string());
+            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File is smaller than header size", filename.string().c_str());
             m2file.close();
             continue;
         }
 
         // Read 4 bytes (signature)
+        m2file.seekg(0, std::ios::beg);
         char fileCheck[5];
         m2file.read(fileCheck, 4);
         fileCheck[4] = '\0';
@@ -210,7 +211,7 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
         // Check file has correct magic (MD21)
         if (strcmp(fileCheck, "MD21"))
         {
-            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File identifier not found.", filename.string());
+            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File identifier not found.", filename.string().c_str());
             m2file.close();
             continue;
         }
@@ -241,7 +242,7 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
 
         if (!fileValid)
         {
-            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File is smaller than header size.", filename.string());
+            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. File is smaller than header size.", filename.string().c_str());
             continue;
         }
 
@@ -250,14 +251,14 @@ TC_GAME_API void LoadM2Cameras(std::string const& dataPath)
 
         if (m2start + header->ofsCameras + sizeof(M2Camera) > static_cast<uint32>(fileSize))
         {
-            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. Camera references position beyond file end", filename.string());
+            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. Camera references position beyond file end", filename.string().c_str());
             continue;
         }
 
         // Get camera(s) - Main header, then dump them.
         M2Camera const* cam = reinterpret_cast<M2Camera const*>(buffer.data() + m2start + header->ofsCameras);
         if (!readCamera(cam, fileSize - m2start, header, cameraEntry))
-            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. Camera references position beyond file end", filename.string());
+            TC_LOG_ERROR("server.loading", "Camera file {} is damaged. Camera references position beyond file end", filename.string().c_str());
     }
 
     TC_LOG_INFO("server.loading", ">> Loaded {} cinematic waypoint sets in {} ms", sFlyByCameraStore.size(), GetMSTimeDiffToNow(oldMSTime));

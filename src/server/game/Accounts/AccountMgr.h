@@ -19,7 +19,6 @@
 #define _ACCMGR_H
 
 #include "RBAC.h"
-#include <functional>
 
 enum class AccountOpResult : uint8
 {
@@ -65,7 +64,6 @@ class TC_GAME_API AccountMgr
         static AccountOpResult ChangePassword(uint32 accountId, std::string newPassword);
         static AccountOpResult ChangeEmail(uint32 accountId, std::string newEmail);
         static AccountOpResult ChangeRegEmail(uint32 accountId, std::string newEmail);
-        static bool CheckPassword(std::string username, std::string password);
         static bool CheckPassword(uint32 accountId, std::string password);
         static bool CheckEmail(uint32 accountId, std::string newEmail);
 

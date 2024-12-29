@@ -30,13 +30,19 @@ struct PetSpell
     PetSpellType type;
 };
 
+enum PetStableinfo
+{
+    PET_STABLE_ACTIVE = 1,
+    PET_STABLE_INACTIVE = 2
+};
+
 typedef std::unordered_map<uint32, PetSpell> PetSpellMap;
 typedef std::vector<uint32> AutoSpellList;
 
 class Player;
 class PetAura;
 
-class TC_GAME_API Pet final : public Guardian
+class TC_GAME_API Pet : public Guardian
 {
     public:
         explicit Pet(Player* owner, PetType type = MAX_PET_TYPE);
@@ -46,7 +52,7 @@ class TC_GAME_API Pet final : public Guardian
         void RemoveFromWorld() override;
 
         float GetNativeObjectScale() const override;
-        void SetDisplayId(uint32 modelId, bool setNative = false) override;
+        void SetDisplayId(uint32 modelId, float displayScale = 1.f) override;
 
         PetType getPetType() const { return m_petType; }
         void setPetType(PetType type) { m_petType = type; }
@@ -63,7 +69,7 @@ class TC_GAME_API Pet final : public Guardian
         bool LoadPetFromDB(Player* owner, uint32 petEntry, uint32 petnumber, bool current, Optional<PetSaveMode> forcedSlot = {});
         bool IsLoading() const override { return m_loading;}
         void SavePetToDB(PetSaveMode mode);
-        void FillPetInfo(PetStable::PetInfo* petInfo, Optional<ReactStates> forcedReactState = {}) const;
+        void FillPetInfo(PetStable::PetInfo* petInfo) const;
         void Remove(PetSaveMode mode, bool returnreagent = false);
         static void DeleteFromDB(uint32 petNumber);
 
@@ -81,8 +87,14 @@ class TC_GAME_API Pet final : public Guardian
 
         void GivePetXP(uint32 xp);
         void GivePetLevel(uint8 level);
-        void SetPetExperience(uint32 xp) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::PetExperience), xp); }
-        void SetPetNextLevelExperience(uint32 xp) { SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::PetNextLevelExperience), xp); }
+        void SetPetExperience(uint32 xp) {
+            SetUInt32Value(UF::UNIT_FIELD_PETEXPERIENCE, xp);
+            SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::PetExperience), xp);
+        }
+        void SetPetNextLevelExperience(uint32 xp) {
+            SetUInt32Value(UF::UNIT_FIELD_PETNEXTLEVELXP, xp);
+            SetUpdateFieldValue(m_values.ModifyValue(&Unit::m_unitData).ModifyValue(&UF::UnitData::PetNextLevelExperience), xp);
+        }
         void SynchronizeLevelWithOwner();
         bool HaveInDiet(ItemTemplate const* item) const;
         void SetDuration(int32 dur) { m_duration = dur; }
@@ -150,6 +162,7 @@ class TC_GAME_API Pet final : public Guardian
         PetType m_petType;
         int32   m_duration;                                 // time until unsummon (used mostly for summoned guardians and not used for controlled pets)
         bool    m_loading;
+        uint32  m_focusRegenTimer;
         uint32  m_groupUpdateMask;
 
         std::unique_ptr<DeclinedName> m_declinedname;

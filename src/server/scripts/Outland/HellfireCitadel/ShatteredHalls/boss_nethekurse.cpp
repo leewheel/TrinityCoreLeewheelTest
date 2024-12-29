@@ -111,7 +111,6 @@ class boss_grand_warlock_nethekurse : public CreatureScript
             {
                 _Reset();
                 me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
-                me->SetCanMelee(true);
 
                 Initialize();
             }
@@ -274,10 +273,9 @@ class boss_grand_warlock_nethekurse : public CreatureScript
                         DeathCoil_Timer -= diff;
 
                     if (!HealthAbovePct(20))
-                    {
                         Phase = true;
-                        me->SetCanMelee(false);
-                    }
+
+                    DoMeleeAttackIfReady();
                 }
             }
 
@@ -355,6 +353,8 @@ class npc_fel_orc_convert : public CreatureScript
                     DoCastVictim(SPELL_HEMORRHAGE);
                     events.ScheduleEvent(EVENT_HEMORRHAGE, 15s);
                 }
+
+                DoMeleeAttackIfReady();
             }
 
             private:

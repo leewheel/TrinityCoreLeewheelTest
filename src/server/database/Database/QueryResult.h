@@ -35,8 +35,6 @@ class TC_DATABASE_API ResultSet
         Field* Fetch() const { return _currentRow; }
         Field const& operator[](std::size_t index) const;
 
-        QueryResultFieldMetadata const& GetFieldMetadata(std::size_t index) const;
-
     protected:
         std::vector<QueryResultFieldMetadata> _fieldMetadata;
         uint64 _rowCount;
@@ -64,8 +62,6 @@ class TC_DATABASE_API PreparedResultSet
 
         Field* Fetch() const;
         Field const& operator[](std::size_t index) const;
-
-        QueryResultFieldMetadata const& GetFieldMetadata(std::size_t index) const;
 
     protected:
         std::vector<QueryResultFieldMetadata> m_fieldMetadata;

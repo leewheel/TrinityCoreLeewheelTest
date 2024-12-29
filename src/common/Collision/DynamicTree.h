@@ -19,7 +19,6 @@
 #define _DYNTREE_H
 
 #include "Define.h"
-#include "Optional.h"
 
 namespace G3D
 {
@@ -50,7 +49,8 @@ public:
     bool getObjectHitPos(G3D::Vector3 const& startPos, G3D::Vector3 const& endPos, G3D::Vector3& resultHitPos, float modifyDist, PhaseShift const& phaseShift) const;
 
     float getHeight(float x, float y, float z, float maxSearchDist, PhaseShift const& phaseShift) const;
-    bool getAreaAndLiquidData(float x, float y, float z, PhaseShift const& phaseShift, Optional<uint8> reqLiquidType, VMAP::AreaAndLiquidData& data) const;
+    bool getAreaInfo(float x, float y, float& z, PhaseShift const& phaseShift, uint32& flags, int32& adtId, int32& rootId, int32& groupId) const;
+    void getAreaAndLiquidData(float x, float y, float z, PhaseShift const& phaseShift, uint8 reqLiquidType, VMAP::AreaAndLiquidData& data) const;
 
     void insert(GameObjectModel const&);
     void remove(GameObjectModel const&);

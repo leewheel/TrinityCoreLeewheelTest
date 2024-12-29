@@ -18,6 +18,7 @@
 #ifndef __EVENTPROCESSOR_H
 #define __EVENTPROCESSOR_H
 
+#include "advstd.h"
 #include "Define.h"
 #include "Duration.h"
 #include "Random.h"
@@ -88,7 +89,7 @@ private:
 };
 
 template<typename T>
-using is_lambda_event = std::enable_if_t<!std::is_base_of_v<BasicEvent, std::remove_pointer_t<std::remove_cvref_t<T>>>>;
+using is_lambda_event = std::enable_if_t<!std::is_base_of_v<BasicEvent, std::remove_pointer_t<advstd::remove_cvref_t<T>>>>;
 
 class TC_COMMON_API EventProcessor
 {

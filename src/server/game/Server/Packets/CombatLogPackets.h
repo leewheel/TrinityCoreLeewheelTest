@@ -26,13 +26,6 @@ namespace WorldPackets
 {
     namespace CombatLog
     {
-        struct CombatWorldTextViewerInfo
-        {
-            ObjectGuid ViewerGUID;
-            Optional<uint8> ColorType;
-            Optional<uint8> ScaleType;
-        };
-
         class SpellNonMeleeDamageLog final : public CombatLogServerPacket
         {
         public:
@@ -102,7 +95,6 @@ namespace WorldPackets
             Optional<float> CritRollMade;
             Optional<float> CritRollNeeded;
             Optional<Spells::ContentTuningParams> ContentTuning;
-            std::vector<Spells::SpellSupportInfo> Supporters;
         };
 
         class SpellPeriodicAuraLog final : public CombatLogServerPacket
@@ -126,7 +118,6 @@ namespace WorldPackets
                 bool Crit                 = false;
                 Optional<PeriodicalAuraLogEffectDebugInfo> DebugInfo;
                 Optional<Spells::ContentTuningParams> ContentTuning;
-                std::vector<Spells::SpellSupportInfo> Supporters;
             };
 
             SpellPeriodicAuraLog() : CombatLogServerPacket(SMSG_SPELL_PERIODIC_AURA_LOG, 16 + 16 + 4 + 4 + 1) { }
@@ -185,7 +176,7 @@ namespace WorldPackets
             ObjectGuid CasterGUID;
             ObjectGuid TargetGUID;
             int32 SpellID = 0;
-            int8 Type = 0;
+            int32 Type = 0;
             int32 Amount = 0;
             int32 OverEnergize = 0;
         };
@@ -293,8 +284,8 @@ namespace WorldPackets
             float State7 = 0.0f;
             float State8 = 0.0f;
             float State9 = 0.0f;
-            std::array<float, 5> State10 = {};
-            std::array<float, 5> State11 = {};
+            float State10 = 0.0f;
+            float State11 = 0.0f;
             uint32 State12 = 0;
         };
 
@@ -337,7 +328,6 @@ namespace WorldPackets
             int32 Absorbed = 0;
             int32 OriginalDamage = 0;
             bool Unk = false;
-            std::vector<Spells::SpellSupportInfo> Supporters;
         };
 
         class SpellHealAbsorbLog final : public ServerPacket

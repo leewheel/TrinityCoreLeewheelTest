@@ -37,15 +37,15 @@ WorldPacket const* WorldPackets::ClientConfig::ClientCacheVersion::Write()
 void WorldPackets::ClientConfig::RequestAccountData::Read()
 {
     _worldPacket >> PlayerGuid;
-    _worldPacket >> DataType;
+    DataType = _worldPacket.ReadBits(4);
 }
 
 WorldPacket const* WorldPackets::ClientConfig::UpdateAccountData::Write()
 {
+    _worldPacket << Player;
     _worldPacket << Time;
     _worldPacket << uint32(Size);
-    _worldPacket << Player;
-    _worldPacket << int32(DataType);
+    _worldPacket.WriteBits(DataType, 4);
     _worldPacket << uint32(CompressedData.size());
     _worldPacket.append(CompressedData);
 
@@ -54,10 +54,10 @@ WorldPacket const* WorldPackets::ClientConfig::UpdateAccountData::Write()
 
 void WorldPackets::ClientConfig::UserClientUpdateAccountData::Read()
 {
+    _worldPacket >> PlayerGuid;
     _worldPacket >> Time;
     _worldPacket >> Size;
-    _worldPacket >> PlayerGuid;
-    _worldPacket >> DataType;
+    DataType = _worldPacket.ReadBits(4);
 
     uint32 compressedSize = _worldPacket.read<uint32>();
     if (compressedSize > _worldPacket.size() - _worldPacket.rpos())

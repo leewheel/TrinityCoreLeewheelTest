@@ -19,7 +19,6 @@
 #include "Containers.h"
 #include "IntermediateValues.h"
 #include "MapTree.h"
-#include "Memory.h"
 #include "MMapDefines.h"
 #include "ModelInstance.h"
 #include "PathCommon.h"
@@ -61,6 +60,7 @@ namespace MMAP
         bool debugOutput, bool bigBaseUnit, int mapid, char const* offMeshFilePath, unsigned int threads) :
         m_terrainBuilder     (nullptr),
         m_debugOutput        (debugOutput),
+        m_offMeshFilePath    (offMeshFilePath),
         m_threads            (threads),
         m_skipContinents     (skipContinents),
         m_skipJunkMaps       (skipJunkMaps),
@@ -83,8 +83,6 @@ namespace MMAP
         m_threads = std::max(1u, m_threads);
 
         discoverTiles();
-
-        ParseOffMeshConnectionsFile(offMeshFilePath);
     }
 
     /**************************************************************************/
@@ -192,41 +190,6 @@ namespace MMAP
         {
             if (!shouldSkipMap(it->m_mapId))
                 m_totalTiles += it->m_tiles->size();
-        }
-    }
-
-    /**************************************************************************/
-    void MapBuilder::ParseOffMeshConnectionsFile(char const* offMeshFilePath)
-    {
-        // no meshfile input given?
-        if (offMeshFilePath == nullptr)
-            return;
-
-        auto fp = Trinity::make_unique_ptr_with_deleter<&::fclose>(fopen(offMeshFilePath, "rb"));
-        if (!fp)
-        {
-            printf(" loadOffMeshConnections:: input file %s not found!\n", offMeshFilePath);
-            return;
-        }
-
-        char buf[512] = { };
-        while (fgets(buf, 512, fp.get()))
-        {
-            OffMeshData offMesh;
-            int32 scanned = sscanf(buf, "%u %u,%u (%f %f %f) (%f %f %f) %f %hhu %hu", &offMesh.MapId, &offMesh.TileX, &offMesh.TileY,
-                &offMesh.From[0], &offMesh.From[1], &offMesh.From[2], &offMesh.To[0], &offMesh.To[1], &offMesh.To[2],
-                &offMesh.Radius, &offMesh.AreaId, &offMesh.Flags);
-            if (scanned < 10)
-                continue;
-
-            offMesh.Bidirectional = true;
-            if (scanned < 12)
-                offMesh.Flags = NAV_GROUND;
-
-            if (scanned < 11)
-                offMesh.AreaId = NAV_AREA_GROUND;
-
-            m_offMeshConnections.push_back(offMesh);
         }
     }
 
@@ -397,15 +360,16 @@ namespace MMAP
         }
 
         float* verts = new float[verticesCount];
+        int* inds = new int[indicesCount];
 
         if (fread(verts, sizeof(float), verticesCount, file) != verticesCount)
         {
             fclose(file);
             delete[] verts;
+            delete[] inds;
             return;
         }
 
-        int* inds = new int[indicesCount];
         if (fread(inds, sizeof(int), indicesCount, file) != indicesCount)
         {
             fclose(file);
@@ -540,7 +504,7 @@ namespace MMAP
         float bmin[3], bmax[3];
         m_mapBuilder->getTileBounds(tileX, tileY, allVerts.getCArray(), allVerts.size() / 3, bmin, bmax);
 
-        m_terrainBuilder->loadOffMeshConnections(mapID, tileX, tileY, meshData, m_mapBuilder->m_offMeshConnections);
+        m_terrainBuilder->loadOffMeshConnections(mapID, tileX, tileY, meshData, m_mapBuilder->m_offMeshFilePath);
 
         // build navmesh tile
         buildMoveMapTile(mapID, tileX, tileY, meshData, bmin, bmax, navMesh);
@@ -614,14 +578,17 @@ namespace MMAP
             return;
         }
 
-        std::string fileName = Trinity::StringFormat("mmaps/{:04}.mmap", mapID);
+        char fileName[25];
+        sprintf(fileName, "mmaps/%04u.mmap", mapID);
 
-        FILE* file = fopen(fileName.c_str(), "wb");
+        FILE* file = fopen(fileName, "wb");
         if (!file)
         {
             dtFreeNavMesh(navMesh);
             navMesh = nullptr;
-            perror(Trinity::StringFormat("[Map {:04}] Failed to open {} for writing!\n", mapID, fileName).c_str());
+            char message[1024];
+            sprintf(message, "[Map %04u] Failed to open %s for writing!\n", mapID, fileName);
+            perror(message);
             return;
         }
 
@@ -925,11 +892,14 @@ namespace MMAP
             }
 
             // file output
-            std::string fileName = Trinity::StringFormat("mmaps/{:04}{:02}{:02}.mmtile", mapID, tileY, tileX);
-            FILE* file = fopen(fileName.c_str(), "wb");
+            char fileName[255];
+            sprintf(fileName, "mmaps/%04u%02i%02i.mmtile", mapID, tileY, tileX);
+            FILE* file = fopen(fileName, "wb");
             if (!file)
             {
-                perror(Trinity::StringFormat("[Map {:04}] Failed to open {} for writing!\n", mapID, fileName).c_str());
+                char message[1024];
+                sprintf(message, "[Map %04u] Failed to open %s for writing!\n", mapID, fileName);
+                perror(message);
                 navMesh->removeTile(tileRef, nullptr, nullptr);
                 break;
             }
@@ -1066,8 +1036,9 @@ namespace MMAP
     /**************************************************************************/
     bool TileBuilder::shouldSkipTile(uint32 mapID, uint32 tileX, uint32 tileY) const
     {
-        std::string fileName = Trinity::StringFormat("mmaps/{:04}{:02}{:02}.mmtile", mapID, tileY, tileX);
-        FILE* file = fopen(fileName.c_str(), "rb");
+        char fileName[255];
+        sprintf(fileName, "mmaps/%04u%02i%02i.mmtile", mapID, tileY, tileX);
+        FILE* file = fopen(fileName, "rb");
         if (!file)
             return false;
 

@@ -66,7 +66,7 @@ public:
 
     void insert(const T& value)
     {
-        G3D::AABox bounds = G3D::AABox::empty();
+        G3D::AABox bounds;
         BoundsFunc::getBounds(value, bounds);
         Cell low = Cell::ComputeCell(bounds.low().x, bounds.low().y);
         Cell high = Cell::ComputeCell(bounds.high().x, bounds.high().y);

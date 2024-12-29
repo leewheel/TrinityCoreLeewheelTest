@@ -53,7 +53,8 @@ struct boss_lavanthor : public BossAI
         if (!UpdateVictim())
             return;
 
-        scheduler.Update(diff);
+        scheduler.Update(diff,
+            std::bind(&BossAI::DoMeleeAttackIfReady, this));
     }
 
     void ScheduleTasks() override

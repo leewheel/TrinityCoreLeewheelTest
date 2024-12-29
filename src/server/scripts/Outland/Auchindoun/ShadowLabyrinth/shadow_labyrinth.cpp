@@ -27,6 +27,8 @@ enum Spells
 // 33493 - Mark of Malice
 class spell_mark_of_malice : public AuraScript
 {
+    PrepareAuraScript(spell_mark_of_malice);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_MARK_OF_MALICE_TRIGGERED });

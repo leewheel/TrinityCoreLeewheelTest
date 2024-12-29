@@ -225,7 +225,7 @@ void TransportMgr::LoadTransportTemplates()
 
         if (!sTaxiPathStore.LookupEntry(goInfo->moTransport.taxiPathID))
         {
-            TC_LOG_ERROR("sql.sql", "Transport {} (name: {}) has an invalid path specified in `gameobject_template`.`Data0` ({}) field, skipped.", entry, goInfo->name.c_str(), goInfo->moTransport.taxiPathID);
+            TC_LOG_ERROR("sql.sql", "Transport {} (name: {}) has an invalid path specified in `gameobject_template`.`Data0` ({}) field, skipped.", entry, goInfo->name, goInfo->moTransport.taxiPathID);
             continue;
         }
 
@@ -241,7 +241,7 @@ void TransportMgr::LoadTransportTemplates()
 
         if (!hasValidMaps)
         {
-            TC_LOG_ERROR("sql.sql", "Transport {} (name: {}) is trying to spawn on a map which does not exist, skipped.", entry, goInfo->name.c_str());
+            TC_LOG_ERROR("sql.sql", "Transport {} (name: {}) is trying to spawn on a map which does not exist, skipped.", entry, goInfo->name);
             _transportTemplates.erase(entry);
             continue;
         }
@@ -249,7 +249,8 @@ void TransportMgr::LoadTransportTemplates()
         // paths are generated per template, saves us from generating it again in case of instanced transports
         TransportTemplate& transport = _transportTemplates[entry];
 
-        GeneratePath(goInfo, &transport);
+        if (!GeneratePath(goInfo, &transport))
+            _transportTemplates.erase(entry);
 
         ++count;
     } while (result->NextRow());
@@ -429,14 +430,14 @@ static void InitializeLeg(TransportPathLeg* leg, std::vector<TransportPathEvent>
                 if ((*eventPointItr)->ArrivalEventID)
                 {
                     TransportPathEvent& event = outEvents->emplace_back();
-                    event.Timestamp = totalTime + splineTime + leg->Duration + delaySum;
+                    event.Timestamp = totalTime + splineTime + leg->Duration;
                     event.EventId = (*eventPointItr)->ArrivalEventID;
                 }
 
                 if ((*eventPointItr)->DepartureEventID)
                 {
                     TransportPathEvent& event = outEvents->emplace_back();
-                    event.Timestamp = totalTime + splineTime + leg->Duration + delaySum + (pausePointItr == eventPointItr ? (*eventPointItr)->Delay * IN_MILLISECONDS : 0);
+                    event.Timestamp = totalTime + splineTime + leg->Duration + (pausePointItr == eventPointItr ? (*eventPointItr)->Delay * IN_MILLISECONDS : 0);
                     event.EventId = (*eventPointItr)->DepartureEventID;
                 }
             }
@@ -475,14 +476,14 @@ static void InitializeLeg(TransportPathLeg* leg, std::vector<TransportPathEvent>
         if ((*eventPointItr)->ArrivalEventID)
         {
             TransportPathEvent& event = outEvents->emplace_back();
-            event.Timestamp = totalTime + splineTime + leg->Duration + delaySum;
+            event.Timestamp = totalTime + splineTime + leg->Duration;
             event.EventId = (*eventPointItr)->ArrivalEventID;
         }
 
         if ((*eventPointItr)->DepartureEventID)
         {
             TransportPathEvent& event = outEvents->emplace_back();
-            event.Timestamp = totalTime + splineTime + leg->Duration + delaySum;
+            event.Timestamp = totalTime + splineTime + leg->Duration;
             event.EventId = (*eventPointItr)->DepartureEventID;
         }
     }
@@ -509,7 +510,7 @@ static void InitializeLeg(TransportPathLeg* leg, std::vector<TransportPathEvent>
         leg->Segments.resize(pauseItr + 1);
 }
 
-void TransportMgr::GeneratePath(GameObjectTemplate const* goInfo, TransportTemplate* transport)
+bool TransportMgr::GeneratePath(GameObjectTemplate const* goInfo, TransportTemplate* transport)
 {
     uint32 pathId = goInfo->moTransport.taxiPathID;
     TaxiPathNodeList const& path = sTaxiPathNodesByPath[pathId];
@@ -553,11 +554,36 @@ void TransportMgr::GeneratePath(GameObjectTemplate const* goInfo, TransportTempl
     if (!leg->Spline)
         InitializeLeg(leg, &transport->Events, pathPoints, pauses, events, goInfo, totalTime);
 
+    //TODOFROST check instancable logic
+
     if (transport->MapIds.size() > 1)
+    {
         for (uint32 mapId : transport->MapIds)
-            ASSERT(!sMapStore.LookupEntry(mapId)->Instanceable());
+        {
+            const auto* mapEntry = sMapStore.LookupEntry(mapId);
+
+            if (!mapEntry)
+                return false;
+
+          /*  if (!mapEntry->Instanceable())
+                return false;*/
+        }
+
+        transport->InInstance = false;
+    }
+    else
+    {
+        if (!sMapStore.LookupEntry(*transport->MapIds.begin()))
+            return false;
+
+        //if (!sMapStore.LookupEntry(*transport->MapIds.begin())->Instanceable())
+        //    return false;
+
+        transport->InInstance = sMapStore.LookupEntry(*transport->MapIds.begin())->Instanceable();
+    }
 
     transport->TotalPathTime = totalTime;
+    return true;
 }
 
 void TransportMgr::AddPathNodeToTransport(uint32 transportEntry, uint32 timeSeg, TransportAnimationEntry const* node)
@@ -595,12 +621,6 @@ Transport* TransportMgr::CreateTransport(uint32 entry, Map* map, ObjectGuid::Low
         return nullptr;
     }
 
-    if (tInfo->MapIds.find(map->GetId()) == tInfo->MapIds.end())
-    {
-        TC_LOG_ERROR("entities.transport", "Transport {} attempted creation on map it has no path for {}!", entry, map->GetId());
-        return nullptr;
-    }
-
     Optional<Position> startingPosition = tInfo->ComputePosition(0, nullptr, nullptr);
     if (!startingPosition)
     {
@@ -612,6 +632,7 @@ Transport* TransportMgr::CreateTransport(uint32 entry, Map* map, ObjectGuid::Low
     Transport* trans = new Transport();
 
     // ...at first waypoint
+    uint32 mapId = tInfo->PathLegs.front().MapId;
     float x = startingPosition->GetPositionX();
     float y = startingPosition->GetPositionY();
     float z = startingPosition->GetPositionZ();
@@ -626,6 +647,16 @@ Transport* TransportMgr::CreateTransport(uint32 entry, Map* map, ObjectGuid::Low
     }
 
     PhasingHandler::InitDbPhaseShift(trans->GetPhaseShift(), phaseUseFlags, phaseId, phaseGroupId);
+
+    if (MapEntry const* mapEntry = sMapStore.LookupEntry(mapId))
+    {
+        if (mapEntry->Instanceable() != tInfo->InInstance)
+        {
+            TC_LOG_ERROR("entities.transport", "Transport {} (name: {}) attempted creation in instance map (id: {}) but it is not an instanced transport!", entry, trans->GetName(), mapId);
+            delete trans;
+            return nullptr;
+        }
+    }
 
     // use preset map for instances (need to know which instance)
     trans->SetMap(map);

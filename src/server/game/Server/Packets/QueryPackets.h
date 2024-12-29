@@ -67,14 +67,13 @@ namespace WorldPackets
             int32 CreatureType = 0;
             int32 CreatureFamily = 0;
             int32 Classification = 0;
-            uint32 PetSpellDataID = 0;
+            uint32 PetSpellDataId = 0;
             CreatureDisplayStats Display;
             float HpMulti = 0.0f;
             float EnergyMulti = 0.0f;
             bool Civilian = false;
             bool Leader = false;
             std::vector<int32> QuestItems;
-            std::vector<int32> QuestCurrencies;
             uint32 CreatureMovementInfoID = 0;
             int32 HealthScalingExpansion = 0;
             uint32 RequiredExpansion = 0;
@@ -99,6 +98,21 @@ namespace WorldPackets
             bool Allow = false;
             CreatureStats Stats;
             uint32 CreatureID = 0;
+        };
+
+        struct PlayerGuidLookupHint
+        {
+            Optional<uint32> VirtualRealmAddress; ///< current realm (?) (identifier made from the Index, BattleGroup and Region)
+            Optional<uint32> NativeRealmAddress; ///< original realm (?) (identifier made from the Index, BattleGroup and Region)
+        };
+
+        class QueryPlayerName final : public ClientPacket {
+        public:
+            QueryPlayerName(WorldPacket&& packet) : ClientPacket(CMSG_QUERY_PLAYER_NAME, std::move(packet)) {}
+
+            void Read() override;
+
+            ObjectGuid Player;
         };
 
         class QueryPlayerNames final : public ClientPacket
@@ -126,8 +140,6 @@ namespace WorldPackets
             uint8 Sex = GENDER_NONE;
             uint8 ClassID = CLASS_NONE;
             uint8 Level = 0;
-            uint8 Unused915 = 0;
-            int32 TimerunningSeasonID = 0;
             DeclinedName DeclinedNames;
         };
 
@@ -144,6 +156,18 @@ namespace WorldPackets
             uint8 Result = 0; // 0 - full packet, != 0 - only guid
             Optional<PlayerGuidLookupData> Data;
             Optional<NameCacheUnused920> Unused920;
+        };
+
+        class QueryPlayerNameResponse final : public ServerPacket
+        {
+        public:
+            QueryPlayerNameResponse() : ServerPacket(SMSG_QUERY_PLAYER_NAME_RESPONSE, 60) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Player;
+            uint8 Result = 0; // 0 - full packet, != 0 - only guid
+            PlayerGuidLookupData Data;
         };
 
         class QueryPlayerNamesResponse final : public ServerPacket
@@ -208,8 +232,8 @@ namespace WorldPackets
 
             uint32 TextID = 0;
             bool Allow = false;
-            std::array<float, MAX_NPC_TEXT_OPTIONS> Probabilities = { };
-            std::array<uint32, MAX_NPC_TEXT_OPTIONS> BroadcastTextID = { };
+            std::array<float, MAX_NPC_TEXT_OPTIONS> Probabilities;
+            std::array<uint32, MAX_NPC_TEXT_OPTIONS> BroadcastTextID;
         };
 
         class QueryGameObject final : public ClientPacket
@@ -231,7 +255,7 @@ namespace WorldPackets
             std::string UnkString;
             uint32 Type = 0;
             uint32 DisplayID = 0;
-            std::array<uint32, MAX_GAMEOBJECT_DATA> Data = { };
+            uint32 Data[MAX_GAMEOBJECT_DATA];
             float Size = 0.0f;
             std::vector<int32> QuestItems;
             uint32 ContentTuningId = 0;
@@ -324,7 +348,7 @@ namespace WorldPackets
             void Read() override;
 
             int32 MissingQuestCount = 0;
-            std::array<int32, 25> MissingQuestPOIs = { };
+            std::array<int32, 125> MissingQuestPOIs;
         };
 
         class QuestPOIQueryResponse final : public ServerPacket
@@ -437,11 +461,11 @@ namespace WorldPackets
             uint8 LookupState = 0;
             WorldPackets::Auth::VirtualRealmNameInfo NameInfo;
         };
-
-        ByteBuffer& operator<<(ByteBuffer& data, PlayerGuidLookupData const& lookupData);
     }
 }
 
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Query::PlayerGuidLookupHint const& lookupHint);
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Query::PlayerGuidLookupData const& lookupData);
 ByteBuffer& operator<<(ByteBuffer& data, QuestPOIData const& questPOIData);
 
 #endif // QueryPackets_h__

@@ -159,6 +159,8 @@ public:
                     DivineShield_Timer = 40000;
                 }
             } else DivineShield_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };

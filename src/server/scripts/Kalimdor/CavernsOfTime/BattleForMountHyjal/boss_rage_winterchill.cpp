@@ -38,8 +38,6 @@ enum Texts
     SAY_ONAGGRO                 = 4
 };
 
-static constexpr uint32 PATH_ESCORT_RAGE_WINTERCHILL = 142138;
-
 class boss_rage_winterchill : public CreatureScript
 {
 public:
@@ -79,13 +77,13 @@ public:
             Initialize();
 
             if (IsEvent)
-                instance->SetBossState(DATA_RAGEWINTERCHILL, NOT_STARTED);
+                instance->SetData(DATA_RAGEWINTERCHILLEVENT, NOT_STARTED);
         }
 
         void JustEngagedWith(Unit* /*who*/) override
         {
             if (IsEvent)
-                instance->SetBossState(DATA_RAGEWINTERCHILL, IN_PROGRESS);
+                instance->SetData(DATA_RAGEWINTERCHILLEVENT, IN_PROGRESS);
             Talk(SAY_ONAGGRO);
         }
 
@@ -108,7 +106,7 @@ public:
         {
             hyjal_trashAI::JustDied(killer);
             if (IsEvent)
-                instance->SetBossState(DATA_RAGEWINTERCHILL, DONE);
+                instance->SetData(DATA_RAGEWINTERCHILLEVENT, DONE);
             Talk(SAY_ONDEATH);
         }
 
@@ -121,8 +119,15 @@ public:
                 if (!go)
                 {
                     go = true;
-                    LoadPath(PATH_ESCORT_RAGE_WINTERCHILL);
-                    Start(false);
+                    AddWaypoint(0, 4896.08f,    -1576.35f,    1333.65f);
+                    AddWaypoint(1, 4898.68f,    -1615.02f,    1329.48f);
+                    AddWaypoint(2, 4907.12f,    -1667.08f,    1321.00f);
+                    AddWaypoint(3, 4963.18f,    -1699.35f,    1340.51f);
+                    AddWaypoint(4, 4989.16f,    -1716.67f,    1335.74f);
+                    AddWaypoint(5, 5026.27f,    -1736.89f,    1323.02f);
+                    AddWaypoint(6, 5037.77f,    -1770.56f,    1324.36f);
+                    AddWaypoint(7, 5067.23f,    -1789.95f,    1321.17f);
+                    Start(false, true);
                     SetDespawnAtEnd(false);
                 }
             }
@@ -153,8 +158,11 @@ public:
                 DoCast(SelectTarget(SelectTargetMethod::Random, 0, 40, true), SPELL_ICEBOLT);
                 IceboltTimer = 11000 + rand32() % 20000;
             } else IceboltTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
+
 };
 
 void AddSC_boss_rage_winterchill()

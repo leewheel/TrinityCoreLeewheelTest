@@ -23,15 +23,14 @@
  */
 
 #include "Define.h"
+#include <algorithm>
 
 namespace ByteConverter
 {
     template<size_t T>
     inline void convert(char *val)
     {
-        char tmp = *val;
-        *val = *(val + T - 1);
-        *(val + T - 1) = tmp;
+        std::swap(*val, *(val + T - 1));
         convert<T - 2>(val + 1);
     }
 

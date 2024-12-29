@@ -334,6 +334,8 @@ public:
 
                 SWPainTimer = 10000;
             } else SWPainTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -506,7 +508,6 @@ public:
         {
             Initialize();
             me->SetVisible(true);
-            me->SetCanMelee(true);
 
             boss_priestess_lackey_commonAI::Reset();
         }
@@ -530,7 +531,6 @@ public:
                     AddThreat(unit, 1000.0f);
 
                 InVanish = true;
-                me->SetCanMelee(false);
                 Vanish_Timer = 30000;
                 Wait_Timer = 10000;
             } else Vanish_Timer -= diff;
@@ -543,7 +543,6 @@ public:
                     DoCastVictim(SPELL_KIDNEY_SHOT, true);
                     me->SetVisible(true);       // ...? Hacklike
                     InVanish = false;
-                    me->SetCanMelee(true);
                 } else Wait_Timer -= diff;
             }
 
@@ -564,6 +563,9 @@ public:
                 DoCastVictim(SPELL_EVISCERATE);
                 Eviscerate_Timer = 4000;
             } else Eviscerate_Timer -= diff;
+
+            if (!InVanish)
+                DoMeleeAttackIfReady();
         }
     };
 };
@@ -666,6 +668,8 @@ public:
 
                 Fear_Timer = 10000;
             } else Fear_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -728,6 +732,8 @@ public:
                 DoCastVictim(SPELL_SNAP_KICK);
                 Snap_Kick_Timer  = 4500;
             } else Snap_Kick_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -859,6 +865,8 @@ public:
 
                 Blink_Timer = 8000;
             } else Blink_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -979,6 +987,8 @@ public:
                 DoCastVictim(SPELL_FRIGHTENING_SHOUT);
                 Frightening_Shout_Timer = 18000;
             } else Frightening_Shout_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -1078,6 +1088,8 @@ public:
                         Freezing_Trap_Timer = 15000;
                     }
                 } else Freezing_Trap_Timer -= diff;
+
+                DoMeleeAttackIfReady();
             }
             else
             {
@@ -1190,6 +1202,8 @@ public:
                 DoCast(me, SPELL_LESSER_HEALING_WAVE);
                 Healing_Wave_Timer = 5000;
             } else Healing_Wave_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -1290,6 +1304,8 @@ public:
                 DoCast(me, SPELL_HIGH_EXPLOSIVE_SHEEP);
                 High_Explosive_Sheep_Timer = 65000;
             } else High_Explosive_Sheep_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };

@@ -23,7 +23,6 @@ SDCategory: Trial of the Champion
 EndScriptData */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "InstanceScript.h"
 #include "MotionMaster.h"
 #include "ObjectAccessor.h"
@@ -133,6 +132,8 @@ class spell_eadric_radiance : public SpellScriptLoader
         spell_eadric_radiance() : SpellScriptLoader("spell_eadric_radiance") { }
         class spell_eadric_radiance_SpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_eadric_radiance_SpellScript);
+
             void FilterTargets(std::list<WorldObject*>& unitList)
             {
                 unitList.remove_if(OrientationCheck(GetCaster()));
@@ -249,6 +250,8 @@ public:
 
                 uiRadianceTimer = 16000;
             } else uiRadianceTimer -= uiDiff;
+
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -404,6 +407,8 @@ public:
 
                 bHealth = true;
             }
+
+            DoMeleeAttackIfReady();
         }
 
         void JustSummoned(Creature* summon) override
@@ -476,6 +481,8 @@ public:
                 }
                 uiShadowPastTimer = 5000;
             }else uiShadowPastTimer -= uiDiff;
+
+            DoMeleeAttackIfReady();
         }
 
         void JustDied(Unit* /*killer*/) override
@@ -540,13 +547,13 @@ public:
                     switch (uiType)
                     {
                         case 0:
-                            AddWaypoint(0, 712.14f, 628.42f, 411.88f, true);
+                            AddWaypoint(0, 712.14f, 628.42f, 411.88f);
                             break;
                         case 1:
-                            AddWaypoint(0, 742.44f, 650.29f, 411.79f, true);
+                            AddWaypoint(0, 742.44f, 650.29f, 411.79f);
                             break;
                         case 2:
-                            AddWaypoint(0, 783.33f, 615.29f, 411.84f, true);
+                            AddWaypoint(0, 783.33f, 615.29f, 411.84f);
                             break;
                     }
                     break;
@@ -554,13 +561,13 @@ public:
                     switch (uiType)
                     {
                         case 0:
-                            AddWaypoint(0, 713.12f, 632.97f, 411.90f, true);
+                            AddWaypoint(0, 713.12f, 632.97f, 411.90f);
                             break;
                         case 1:
-                            AddWaypoint(0, 746.73f, 650.24f, 411.56f, true);
+                            AddWaypoint(0, 746.73f, 650.24f, 411.56f);
                             break;
                         case 2:
-                            AddWaypoint(0, 781.32f, 610.54f, 411.82f, true);
+                            AddWaypoint(0, 781.32f, 610.54f, 411.82f);
                             break;
                     }
                     break;
@@ -568,20 +575,30 @@ public:
                     switch (uiType)
                     {
                         case 0:
-                            AddWaypoint(0, 715.06f, 637.07f, 411.91f, true);
+                            AddWaypoint(0, 715.06f, 637.07f, 411.91f);
                             break;
                         case 1:
-                            AddWaypoint(0, 750.72f, 650.20f, 411.77f, true);
+                            AddWaypoint(0, 750.72f, 650.20f, 411.77f);
                             break;
                         case 2:
-                            AddWaypoint(0, 779.77f, 607.03f, 411.81f, true);
+                            AddWaypoint(0, 779.77f, 607.03f, 411.81f);
                             break;
                     }
                     break;
             }
 
-            Start(false);
+            Start(false, true);
             uiWaypoint = uiType;
+        }
+
+        void UpdateAI(uint32 uiDiff) override
+        {
+            EscortAI::UpdateAI(uiDiff);
+
+            if (!UpdateVictim())
+                return;
+
+            DoMeleeAttackIfReady();
         }
 
         void JustDied(Unit* /*killer*/) override
@@ -633,6 +650,8 @@ class spell_paletress_summon_memory : public SpellScriptLoader
 
         class spell_paletress_summon_memory_SpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_paletress_summon_memory_SpellScript);
+
             bool Validate(SpellInfo const* /*spellInfo*/) override
             {
                 return ValidateSpellInfo(memorySpellId);

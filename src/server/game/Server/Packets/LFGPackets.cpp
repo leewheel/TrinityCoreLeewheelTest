@@ -17,27 +17,23 @@
 
 #include "LFGPackets.h"
 
-namespace WorldPackets::LFG
-{
-void DFJoin::Read()
+void WorldPackets::LFG::DFJoin::Read()
 {
     QueueAsGroup = _worldPacket.ReadBit();
-    bool hasPartyIndex = _worldPacket.ReadBit();
     Unknown = _worldPacket.ReadBit();
+    _worldPacket >> PartyIndex;
     _worldPacket >> Roles;
     Slots.resize(_worldPacket.read<uint32>());
-    if (hasPartyIndex)
-        _worldPacket >> PartyIndex.emplace();
     for (uint32& slot : Slots)
         _worldPacket >> slot;
 }
 
-void DFLeave::Read()
+void WorldPackets::LFG::DFLeave::Read()
 {
     _worldPacket >> Ticket;
 }
 
-void DFProposalResponse::Read()
+void WorldPackets::LFG::DFProposalResponse::Read()
 {
     _worldPacket >> Ticket;
     _worldPacket >> InstanceID;
@@ -45,32 +41,29 @@ void DFProposalResponse::Read()
     Accepted = _worldPacket.ReadBit();
 }
 
-void DFSetRoles::Read()
+void WorldPackets::LFG::DFSetRoles::Read()
 {
-    bool hasPartyIndex = _worldPacket.ReadBit();
     _worldPacket >> RolesDesired;
-    if (hasPartyIndex)
-        _worldPacket >> PartyIndex.emplace();
+    _worldPacket >> PartyIndex;
 }
 
-void DFBootPlayerVote::Read()
+void WorldPackets::LFG::DFBootPlayerVote::Read()
 {
     Vote = _worldPacket.ReadBit();
 }
 
-void DFTeleport::Read()
+void WorldPackets::LFG::DFTeleport::Read()
 {
     TeleportOut = _worldPacket.ReadBit();
 }
 
-void DFGetSystemInfo::Read()
+void WorldPackets::LFG::DFGetSystemInfo::Read()
 {
     Player = _worldPacket.ReadBit();
-    if (_worldPacket.ReadBit())
-        _worldPacket >> PartyIndex.emplace();
+    _worldPacket >> PartyIndex;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LFGBlackListSlot const& lfgBlackListSlot)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LFGBlackListSlot const& lfgBlackListSlot)
 {
     data << uint32(lfgBlackListSlot.Slot);
     data << uint32(lfgBlackListSlot.Reason);
@@ -81,20 +74,75 @@ ByteBuffer& operator<<(ByteBuffer& data, LFGBlackListSlot const& lfgBlackListSlo
     return data;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LFGBlackList const& blackList)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LFGBlackList const& blackList)
 {
     data.WriteBit(blackList.PlayerGuid.has_value());
     data << uint32(blackList.Slot.size());
     if (blackList.PlayerGuid)
         data << *blackList.PlayerGuid;
 
-    for (LFGBlackListSlot const& slot : blackList.Slot)
+    for (WorldPackets::LFG::LFGBlackListSlot const& slot : blackList.Slot)
         data << slot;
 
     return data;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LfgPlayerDungeonInfo const& playerDungeonInfo)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LfgPlayerQuestRewardItem const& playerQuestRewardItem)
+{
+    data << int32(playerQuestRewardItem.ItemID);
+    data << int32(playerQuestRewardItem.Quantity);
+
+    return data;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LfgPlayerQuestRewardCurrency const& playerQuestRewardCurrency)
+{
+    data << int32(playerQuestRewardCurrency.CurrencyID);
+    data << int32(playerQuestRewardCurrency.Quantity);
+
+    return data;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LfgPlayerQuestReward const& playerQuestReward)
+{
+    data << uint32(playerQuestReward.Mask);
+    data << int32(playerQuestReward.RewardMoney);
+    data << int32(playerQuestReward.RewardXP);
+    data << uint32(playerQuestReward.Item.size());
+    data << uint32(playerQuestReward.Currency.size());
+    data << uint32(playerQuestReward.BonusCurrency.size());
+
+    for (WorldPackets::LFG::LfgPlayerQuestRewardItem const& item : playerQuestReward.Item)
+        data << item;
+
+    for (WorldPackets::LFG::LfgPlayerQuestRewardCurrency const& currency : playerQuestReward.Currency)
+        data << currency;
+
+    for (WorldPackets::LFG::LfgPlayerQuestRewardCurrency const& bonusCurrency : playerQuestReward.BonusCurrency)
+        data << bonusCurrency;
+
+    data.WriteBit(playerQuestReward.RewardSpellID.has_value());
+    data.WriteBit(playerQuestReward.Unused1.has_value());
+    data.WriteBit(playerQuestReward.Unused2.has_value());
+    data.WriteBit(playerQuestReward.Honor.has_value());
+    data.FlushBits();
+
+    if (playerQuestReward.RewardSpellID)
+        data << int32(*playerQuestReward.RewardSpellID);
+
+    if (playerQuestReward.Unused1)
+        data << int32(*playerQuestReward.Unused1);
+
+    if (playerQuestReward.Unused2)
+        data << uint64(*playerQuestReward.Unused2);
+
+    if (playerQuestReward.Honor)
+        data << int32(*playerQuestReward.Honor);
+
+    return data;
+}
+
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LfgPlayerDungeonInfo const& playerDungeonInfo)
 {
     data << uint32(playerDungeonInfo.Slot);
     data << int32(playerDungeonInfo.CompletionQuantity);
@@ -117,13 +165,13 @@ ByteBuffer& operator<<(ByteBuffer& data, LfgPlayerDungeonInfo const& playerDunge
     data.FlushBits();
 
     data << playerDungeonInfo.Rewards;
-    for (LfgPlayerQuestReward const& shortageReward : playerDungeonInfo.ShortageReward)
+    for (WorldPackets::LFG::LfgPlayerQuestReward const& shortageReward : playerDungeonInfo.ShortageReward)
         data << shortageReward;
 
     return data;
 }
 
-WorldPacket const* LfgPlayerInfo::Write()
+WorldPacket const* WorldPackets::LFG::LfgPlayerInfo::Write()
 {
     _worldPacket << uint32(Dungeon.size());
     _worldPacket << BlackList;
@@ -133,22 +181,22 @@ WorldPacket const* LfgPlayerInfo::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* LfgPartyInfo::Write()
+WorldPacket const* WorldPackets::LFG::LfgPartyInfo::Write()
 {
     _worldPacket << uint32(Player.size());
-    for (LFGBlackList const& player : Player)
+    for (WorldPackets::LFG::LFGBlackList const& player : Player)
         _worldPacket << player;
 
     return &_worldPacket;
 }
 
-WorldPacket const* LFGUpdateStatus::Write()
+WorldPacket const* WorldPackets::LFG::LFGUpdateStatus::Write()
 {
     _worldPacket << Ticket;
     _worldPacket << uint8(SubType);
     _worldPacket << uint8(Reason);
     _worldPacket << uint32(Slots.size());
-    _worldPacket << uint8(RequestedRoles);
+    _worldPacket << uint32(RequestedRoles);
     _worldPacket << uint32(SuspendedPlayers.size());
     _worldPacket << uint32(QueueMapID);
 
@@ -169,20 +217,20 @@ WorldPacket const* LFGUpdateStatus::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* RoleChosen::Write()
+WorldPacket const* WorldPackets::LFG::RoleChosen::Write()
 {
     _worldPacket << Player;
-    _worldPacket << uint8(RoleMask);
+    _worldPacket << uint32(RoleMask);
     _worldPacket.WriteBit(Accepted);
     _worldPacket.FlushBits();
 
     return &_worldPacket;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LFGRoleCheckUpdateMember const& lfgRoleCheckUpdateMember)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LFGRoleCheckUpdateMember const& lfgRoleCheckUpdateMember)
 {
     data << lfgRoleCheckUpdateMember.Guid;
-    data << uint8(lfgRoleCheckUpdateMember.RolesDesired);
+    data << uint32(lfgRoleCheckUpdateMember.RolesDesired);
     data << uint8(lfgRoleCheckUpdateMember.Level);
     data.WriteBit(lfgRoleCheckUpdateMember.RoleCheckComplete);
     data.FlushBits();
@@ -190,7 +238,7 @@ ByteBuffer& operator<<(ByteBuffer& data, LFGRoleCheckUpdateMember const& lfgRole
     return data;
 }
 
-WorldPacket const* LFGRoleCheckUpdate::Write()
+WorldPacket const* WorldPackets::LFG::LFGRoleCheckUpdate::Write()
 {
     _worldPacket << uint8(PartyIndex);
     _worldPacket << uint8(RoleCheckStatus);
@@ -215,7 +263,7 @@ WorldPacket const* LFGRoleCheckUpdate::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* LFGJoinResult::Write()
+WorldPacket const* WorldPackets::LFG::LFGJoinResult::Write()
 {
     _worldPacket << Ticket;
     _worldPacket << uint8(Result);
@@ -236,7 +284,7 @@ WorldPacket const* LFGJoinResult::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* LFGQueueStatus::Write()
+WorldPacket const* WorldPackets::LFG::LFGQueueStatus::Write()
 {
     _worldPacket << Ticket;
     _worldPacket << uint32(Slot);
@@ -253,7 +301,7 @@ WorldPacket const* LFGQueueStatus::Write()
     return &_worldPacket;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LFGPlayerRewards const& lfgPlayerRewards)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LFGPlayerRewards const& lfgPlayerRewards)
 {
     data.WriteBit(lfgPlayerRewards.RewardItem.has_value());
     data.WriteBit(lfgPlayerRewards.RewardCurrency.has_value());
@@ -268,7 +316,7 @@ ByteBuffer& operator<<(ByteBuffer& data, LFGPlayerRewards const& lfgPlayerReward
     return data;
 }
 
-WorldPacket const* LFGPlayerReward::Write()
+WorldPacket const* WorldPackets::LFG::LFGPlayerReward::Write()
 {
     _worldPacket << uint32(QueuedSlot);
     _worldPacket << uint32(ActualSlot);
@@ -282,33 +330,33 @@ WorldPacket const* LFGPlayerReward::Write()
     return &_worldPacket;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LfgBootInfo const& lfgBootInfo)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LfgBootInfo const& lfgBootInfo)
 {
-    data << Bits<1>(lfgBootInfo.VoteInProgress);
-    data << Bits<1>(lfgBootInfo.VotePassed);
-    data << Bits<1>(lfgBootInfo.MyVoteCompleted);
-    data << Bits<1>(lfgBootInfo.MyVote);
-    data << SizedString::BitsSize<8>(lfgBootInfo.Reason);
+    data.WriteBit(lfgBootInfo.VoteInProgress);
+    data.WriteBit(lfgBootInfo.VotePassed);
+    data.WriteBit(lfgBootInfo.MyVoteCompleted);
+    data.WriteBit(lfgBootInfo.MyVote);
+    data.WriteBits(lfgBootInfo.Reason.length(), 8);
     data << lfgBootInfo.Target;
     data << uint32(lfgBootInfo.TotalVotes);
     data << uint32(lfgBootInfo.BootVotes);
     data << int32(lfgBootInfo.TimeLeft);
     data << uint32(lfgBootInfo.VotesNeeded);
-    data << SizedString::Data(lfgBootInfo.Reason);
+    data.WriteString(lfgBootInfo.Reason);
 
     return data;
 }
 
-WorldPacket const* LfgBootPlayer::Write()
+WorldPacket const* WorldPackets::LFG::LfgBootPlayer::Write()
 {
     _worldPacket << Info;
 
     return &_worldPacket;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, LFGProposalUpdatePlayer const& lfgProposalUpdatePlayer)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::LFG::LFGProposalUpdatePlayer const& lfgProposalUpdatePlayer)
 {
-    data << uint8(lfgProposalUpdatePlayer.Roles);
+    data << uint32(lfgProposalUpdatePlayer.Roles);
     data.WriteBit(lfgProposalUpdatePlayer.Me);
     data.WriteBit(lfgProposalUpdatePlayer.SameParty);
     data.WriteBit(lfgProposalUpdatePlayer.MyParty);
@@ -319,7 +367,7 @@ ByteBuffer& operator<<(ByteBuffer& data, LFGProposalUpdatePlayer const& lfgPropo
     return data;
 }
 
-WorldPacket const* LFGProposalUpdate::Write()
+WorldPacket const* WorldPackets::LFG::LFGProposalUpdate::Write()
 {
     _worldPacket << Ticket;
     _worldPacket << uint64(InstanceID);
@@ -341,18 +389,17 @@ WorldPacket const* LFGProposalUpdate::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* LFGOfferContinue::Write()
+WorldPacket const* WorldPackets::LFG::LFGOfferContinue::Write()
 {
     _worldPacket << uint32(Slot);
 
     return &_worldPacket;
 }
 
-WorldPacket const* LFGTeleportDenied::Write()
+WorldPacket const* WorldPackets::LFG::LFGTeleportDenied::Write()
 {
     _worldPacket.WriteBits(Reason, 4);
     _worldPacket.FlushBits();
 
     return &_worldPacket;
-}
 }

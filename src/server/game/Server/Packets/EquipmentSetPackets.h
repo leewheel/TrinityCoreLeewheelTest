@@ -94,7 +94,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             uint64 GUID = 0; ///< Set Identifier
-            int32 Reason = 0;
+            uint8 Reason = 0;
         };
     }
 }

@@ -266,11 +266,12 @@ struct boss_blood_council_controller : public BossAI
 
         if (!instance->CheckRequiredBosses(DATA_BLOOD_PRINCE_COUNCIL, who->ToPlayer()))
         {
-            EnterEvadeMode(EvadeReason::SequenceBreak);
+            EnterEvadeMode(EVADE_REASON_SEQUENCE_BREAK);
             instance->DoCastSpellOnPlayers(LIGHT_S_HAMMER_TELEPORT);
             return;
         }
 
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         DoZoneInCombat();
         instance->SetBossState(DATA_BLOOD_PRINCE_COUNCIL, IN_PROGRESS);
@@ -303,7 +304,7 @@ struct boss_blood_council_controller : public BossAI
     {
         _resetCounter += uint8(data);
         if (_resetCounter == 3)
-            EnterEvadeMode(EvadeReason::Other);
+            EnterEvadeMode(EVADE_REASON_OTHER);
     }
 
     uint32 GetData(uint32 data) const override
@@ -326,7 +327,8 @@ struct boss_blood_council_controller : public BossAI
             if (Creature* prince = ObjectAccessor::GetCreature(*me, _invocationOrder[_invocationStage].guid))
             {
                 // Make sure looting is allowed
-                prince->LowerPlayerDamageReq(prince->GetMaxHealth());
+                if (me->IsDamageEnoughForLootingAndReward())
+                    prince->LowerPlayerDamageReq(prince->GetMaxHealth());
                 Unit::Kill(killer, prince);
             }
         }
@@ -441,6 +443,7 @@ struct BloodPrincesBossAI : public BossAI
     {
         events.Reset();
         summons.DespawnAll();
+        me->SetCombatPulseDelay(0);
 
         me->SetImmuneToPC(false);
         _isEmpowered = false;
@@ -450,6 +453,7 @@ struct BloodPrincesBossAI : public BossAI
 
     void JustEngagedWith(Unit* /*who*/) override
     {
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         if (Creature* controller = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_BLOOD_PRINCES_CONTROL)))
             DoZoneInCombat(controller);
@@ -550,7 +554,7 @@ struct BloodPrincesBossAI : public BossAI
         {
             case ACTION_STAND_UP:
                 me->RemoveAurasDueToSpell(SPELL_FEIGN_DEATH);
-                me->SetUninteractible(false);
+                me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 me->SetImmuneToPC(false);
                 me->RemoveUnitFlag3(UNIT_FLAG3_FAKE_DEAD);
                 me->m_Events.AddEvent(new StandUpEvent(me), me->m_Events.CalculateTime(1s));
@@ -608,10 +612,7 @@ protected:
 
 struct boss_prince_keleseth_icc : public BloodPrincesBossAI
 {
-    boss_prince_keleseth_icc(Creature* creature) : BloodPrincesBossAI(creature, DATA_PRINCE_KELESETH)
-    {
-        me->SetCanMelee(false);
-    }
+    boss_prince_keleseth_icc(Creature* creature) : BloodPrincesBossAI(creature, DATA_PRINCE_KELESETH) { }
 
     void ScheduleEvents() override
     {
@@ -671,6 +672,8 @@ struct boss_prince_keleseth_icc : public BloodPrincesBossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        // does not melee
     }
 };
 
@@ -743,6 +746,8 @@ struct boss_prince_taldaram_icc : public BloodPrincesBossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -774,7 +779,7 @@ struct boss_prince_valanar_icc : public BloodPrincesBossAI
                 summon->GetPosition(x, y, z);
                 float ground_Z = summon->GetMap()->GetHeight(summon->GetPhaseShift(), x, y, z, true, 500.0f);
                 summon->GetMotionMaster()->MovePoint(POINT_KINETIC_BOMB_IMPACT, x, y, ground_Z);
-                summon->SetUninteractible(false);
+                summon->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 break;
             }
             case NPC_SHOCK_VORTEX:
@@ -837,6 +842,8 @@ struct boss_prince_valanar_icc : public BloodPrincesBossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -1085,6 +1092,8 @@ private:
 // 71806 - Glittering Sparks
 class spell_taldaram_glittering_sparks : public SpellScript
 {
+    PrepareSpellScript(spell_taldaram_glittering_sparks);
+
     void HandleScript(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
@@ -1101,6 +1110,8 @@ class spell_taldaram_glittering_sparks : public SpellScript
    72040 - Conjure Empowered Flame */
 class spell_taldaram_summon_flame_ball : public SpellScript
 {
+    PrepareSpellScript(spell_taldaram_summon_flame_ball);
+
     void HandleScript(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
@@ -1117,6 +1128,8 @@ class spell_taldaram_summon_flame_ball : public SpellScript
    55947 - Flame Sphere Death Effect */
 class spell_taldaram_flame_ball_visual : public AuraScript
 {
+    PrepareAuraScript(spell_taldaram_flame_ball_visual);
+
     bool Load() override
     {
         if (GetCaster()->GetEntry() == NPC_BALL_OF_FLAME || GetCaster()->GetEntry() == NPC_BALL_OF_INFERNO_FLAME)
@@ -1157,6 +1170,8 @@ class spell_taldaram_flame_ball_visual : public AuraScript
    72784 - Ball of Flames Proc */
 class spell_taldaram_ball_of_inferno_flame : public SpellScript
 {
+    PrepareSpellScript(spell_taldaram_ball_of_inferno_flame);
+
     void ModAuraStack()
     {
         if (Aura* aur = GetHitAura())
@@ -1171,6 +1186,8 @@ class spell_taldaram_ball_of_inferno_flame : public SpellScript
 
 class spell_taldaram_ball_of_inferno_flame_aura : public AuraScript
 {
+    PrepareAuraScript(spell_taldaram_ball_of_inferno_flame_aura);
+
     void HandleStackDrop(ProcEventInfo& /*eventInfo*/)
     {
         ModStackAmount(-1);
@@ -1185,6 +1202,8 @@ class spell_taldaram_ball_of_inferno_flame_aura : public AuraScript
 // 72080 - Kinetic Bomb
 class spell_valanar_kinetic_bomb : public SpellScript
 {
+    PrepareSpellScript(spell_valanar_kinetic_bomb);
+
     void SetDest(SpellDestination& dest)
     {
         Position const offset = { 0.0f, 0.0f, 20.0f, 0.0f };
@@ -1199,6 +1218,8 @@ class spell_valanar_kinetic_bomb : public SpellScript
 
 class spell_valanar_kinetic_bomb_aura : public AuraScript
 {
+    PrepareAuraScript(spell_valanar_kinetic_bomb_aura);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_KINETIC_BOMB_EXPLOSION, SPELL_KINETIC_BOMB_VISUAL });
@@ -1228,6 +1249,8 @@ class spell_valanar_kinetic_bomb_aura : public AuraScript
 // 72087 - Kinetic Bomb Knockback
 class spell_valanar_kinetic_bomb_knockback : public SpellScript
 {
+    PrepareSpellScript(spell_valanar_kinetic_bomb_knockback);
+
     void KnockIntoAir(SpellMissInfo missInfo)
     {
         if (missInfo != SPELL_MISS_NONE)
@@ -1246,6 +1269,8 @@ class spell_valanar_kinetic_bomb_knockback : public SpellScript
 // 72054 - Kinetic Bomb Visual
 class spell_valanar_kinetic_bomb_absorb : public AuraScript
 {
+    PrepareAuraScript(spell_valanar_kinetic_bomb_absorb);
+
     void OnAbsorb(AuraEffect* aurEff, DamageInfo& dmgInfo, uint32& absorbAmount)
     {
         absorbAmount = CalculatePct(dmgInfo.GetDamage(), aurEff->GetAmount());
@@ -1262,6 +1287,8 @@ class spell_valanar_kinetic_bomb_absorb : public AuraScript
 // 73001 - Shadow Prison
 class spell_blood_council_shadow_prison : public AuraScript
 {
+    PrepareAuraScript(spell_blood_council_shadow_prison);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_SHADOW_PRISON_DAMAGE });
@@ -1282,16 +1309,18 @@ class spell_blood_council_shadow_prison : public AuraScript
 // 72999 - Shadow Prison
 class spell_blood_council_shadow_prison_damage : public SpellScript
 {
-    void CalculateDamage(SpellEffectInfo const& /*spellEffectInfo*/, Unit const* victim, int32& /*damage*/, int32& flatMod, float& /*pctMod*/) const
+    PrepareSpellScript(spell_blood_council_shadow_prison_damage);
+
+    void AddExtraDamage(SpellEffIndex /*effIndex*/)
     {
-        if (Aura const* aur = victim->GetAura(GetSpellInfo()->Id))
+        if (Aura* aur = GetHitUnit()->GetAura(GetSpellInfo()->Id))
             if (AuraEffect const* eff = aur->GetEffect(EFFECT_1))
-                flatMod += eff->GetAmount();
+                SetEffectValue(GetEffectValue() + eff->GetAmount());
     }
 
     void Register() override
     {
-        CalcDamage += SpellCalcDamageFn(spell_blood_council_shadow_prison_damage::CalculateDamage);
+        OnEffectLaunchTarget += SpellEffectFn(spell_blood_council_shadow_prison_damage::AddExtraDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 };
 

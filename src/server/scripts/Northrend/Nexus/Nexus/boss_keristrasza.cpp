@@ -195,6 +195,8 @@ struct boss_keristrasza : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -229,6 +231,8 @@ struct containment_sphere : public GameObjectAI
 // 48095 - Intense Cold
 class spell_intense_cold : public AuraScript
 {
+    PrepareAuraScript(spell_intense_cold);
+
     void HandlePeriodicTick(AuraEffect const* /*aurEff*/)
     {
         if (GetStackAmount() < 2)

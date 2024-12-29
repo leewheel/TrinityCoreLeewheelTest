@@ -25,7 +25,6 @@
 #include "DB2Stores.h"
 #include "GameTables.h"
 #include "GameTime.h"
-#include "ItemBonusMgr.h"
 #include "ItemEnchantmentMgr.h"
 #include "ItemPackets.h"
 #include "Log.h"
@@ -42,6 +41,7 @@
 #include "StringConvert.h"
 #include "TradeData.h"
 #include "UpdateData.h"
+#include "UpdateFieldFlags.h"
 #include "World.h"
 #include "WorldSession.h"
 #include <sstream>
@@ -80,7 +80,7 @@ void AddItemsSetItem(Player* player, Item const* item)
         {
             uint32 maxLevel = sDB2Manager.GetCurveXAxisRange(item->GetBonus()->PlayerLevelToItemLevelCurveId).second;
 
-            if (Optional<ContentTuningLevels> contentTuning = sDB2Manager.GetContentTuningData(item->GetBonus()->ContentTuningId, 0 /*player->m_playerData->CtrOptions->ContentTuningConditionMask*/, true))
+            if (Optional<ContentTuningLevels> contentTuning = sDB2Manager.GetContentTuningData(item->GetBonus()->ContentTuningId, 0, true))
                 maxLevel = std::min<uint32>(maxLevel, contentTuning->MaxLevel);
 
             if (player->GetLevel() > maxLevel)
@@ -137,7 +137,8 @@ void AddItemsSetItem(Player* player, Item const* item)
 
             eff->SetBonuses.insert(itemSetSpell);
             // spell cast only if fit form requirement, in other case will cast at form change
-            player->ApplyEquipSpell(spellInfo, nullptr, true);
+            if (!itemSetSpell->ChrSpecID || itemSetSpell->ChrSpecID == player->GetPrimarySpecialization())
+                player->ApplyEquipSpell(spellInfo, nullptr, true);
         }
     }
 }
@@ -247,8 +248,6 @@ bool ItemCanGoIntoBag(ItemTemplate const* pProto, ItemTemplate const* pBagProto)
                     if (!(pProto->GetBagFamily() & BAG_FAMILY_MASK_COOKING_SUPP))
                         return false;
                     return true;
-                case ITEM_SUBCLASS_REAGENT_CONTAINER:
-                    return pProto->IsCraftingReagent();
                 default:
                     return false;
             }
@@ -273,28 +272,19 @@ bool ItemCanGoIntoBag(ItemTemplate const* pProto, ItemTemplate const* pBagProto)
 ItemModifier const AppearanceModifierSlotBySpec[MAX_SPECIALIZATIONS] =
 {
     ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_1,
-    ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_2,
-    ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_3,
-    ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_4,
-    ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_5
+    ITEM_MODIFIER_TRANSMOG_APPEARANCE_SPEC_2
 };
 
 ItemModifier const IllusionModifierSlotBySpec[MAX_SPECIALIZATIONS] =
 {
     ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_1,
-    ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_2,
-    ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_3,
-    ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_4,
-    ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_5
+    ITEM_MODIFIER_ENCHANT_ILLUSION_SPEC_2
 };
 
 ItemModifier const SecondaryAppearanceModifierSlotBySpec[MAX_SPECIALIZATIONS] =
 {
     ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_1,
-    ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_2,
-    ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_3,
-    ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_4,
-    ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_5
+    ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_2
 };
 
 Item::Item()
@@ -302,17 +292,21 @@ Item::Item()
     m_objectType |= TYPEMASK_ITEM;
     m_objectTypeId = TYPEID_ITEM;
 
+    m_valuesCount = UF::ITEM_END;
+    m_dynamicValuesCount = UF::ITEM_DYNAMIC_END;
+
     m_slot = 0;
     uState = ITEM_NEW;
     uQueuePos = -1;
     m_container = nullptr;
     m_lootGenerated = false;
     mb_in_trade = false;
+    m_lastPlayedTimeUpdate = GameTime::GetGameTime();
 
     m_paidMoney = 0;
     m_paidExtendedCost = 0;
 
-    m_randomBonusListId = 0;
+    m_randomEnchantment = { };
     m_gemScalingLevels = { };
 
     memset(&_bonusData, 0, sizeof(_bonusData));
@@ -339,6 +333,7 @@ bool Item::Create(ObjectGuid::LowType guidlow, uint32 itemId, ItemContext contex
 
     _bonusData.Initialize(itemProto);
     SetCount(1);
+    SetUInt32Value(UF::ITEM_FIELD_MAXDURABILITY, itemProto->MaxDurability);
     SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::MaxDurability), itemProto->MaxDurability);
     SetDurability(itemProto->MaxDurability);
 
@@ -348,7 +343,6 @@ bool Item::Create(ObjectGuid::LowType guidlow, uint32 itemId, ItemContext contex
 
     SetExpiration(itemProto->GetDuration());
     SetCreatePlayedTime(0);
-    SetCreateTime(GameTime::GetGameTime());
     SetContext(context);
 
     return true;
@@ -435,10 +429,10 @@ void Item::SaveToDB(CharacterDatabaseTransaction trans)
             }
             stmt->setString(++index, ssEnchants.str());
 
-            stmt->setUInt32(++index, m_randomBonusListId);
+            stmt->setUInt8(++index, uint8(GetItemRandomEnchantmentId().Type));
+            stmt->setUInt32(++index, GetItemRandomEnchantmentId().Id);
             stmt->setUInt16(++index, m_itemData->Durability);
             stmt->setUInt32(++index, m_itemData->CreatePlayedTime);
-            stmt->setInt64(++index, m_itemData->CreateTime);
             stmt->setString(++index, m_text);
             stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID));
             stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_BREED_DATA));
@@ -447,7 +441,7 @@ void Item::SaveToDB(CharacterDatabaseTransaction trans)
             stmt->setUInt8(++index, uint8(m_itemData->Context));
 
             std::ostringstream bonusListIDs;
-            for (int32 bonusListID : GetBonusListIDs())
+            for (int32 bonusListID : *m_itemData->BonusListIDs)
                 bonusListIDs << bonusListID << ' ';
             stmt->setString(++index, bonusListIDs.str());
 
@@ -561,8 +555,7 @@ void Item::SaveToDB(CharacterDatabaseTransaction trans)
             static ItemModifier const modifiersTable[] =
             {
                 ITEM_MODIFIER_TIMEWALKER_LEVEL,
-                ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL,
-                ITEM_MODIFIER_REFORGE,
+                ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL
             };
 
             stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE_MODIFIERS);
@@ -575,7 +568,6 @@ void Item::SaveToDB(CharacterDatabaseTransaction trans)
                 stmt->setUInt64(0, GetGUID().GetCounter());
                 stmt->setUInt32(1, GetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL));
                 stmt->setUInt32(2, GetModifier(ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL));
-                stmt->setUInt32(3, GetModifier(ITEM_MODIFIER_REFORGE));
                 trans->Append(stmt);
             }
 
@@ -628,8 +620,8 @@ void Item::SaveToDB(CharacterDatabaseTransaction trans)
 
 bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fields, uint32 entry)
 {
-    //           0          1            2                3      4         5        6      7             8                  9          10          11          12    13
-    // SELECT guid, itemEntry, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, randomBonusListId, durability, playedTime, createTime, text,
+    //           0          1            2                3      4         5        6      7             8                   9                10          11          12    13
+    // SELECT guid, itemEntry, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, randomPropertyType, randomPropertyId, durability, playedTime, text,
     //                        14                  15              16                  17       18            19
     //        battlePetSpeciesId, battlePetBreedData, battlePetLevel, battlePetDisplayId, context, bonusListIDs,
     //                                    20                           21                           22                           23                           24                           25
@@ -640,10 +632,10 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
     //        secondaryItemModifiedAppearanceAllSpecs, secondaryItemModifiedAppearanceSpec1, secondaryItemModifiedAppearanceSpec2,
     //                                          35                                    36                                    37
     //        secondaryItemModifiedAppearanceSpec3, secondaryItemModifiedAppearanceSpec4, secondaryItemModifiedAppearanceSpec5,
-    //                38           39           40                41          42           43           44                45          46           47           48                49
+    //                38           39           40                41          42           42           44                45          46           47           48                49
     //        gemItemId1, gemBonuses1, gemContext1, gemScalingLevel1, gemItemId2, gemBonuses2, gemContext2, gemScalingLevel2, gemItemId3, gemBonuses3, gemContext3, gemScalingLevel3
-    //                       50                      51             52
-    //        fixedScalingLevel, artifactKnowledgeLevel, itemReforgeId FROM item_instance
+    //                       50                      51
+    //        fixedScalingLevel, artifactKnowledgeLevel FROM item_instance
 
     // create item before any checks for store correct guid
     // and allow use "FSetState(ITEM_REMOVED); SaveToDB();" for deleting item from DB
@@ -690,9 +682,10 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
 
     ReplaceAllItemFlags(ItemFieldFlags(itemFlags));
 
-    uint32 durability = fields[10].GetUInt16();
+    uint32 durability = fields[11].GetUInt16();
     SetDurability(durability);
     // update max durability (and durability) if need
+    SetUInt32Value(UF::ITEM_FIELD_MAXDURABILITY, proto->MaxDurability);
     SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::MaxDurability), proto->MaxDurability);
 
     // do not overwrite durability for wrapped items
@@ -702,8 +695,7 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
         need_save = true;
     }
 
-    SetCreatePlayedTime(fields[11].GetUInt32());
-    SetCreateTime(fields[12].GetInt64());
+    SetCreatePlayedTime(fields[12].GetUInt32());
     SetText(fields[13].GetString());
 
     SetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID, fields[14].GetUInt32());
@@ -766,7 +758,6 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
 
     SetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL, fields[50].GetUInt32());
     SetModifier(ITEM_MODIFIER_ARTIFACT_KNOWLEDGE_LEVEL, fields[51].GetUInt32());
-    SetModifier(ITEM_MODIFIER_REFORGE, fields[52].GetUInt32());
 
     // Enchants must be loaded after all other bonus/scaling data
     std::vector<std::string_view> enchantmentTokens = Trinity::Tokenize(fields[8].GetStringView(), ' ', false);
@@ -774,13 +765,26 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
     {
         for (uint32 i = 0; i < MAX_ENCHANTMENT_SLOT; ++i)
         {
+
             auto enchantmentField = m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::Enchantment, i);
             SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::ID), Trinity::StringTo<int32>(enchantmentTokens[i * MAX_ENCHANTMENT_OFFSET + 0]).value_or(0));
             SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Duration), Trinity::StringTo<uint32>(enchantmentTokens[i * MAX_ENCHANTMENT_OFFSET + 1]).value_or(0));
             SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Charges), Trinity::StringTo<int16>(enchantmentTokens[i * MAX_ENCHANTMENT_OFFSET + 2]).value_or(0));
         }
     }
-    m_randomBonusListId = fields[9].GetUInt32();
+
+    m_randomEnchantment.Type = ItemRandomEnchantmentType(fields[9].GetUInt8());
+    m_randomEnchantment.Id = fields[10].GetUInt32();
+    if (m_randomEnchantment.Type == ItemRandomEnchantmentType::Property)
+    {
+        SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::RandomPropertiesID), m_randomEnchantment.Id);
+    }
+    else if (m_randomEnchantment.Type == ItemRandomEnchantmentType::Suffix)
+    {
+        SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::RandomPropertiesID), -int32(m_randomEnchantment.Id));
+        // recalculate suffix factor
+        UpdateItemSuffixFactor();
+    }
 
     // Remove bind flag for items vs BIND_NONE set
     if (IsSoulBound() && GetBonding() == BIND_NONE)
@@ -866,12 +870,62 @@ uint32 Item::GetSkill()
     return proto->GetSkill();
 }
 
-void Item::SetItemRandomBonusList(ItemRandomBonusListId bonusListId)
+void Item::SetItemRandomProperties(ItemRandomEnchantmentId const& randomPropId)
 {
-    if (!bonusListId)
+    if (!randomPropId.Id)
         return;
 
-    AddBonuses(bonusListId);
+    switch (randomPropId.Type)
+    {
+    case ItemRandomEnchantmentType::Property:
+        if (ItemRandomPropertiesEntry const* item_rand = sItemRandomPropertiesStore.LookupEntry(randomPropId.Id))
+        {
+            if (m_itemData->RandomPropertiesID != int32(randomPropId.Id))
+            {
+                SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::RandomPropertiesID), randomPropId.Id);
+                SetState(ITEM_CHANGED, GetOwner());
+            }
+            for (uint32 i = PROP_ENCHANTMENT_SLOT_0; i <= PROP_ENCHANTMENT_SLOT_4; ++i)
+                SetEnchantment(EnchantmentSlot(i), item_rand->Enchantment[i - PROP_ENCHANTMENT_SLOT_0], 0, 0);
+        }
+        break;
+    case ItemRandomEnchantmentType::Suffix:
+        if (ItemRandomSuffixEntry const* item_rand = sItemRandomSuffixStore.LookupEntry(randomPropId.Id))
+        {
+            if (m_itemData->RandomPropertiesID != -int32(randomPropId.Id) || !GetItemSuffixFactor())
+            {
+                SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::RandomPropertiesID), -int32(randomPropId.Id));
+                UpdateItemSuffixFactor();
+                SetState(ITEM_CHANGED, GetOwner());
+            }
+
+            for (uint32 i = PROP_ENCHANTMENT_SLOT_0; i <= PROP_ENCHANTMENT_SLOT_4; ++i)
+                SetEnchantment(EnchantmentSlot(i), item_rand->Enchantment[i - PROP_ENCHANTMENT_SLOT_0], 0, 0);
+        }
+        break;
+    case ItemRandomEnchantmentType::BonusList:
+        AddBonuses(randomPropId.Id);
+        break;
+    default:
+        break;
+    }
+}
+
+void Item::UpdateItemSuffixFactor()
+{
+    if (!GetTemplate()->GetRandomSuffix())
+        return;
+
+    uint32 suffixFactor = 0;
+    if (Player* owner = GetOwner())
+        suffixFactor = GetRandomPropertyPoints(GetItemLevel(owner), GetQuality(), GetTemplate()->GetInventoryType(), GetTemplate()->GetSubClass());
+    else
+        suffixFactor = GenerateEnchSuffixFactor(GetEntry());
+
+    if (GetItemSuffixFactor() == suffixFactor)
+        return;
+
+    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::PropertySeed), suffixFactor);
 }
 
 void Item::SetState(ItemUpdateState state, Player* forplayer)
@@ -915,7 +969,7 @@ void AddItemToUpdateQueueOf(Item* item, Player* player)
     if (player->GetGUID() != item->GetOwnerGUID())
     {
         TC_LOG_DEBUG("entities.player.items", "AddItemToUpdateQueueOf - Owner's guid ({}) and player's guid ({}) don't match!",
-            item->GetOwnerGUID().ToString(), player->GetGUID().ToString());
+            item->GetOwnerGUID().ToString().c_str(), player->GetGUID().ToString().c_str());
         return;
     }
 
@@ -936,7 +990,7 @@ void RemoveItemFromUpdateQueueOf(Item* item, Player* player)
     if (player->GetGUID() != item->GetOwnerGUID())
     {
         TC_LOG_DEBUG("entities.player.items", "RemoveItemFromUpdateQueueOf - Owner's guid ({}) and player's guid ({}) don't match!",
-            item->GetOwnerGUID().ToString(), player->GetGUID().ToString());
+            item->GetOwnerGUID().ToString().c_str(), player->GetGUID().ToString().c_str());
         return;
     }
 
@@ -954,8 +1008,7 @@ uint8 Item::GetBagSlot() const
 
 bool Item::IsEquipped() const
 {
-    return !IsInBag() && (m_slot < EQUIPMENT_SLOT_END
-        || (m_slot >= PROFESSION_SLOT_START && m_slot < PROFESSION_SLOT_END));
+    return !IsInBag() && m_slot < EQUIPMENT_SLOT_END;
 }
 
 bool Item::CanBeTraded(bool mail, bool trade) const
@@ -985,6 +1038,7 @@ bool Item::CanBeTraded(bool mail, bool trade) const
 
 void Item::SetCount(uint32 value)
 {
+    SetUInt32Value(UF::ITEM_FIELD_STACK_COUNT, value);
     SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::StackCount), value);
 
     if (Player* player = GetOwner())
@@ -1054,7 +1108,7 @@ bool Item::HasEnchantRequiredSkill(Player const* player) const
 
 uint32 Item::GetEnchantRequiredLevel() const
 {
-    int32 level = 0;
+    uint32 level = 0;
 
     // Check all enchants for required level
     for (uint32 enchant_slot = PERM_ENCHANTMENT_SLOT; enchant_slot < MAX_ENCHANTMENT_SLOT; ++enchant_slot)
@@ -1063,7 +1117,7 @@ uint32 Item::GetEnchantRequiredLevel() const
                 if (enchantEntry->MinLevel > level)
                     level = enchantEntry->MinLevel;
 
-    return static_cast<uint32>(level);
+    return level;
 }
 
 bool Item::IsBoundByEnchant() const
@@ -1151,6 +1205,9 @@ void Item::SetEnchantment(EnchantmentSlot slot, uint32 id, uint32 duration, uint
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::ID), id);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Duration), duration);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Charges), charges);
+    SetUInt32Value(UF::ITEM_FIELD_ENCHANTMENT + slot * MAX_ENCHANTMENT_OFFSET + 0, id);
+    SetUInt32Value(UF::ITEM_FIELD_ENCHANTMENT + slot * MAX_ENCHANTMENT_OFFSET + 1, duration);
+    SetUInt32Value(UF::ITEM_FIELD_ENCHANTMENT + slot * MAX_ENCHANTMENT_OFFSET + 2, charges);
     SetState(ITEM_CHANGED, owner);
 }
 
@@ -1182,7 +1239,6 @@ void Item::ClearEnchantment(EnchantmentSlot slot)
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::ID), 0);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Duration), 0);
     SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Charges), 0);
-    SetUpdateFieldValue(enchantmentField.ModifyValue(&UF::ItemEnchantment::Inactive), 0);
     SetState(ITEM_CHANGED, GetOwner());
 }
 
@@ -1201,7 +1257,7 @@ void Item::SetGem(uint16 slot, ItemDynamicFieldGems const* gem, uint32 gemScalin
     {
         if (GemPropertiesEntry const* gemProperties = sGemPropertiesStore.LookupEntry(gemTemplate->GetGemProperties()))
         {
-            if (SpellItemEnchantmentEntry const* gemEnchant = sSpellItemEnchantmentStore.LookupEntry(gemProperties->EnchantID))
+            if (SpellItemEnchantmentEntry const* gemEnchant = sSpellItemEnchantmentStore.LookupEntry(gemProperties->EnchantId))
             {
                 BonusData gemBonus;
                 gemBonus.Initialize(gemTemplate);
@@ -1221,17 +1277,19 @@ void Item::SetGem(uint16 slot, ItemDynamicFieldGems const* gem, uint32 gemScalin
                     {
                         case ITEM_ENCHANTMENT_TYPE_BONUS_LIST_ID:
                         {
-                            for (ItemBonusEntry const* itemBonus : ItemBonusMgr::GetItemBonuses(gemEnchant->EffectArg[i]))
-                                if (itemBonus->Type == ITEM_BONUS_ITEM_LEVEL)
-                                    _bonusData.GemItemLevelBonus[slot] += itemBonus->Value[0];
+                            if (DB2Manager::ItemBonusList const* bonuses = sDB2Manager.GetItemBonusList(gemEnchant->EffectArg[i]))
+                                for (ItemBonusEntry const* itemBonus : *bonuses)
+                                    if (itemBonus->Type == ITEM_BONUS_ITEM_LEVEL)
+                                        _bonusData.GemItemLevelBonus[slot] += itemBonus->Value[0];
                             break;
                         }
                         case ITEM_ENCHANTMENT_TYPE_BONUS_LIST_CURVE:
                         {
-                            if (uint32 bonusListId = ItemBonusMgr::GetItemBonusListForItemLevelDelta(int16(sDB2Manager.GetCurveValueAt(CURVE_ID_ARTIFACT_RELIC_ITEM_LEVEL_BONUS, gemBaseItemLevel + gemBonus.ItemLevelBonus))))
-                                for (ItemBonusEntry const* itemBonus : ItemBonusMgr::GetItemBonuses(bonusListId))
-                                    if (itemBonus->Type == ITEM_BONUS_ITEM_LEVEL)
-                                        _bonusData.GemItemLevelBonus[slot] += itemBonus->Value[0];
+                            if (uint32 bonusListId = sDB2Manager.GetItemBonusListForItemLevelDelta(int16(sDB2Manager.GetCurveValueAt(CURVE_ID_ARTIFACT_RELIC_ITEM_LEVEL_BONUS, gemBaseItemLevel + gemBonus.ItemLevelBonus))))
+                                if (DB2Manager::ItemBonusList const* bonuses = sDB2Manager.GetItemBonusList(bonusListId))
+                                    for (ItemBonusEntry const* itemBonus : *bonuses)
+                                        if (itemBonus->Type == ITEM_BONUS_ITEM_LEVEL)
+                                            _bonusData.GemItemLevelBonus[slot] += itemBonus->Value[0];
                             break;
                         }
                         default:
@@ -1245,37 +1303,31 @@ void Item::SetGem(uint16 slot, ItemDynamicFieldGems const* gem, uint32 gemScalin
     auto gemField = m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::Gems, slot);
     SetUpdateFieldValue(gemField.ModifyValue(&UF::SocketedGem::ItemID), gem->ItemId);
     SetUpdateFieldValue(gemField.ModifyValue(&UF::SocketedGem::Context), gem->Context);
+
     for (uint32 i = 0; i < 16; ++i)
         SetUpdateFieldValue(gemField.ModifyValue(&UF::SocketedGem::BonusListIDs, i), gem->BonusListIDs[i]);
 }
 
 bool Item::GemsFitSockets() const
 {
-    for (uint32 gemSlot = 0; gemSlot < MAX_ITEM_PROTO_SOCKETS; ++gemSlot)
+    uint32 gemSlot = 0;
+    for (UF::SocketedGem const& gemData : m_itemData->Gems)
     {
-        uint8 SocketColor = GetTemplate()->GetSocketColor(gemSlot);
-
-        if (!SocketColor) // no socket slot
+        SocketColor color = GetTemplate()->GetSocketColor(gemSlot);
+        if (!color) // no socket slot
             continue;
 
-        if (gemSlot >= m_itemData->Gems.size()) // no gems on this socket
-            return false;
+        uint32 GemColor = 0;
 
-        uint8 GemColor = 0;
-
-        uint32 gemid = m_itemData->Gems[gemSlot].ItemID;
-        if (gemid)
+        ItemTemplate const* gemProto = sObjectMgr->GetItemTemplate(gemData.ItemID);
+        if (gemProto)
         {
-            ItemTemplate const* gemProto = sObjectMgr->GetItemTemplate(gemid);
-            if (gemProto)
-            {
-                GemPropertiesEntry const* gemProperty = sGemPropertiesStore.LookupEntry(gemProto->GetGemProperties());
-                if (gemProperty)
-                    GemColor = gemProperty->Type;
-            }
+            GemPropertiesEntry const* gemProperty = sGemPropertiesStore.LookupEntry(gemProto->GetGemProperties());
+            if (gemProperty)
+                GemColor = gemProperty->Type;
         }
 
-        if (!(GemColor & SocketColorToGemTypeMask[SocketColor])) // bad gem color on this socket
+        if (!(GemColor & SocketColorToGemTypeMask[color])) // bad gem color on this socket
             return false;
     }
     return true;
@@ -1330,7 +1382,7 @@ void Item::SendTimeUpdate(Player* owner)
     owner->GetSession()->SendPacket(itemTimeUpdate.Write());
 }
 
-Item* Item::CreateItem(uint32 itemEntry, uint32 count, ItemContext context, Player const* player /*= nullptr*/, bool addDefaultBonuses /*= true*/)
+Item* Item::CreateItem(uint32 itemEntry, uint32 count, ItemContext context, Player const* player /*= nullptr*/)
 {
     if (count < 1)
         return nullptr;                                        //don't create item at zero count
@@ -1347,9 +1399,6 @@ Item* Item::CreateItem(uint32 itemEntry, uint32 count, ItemContext context, Play
         if (item->Create(sObjectMgr->GetGenerator<HighGuid::Item>().Generate(), itemEntry, context, player))
         {
             item->SetCount(count);
-            if (addDefaultBonuses)
-                item->SetBonuses(ItemBonusMgr::GetBonusListsForItem(itemEntry, context));
-
             return item;
         }
         else
@@ -1362,7 +1411,7 @@ Item* Item::CreateItem(uint32 itemEntry, uint32 count, ItemContext context, Play
 
 Item* Item::CloneItem(uint32 count, Player const* player /*= nullptr*/) const
 {
-    Item* newItem = CreateItem(GetEntry(), count, GetContext(), player, false);
+    Item* newItem = CreateItem(GetEntry(), count, GetContext(), player);
     if (!newItem)
         return nullptr;
 
@@ -1370,12 +1419,9 @@ Item* Item::CloneItem(uint32 count, Player const* player /*= nullptr*/) const
     newItem->SetGiftCreator(GetGiftCreator());
     newItem->ReplaceAllItemFlags(ItemFieldFlags(*m_itemData->DynamicFlags) & ~(ITEM_FIELD_FLAG_REFUNDABLE | ITEM_FIELD_FLAG_BOP_TRADEABLE));
     newItem->SetExpiration(m_itemData->Expiration);
-    newItem->SetBonuses(m_itemData->ItemBonusKey->BonusListIDs);
-    newItem->SetFixedLevel(GetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL));
-    newItem->SetReforgeId(GetModifier(ITEM_MODIFIER_REFORGE));
     // player CAN be NULL in which case we must not update random properties because that accesses player's item update queue
     if (player)
-        newItem->SetItemRandomBonusList(m_randomBonusListId);
+        newItem->SetItemRandomProperties(GetItemRandomEnchantmentId());
     return newItem;
 }
 
@@ -1415,14 +1461,25 @@ UF::UpdateFieldFlag Item::GetUpdateFieldFlagsFor(Player const* target) const
     return UF::UpdateFieldFlag::None;
 }
 
-void Item::BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Item::BuildValuesCreate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
+    *data << uint8(flags);
     m_objectData->WriteCreate(*data, flags, this, target);
     m_itemData->WriteCreate(*data, flags, this, target);
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
 }
 
-void Item::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Item::BuildValuesUpdate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0);
     *data << uint32(m_values.GetChangedObjectTypeMask());
 
     if (m_values.HasChanged(TYPEID_OBJECT))
@@ -1430,23 +1487,148 @@ void Item::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player
 
     if (m_values.HasChanged(TYPEID_ITEM))
         m_itemData->WriteUpdate(*data, flags, this, target);
+
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
 }
+
+void Item::BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    constexpr std::size_t bitCount = UF::ObjectData::Mask::BitCount + UF::ItemData::Mask::BitCount;
+    constexpr std::size_t blockCount = UF::Compat::GetBlockCount(bitCount);
+
+    *data << uint8(blockCount);
+    const std::size_t maskPos = data->wpos();
+    data->resize(data->size() + (blockCount * sizeof(UF::Compat::BlockType)));
+
+    UF::Compat::UpdateMaskBuf mask{ data, maskPos };
+    UF::Compat::UpdateFlags flags{
+        .visibilityFlags = GetUpdateFieldFlagsForCompat(target, false),
+        .notifyFlags = m_fieldNotifyFlags
+    };
+
+    m_objectData->WriteUpdate(updatetype, *data, mask, flags, this, target);
+    mask.Offset(UF::ObjectData::Mask::BitCount);
+
+    m_itemData->WriteUpdate(updatetype, *data, mask, flags, this, target);
+    mask.Offset(UF::ItemData::Mask::BitCount);
+
+    assert(mask.GetOffset() == bitCount);
+}
+
+void Item::BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    constexpr std::size_t blockCount = UF::Compat::GetBlockCount(UF::ItemData::DyMask::BitCount);
+
+    *data << uint8(blockCount);
+    const std::size_t maskPos = data->wpos();
+    data->resize(data->size() + (blockCount * sizeof(UF::Compat::BlockType)));
+
+    UF::Compat::UpdateMaskBuf mask{ data, maskPos };
+    UF::Compat::UpdateFlags flags{
+        .visibilityFlags = GetUpdateFieldFlagsForCompat(target, false),
+        .notifyFlags = m_fieldNotifyFlags
+    };
+
+    m_itemData->WriteDynamicUpdate(updatetype, *data, mask, flags, this, target);
+}
+
+void Item::BuildDynamicValuesUpdate(ObjectUpdateType updateType, ByteBuffer* data, Player const* target) const
+{
+    if (!target)
+        return;
+
+    std::size_t blockCount = LegacyUpdateMask::GetBlockCount(m_dynamicValuesCount);
+
+
+    uint32* flags = nullptr;
+    UF::Compat::UpdateFieldFlag visibleFlag = GetDynamicUpdateFieldData(target, flags);
+
+    *data << uint8(blockCount);
+    std::size_t maskPos = data->wpos();
+    data->resize(data->size() + blockCount * sizeof(LegacyUpdateMask::BlockType));
+
+    using DynamicFieldChangeTypeUT = std::underlying_type<LegacyUpdateMask::DynamicFieldChangeType>::type;
+
+    for (uint16 index = 0; index < m_dynamicValuesCount; ++index)
+    {
+        std::vector<uint32> const& values = m_dynamicValues[index];
+        if (std::to_underlying(m_fieldNotifyFlags) & flags[index] ||
+            ((updateType == ObjectUpdateType::Values ? m_dynamicChangesMask[index] != LegacyUpdateMask::UNCHANGED : !values.empty()) && (flags[index] & std::to_underlying(visibleFlag))))
+        {
+            LegacyUpdateMask::SetUpdateBit(data->contents() + maskPos, index);
+
+            std::size_t arrayBlockCount = LegacyUpdateMask::GetBlockCount(values.size());
+            *data << DynamicFieldChangeTypeUT(LegacyUpdateMask::EncodeDynamicFieldChangeType(arrayBlockCount, m_dynamicChangesMask[index], updateType));
+            if (updateType == ObjectUpdateType::Values && m_dynamicChangesMask[index] == LegacyUpdateMask::VALUE_AND_SIZE_CHANGED)
+                *data << uint32(values.size());
+
+            std::size_t arrayMaskPos = data->wpos();
+            data->resize(data->size() + arrayBlockCount * sizeof(LegacyUpdateMask::BlockType));
+            if (index != UF::ITEM_DYNAMIC_FIELD_MODIFIERS)
+            {
+                for (std::size_t v = 0; v < values.size(); ++v)
+                {
+                    if (updateType != ObjectUpdateType::Values || m_dynamicChangesArrayMask[index][v])
+                    {
+                        LegacyUpdateMask::SetUpdateBit(data->contents() + arrayMaskPos, v);
+                        *data << uint32(values[v]);
+                    }
+                }
+            }
+            else
+            {
+                uint32 m = 0;
+
+                // work around stupid item modifier field requirements - push back values mask by sizeof(m) bytes if size was not appended yet
+                if (updateType == ObjectUpdateType::Values && m_dynamicChangesMask[index] != LegacyUpdateMask::VALUE_AND_SIZE_CHANGED && m_changesMask[UF::ITEM_FIELD_MODIFIERS_MASK])
+                {
+                    data->put(arrayMaskPos - sizeof(DynamicFieldChangeTypeUT), data->read<uint16>(arrayMaskPos - sizeof(DynamicFieldChangeTypeUT)) | LegacyUpdateMask::VALUE_AND_SIZE_CHANGED);
+                    *data << m;
+                    arrayMaskPos += sizeof(m);
+                }
+
+                // in case of ITEM_DYNAMIC_FIELD_MODIFIERS it is ITEM_FIELD_MODIFIERS_MASK that controls index of each value, not updatemask
+                // so we just have to write this starting from 0 index
+                for (std::size_t v = 0; v < values.size(); ++v)
+                {
+                    if (values[v])
+                    {
+                        LegacyUpdateMask::SetUpdateBit(data->contents() + arrayMaskPos, m++);
+                        *data << uint32(values[v]);
+                    }
+                }
+
+                if (updateType == ObjectUpdateType::Values && m_changesMask[UF::ITEM_FIELD_MODIFIERS_MASK])
+                    data->put(arrayMaskPos - sizeof(m), m);
+            }
+        }
+    }
+}
+
 
 void Item::BuildValuesUpdateWithFlag(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
 {
+    /*
     UpdateMask<NUM_CLIENT_OBJECT_TYPES> valuesMask;
     valuesMask.Set(TYPEID_ITEM);
 
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
     *data << uint32(valuesMask.GetBlock(0));
 
     UF::ItemData::Mask mask;
     m_itemData->AppendAllowedFieldsMaskForFlag(mask, flags);
     m_itemData->WriteUpdate(*data, mask, true, this, target);
+
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
 }
 
 void Item::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::Mask const& requestedObjectMask,
     UF::ItemData::Mask const& requestedItemMask, Player const* target) const
 {
+    /*
     UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
     UpdateMask<NUM_CLIENT_OBJECT_TYPES> valuesMask;
     if (requestedObjectMask.IsAnySet())
@@ -1457,9 +1639,9 @@ void Item::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::
     if (itemMask.IsAnySet())
         valuesMask.Set(TYPEID_ITEM);
 
-    ByteBuffer& buffer = PrepareValuesUpdateBuffer(data);
+    ByteBuffer buffer = PrepareValuesUpdateBuffer();
     std::size_t sizePos = buffer.wpos();
-    buffer << uint32(0);
+    buffer << uint32(0); // placeholder for data size.
     buffer << uint32(valuesMask.GetBlock(0));
 
     if (valuesMask[TYPEID_OBJECT])
@@ -1470,7 +1652,8 @@ void Item::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::
 
     buffer.put<uint32>(sizePos, buffer.wpos() - sizePos - 4);
 
-    data->AddUpdateBlock();
+    data->AddUpdateBlock(buffer);
+    */
 }
 
 void Item::ValuesUpdateForPlayerWithMaskSender::operator()(Player const* player) const
@@ -1560,14 +1743,44 @@ void Item::SetNotRefundable(Player* owner, bool changestate /*= true*/, Characte
         owner->GetSession()->GetCollectionMgr()->AddItemAppearance(this);
 }
 
-uint32 Item::GetPlayedTime() const
+void Item::UpdatePlayedTime(Player* owner)
 {
-    return *m_itemData->CreatePlayedTime;
+    /*  Here we update our played time
+        We simply add a number to the current played time,
+        based on the time elapsed since the last update hereof.
+    */
+    // Get current played time
+    uint32 current_playtime = m_itemData->CreatePlayedTime;
+    // Calculate time elapsed since last played time update
+    time_t curtime = GameTime::GetGameTime();
+    uint32 elapsed = uint32(curtime - m_lastPlayedTimeUpdate);
+    uint32 new_playtime = current_playtime + elapsed;
+    // Check if the refund timer has expired yet
+    if (new_playtime <= 2*HOUR)
+    {
+        // No? Proceed.
+        // Update the data field
+        SetCreatePlayedTime(new_playtime);
+        // Flag as changed to get saved to DB
+        SetState(ITEM_CHANGED, owner);
+        // Speaks for itself
+        m_lastPlayedTimeUpdate = curtime;
+        return;
+    }
+    // Yes
+    SetNotRefundable(owner);
 }
 
-bool Item::IsRefundExpired() const
+uint32 Item::GetPlayedTime()
 {
-    return *m_itemData->CreateTime + 2 * HOUR <= GameTime::GetGameTime();
+    time_t curtime = GameTime::GetGameTime();
+    uint32 elapsed = uint32(curtime - m_lastPlayedTimeUpdate);
+    return *m_itemData->CreatePlayedTime + elapsed;
+}
+
+bool Item::IsRefundExpired()
+{
+    return (GetPlayedTime() > 2*HOUR);
 }
 
 void Item::SetSoulboundTradeable(GuidSet const& allowedLooters)
@@ -1593,7 +1806,7 @@ void Item::ClearSoulboundTradeable(Player* currentOwner)
 bool Item::CheckSoulboundTradeExpire()
 {
     // called from owner's update - GetOwner() MUST be valid
-    if (m_itemData->CreatePlayedTime + 4 * HOUR < GetOwner()->GetTotalPlayedTime())
+    if (m_itemData->CreatePlayedTime + 2*HOUR < GetOwner()->GetTotalPlayedTime())
     {
         ClearSoulboundTradeable(GetOwner());
         return true; // remove from tradeable list
@@ -1626,6 +1839,9 @@ bool Item::IsValidTransmogrificationTarget() const
 
 bool Item::HasStats() const
 {
+    if (GetItemRandomPropertyId() != 0)
+        return true;
+
     ItemTemplate const* proto = GetTemplate();
     Player const* owner = GetOwner();
     for (uint8 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
@@ -1638,7 +1854,7 @@ bool Item::HasStats() const
 bool Item::HasStats(WorldPackets::Item::ItemInstance const& /*itemInstance*/, BonusData const* bonus)
 {
     for (uint8 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
-        if (bonus->ItemStatAmount[i] != 0)
+        if (bonus->StatPercentEditor[i] != 0)
             return true;
 
     return false;
@@ -1722,12 +1938,6 @@ int32 const ItemTransmogrificationSlots[MAX_INVTYPE] =
     EQUIPMENT_SLOT_MAINHAND,                                // INVTYPE_RANGEDRIGHT
     -1,                                                     // INVTYPE_QUIVER
     -1                                                      // INVTYPE_RELIC
-    -1,                                                     // INVTYPE_PROFESSION_TOOL
-    -1,                                                     // INVTYPE_PROFESSION_GEAR
-    -1,                                                     // INVTYPE_EQUIPABLE_SPELL_OFFENSIVE
-    -1,                                                     // INVTYPE_EQUIPABLE_SPELL_UTILITY
-    -1,                                                     // INVTYPE_EQUIPABLE_SPELL_DEFENSIVE
-    -1                                                      // INVTYPE_EQUIPABLE_SPELL_MOBILITY
 };
 
 bool Item::CanTransmogrifyItemWithItem(Item const* item, ItemModifiedAppearanceEntry const* itemModifiedAppearance)
@@ -1907,7 +2117,7 @@ uint32 Item::GetBuyPrice(ItemTemplate const* proto, uint32 quality, uint32 itemL
         typeFactor = weaponPrice->Data;
     }
 
-    standardPrice = true;
+    standardPrice = false;
     return uint32(proto->GetPriceVariance() * typeFactor * baseFactor * qualityFactor * proto->GetPriceRandomValue());
 }
 
@@ -1947,8 +2157,8 @@ uint32 Item::GetItemLevel(Player const* owner) const
     ItemTemplate const* itemTemplate = GetTemplate();
     uint32 minItemLevel = owner->m_unitData->MinItemLevel;
     uint32 minItemLevelCutoff = owner->m_unitData->MinItemLevelCutoff;
+    uint32 maxItemLevel = itemTemplate->HasFlag(ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP) ? 0 : owner->m_unitData->MaxItemLevel;
     bool pvpBonus = owner->IsUsingPvpItemLevels();
-    uint32 maxItemLevel = pvpBonus && itemTemplate->HasFlag(ITEM_FLAG3_IGNORE_ITEM_LEVEL_CAP_IN_PVP) ? 0 : owner->m_unitData->MaxItemLevel;
     return Item::GetItemLevel(itemTemplate, _bonusData, owner->GetLevel(), GetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL),
         minItemLevel, minItemLevelCutoff, maxItemLevel, pvpBonus);
 }
@@ -1960,6 +2170,7 @@ uint32 Item::GetItemLevel(ItemTemplate const* itemTemplate, BonusData const& bon
         return MIN_ITEM_LEVEL;
 
     uint32 itemLevel = itemTemplate->GetBaseItemLevel();
+
     if (bonusData.PlayerLevelToItemLevelCurveId)
     {
         if (fixedLevel)
@@ -1992,11 +2203,29 @@ uint32 Item::GetItemLevel(ItemTemplate const* itemTemplate, BonusData const& bon
     return std::min(std::max(itemLevel, uint32(MIN_ITEM_LEVEL)), uint32(MAX_ITEM_LEVEL));
 }
 
-float Item::GetItemStatValue(uint32 index, Player const* /*owner*/) const
+float Item::GetItemStatValue(uint32 index, Player const* owner) const
 {
     ASSERT(index < MAX_ITEM_PROTO_STATS);
+    switch (GetItemStatType(index))
+    {
+        case ITEM_MOD_CORRUPTION:
+        case ITEM_MOD_CORRUPTION_RESISTANCE:
+            return _bonusData.StatPercentEditor[index];
+        default:
+            break;
+    }
 
-    return static_cast<float>(_bonusData.ItemStatAmount[index]);
+    uint32 itemLevel = GetItemLevel(owner);
+    if (float randomPropPoints = GetRandomPropertyPoints(itemLevel, GetQuality(), GetTemplate()->GetInventoryType(), GetTemplate()->GetSubClass()))
+    {
+        float statValue = float(_bonusData.StatPercentEditor[index] * randomPropPoints) * 0.0001f;
+        if (GtItemSocketCostPerLevelEntry const* gtCost = sItemSocketCostPerLevelGameTable.GetRow(itemLevel))
+            statValue -= float(int32(_bonusData.ItemStatSocketCostMultiplier[index] * gtCost->SocketCost));
+
+        return statValue;
+    }
+
+    return _bonusData.ItemStatValue[index];
 }
 
 ItemDisenchantLootEntry const* Item::GetDisenchantLoot(Player const* owner) const
@@ -2131,19 +2360,6 @@ uint16 Item::GetVisibleAppearanceModId(Player const* owner) const
     return uint16(GetAppearanceModId());
 }
 
-uint32 Item::GetVisibleModifiedAppearanceId(Player const* owner) const
-{
-    uint32 itemModifiedAppearanceId = GetModifier(AppearanceModifierSlotBySpec[owner->GetActiveTalentGroup()]);
-    if (!itemModifiedAppearanceId)
-        itemModifiedAppearanceId = GetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_ALL_SPECS);
-
-    if (!itemModifiedAppearanceId)
-        if (ItemModifiedAppearanceEntry const* itemModifiedAppearance = GetItemModifiedAppearance())
-            itemModifiedAppearanceId = itemModifiedAppearance->ID;
-
-    return itemModifiedAppearanceId;
-}
-
 int32 Item::GetVisibleSecondaryModifiedAppearanceId(Player const* owner) const
 {
     uint32 itemModifiedAppearanceId = GetModifier(SecondaryAppearanceModifierSlotBySpec[owner->GetActiveTalentGroup()]);
@@ -2175,27 +2391,25 @@ uint16 Item::GetVisibleItemVisual(Player const* owner) const
 
 void Item::AddBonuses(uint32 bonusListID)
 {
-    if (std::find(GetBonusListIDs().begin(), GetBonusListIDs().end(), int32(bonusListID)) != GetBonusListIDs().end())
+    if (std::find(m_itemData->BonusListIDs->begin(), m_itemData->BonusListIDs->end(), int32(bonusListID)) != m_itemData->BonusListIDs->end())
         return;
 
-    WorldPackets::Item::ItemBonusKey itemBonusKey;
-    itemBonusKey.ItemID = GetEntry();
-    itemBonusKey.BonusListIDs = GetBonusListIDs();
-    itemBonusKey.BonusListIDs.push_back(bonusListID);
-    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemBonusKey), std::move(itemBonusKey));
-    for (ItemBonusEntry const* bonus : ItemBonusMgr::GetItemBonuses(bonusListID))
-        _bonusData.AddBonus(bonus->Type, bonus->Value);
-    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemAppearanceModID), _bonusData.AppearanceModID);
+    if (DB2Manager::ItemBonusList const* bonuses = sDB2Manager.GetItemBonusList(bonusListID))
+    {
+        std::vector<int32> bonusListIDs = m_itemData->BonusListIDs;
+        bonusListIDs.push_back(bonusListID);
+        SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::BonusListIDs), std::move(bonusListIDs));
+        for (ItemBonusEntry const* bonus : *bonuses)
+            _bonusData.AddBonus(bonus->Type, bonus->Value);
+        SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemAppearanceModID), _bonusData.AppearanceModID);
+    }
 }
 
 void Item::SetBonuses(std::vector<int32> bonusListIDs)
 {
-    WorldPackets::Item::ItemBonusKey itemBonusKey;
-    itemBonusKey.ItemID = GetEntry();
-    itemBonusKey.BonusListIDs = std::move(bonusListIDs);
-    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemBonusKey), std::move(itemBonusKey));
+    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::BonusListIDs), std::move(bonusListIDs));
 
-    for (int32 bonusListID : GetBonusListIDs())
+    for (int32 bonusListID : *m_itemData->BonusListIDs)
         _bonusData.AddBonusList(bonusListID);
 
     SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemAppearanceModID), _bonusData.AppearanceModID);
@@ -2203,9 +2417,7 @@ void Item::SetBonuses(std::vector<int32> bonusListIDs)
 
 void Item::ClearBonuses()
 {
-    WorldPackets::Item::ItemBonusKey itemBonusKey;
-    itemBonusKey.ItemID = GetEntry();
-    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemBonusKey), std::move(itemBonusKey));
+    SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::BonusListIDs), std::vector<int32>());
     _bonusData.Initialize(GetTemplate());
     SetUpdateFieldValue(m_values.ModifyValue(&Item::m_itemData).ModifyValue(&UF::ItemData::ItemAppearanceModID), _bonusData.AppearanceModID);
 }
@@ -2222,19 +2434,6 @@ void Item::SetFixedLevel(uint8 level)
 
         SetModifier(ITEM_MODIFIER_TIMEWALKER_LEVEL, level);
     }
-}
-
-void Item::SetReforgeId(uint32 itemReforceRecId)
-{
-    if (itemReforceRecId == GetModifier(ITEM_MODIFIER_REFORGE))
-        return;
-
-    Player* owner = GetOwner();
-    if (!owner)
-        return;
-
-    SetModifier(ITEM_MODIFIER_REFORGE, itemReforceRecId);
-    SetState(ITEM_CHANGED, owner);
 }
 
 int32 Item::GetRequiredLevel() const
@@ -2268,7 +2467,10 @@ void BonusData::Initialize(ItemTemplate const* proto)
         ItemStatType[i] = proto->GetStatModifierBonusStat(i);
 
     for (uint32 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
-        ItemStatAmount[i] = proto->GetStatModifierBonusAmount(i);
+        ItemStatValue[i] = proto->GetStatModifierBonusValue(i);
+
+    for (uint32 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
+        StatPercentEditor[i] = proto->GetStatPercentEditor(i);
 
     for (uint32 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
         ItemStatSocketCostMultiplier[i] = proto->GetStatPercentageOfSocket(i);
@@ -2307,7 +2509,6 @@ void BonusData::Initialize(ItemTemplate const* proto)
     _state.SuffixPriority = std::numeric_limits<int32>::max();
     _state.AppearanceModPriority = std::numeric_limits<int32>::max();
     _state.ScalingStatDistributionPriority = std::numeric_limits<int32>::max();
-    _state.AzeriteTierUnlockSetPriority = std::numeric_limits<int32>::max();
     _state.RequiredLevelCurvePriority = std::numeric_limits<int32>::max();
     _state.HasQualityBonus = false;
 }
@@ -2327,8 +2528,9 @@ void BonusData::Initialize(WorldPackets::Item::ItemInstance const& itemInstance)
 
 void BonusData::AddBonusList(uint32 bonusListId)
 {
-    for (ItemBonusEntry const* bonus : ItemBonusMgr::GetItemBonuses(bonusListId))
-        AddBonus(bonus->Type, bonus->Value);
+    if (DB2Manager::ItemBonusList const* bonuses = sDB2Manager.GetItemBonusList(bonusListId))
+        for (ItemBonusEntry const* bonus : *bonuses)
+            AddBonus(bonus->Type, bonus->Value);
 }
 
 void BonusData::AddBonus(uint32 type, std::array<int32, 4> const& values)
@@ -2348,7 +2550,7 @@ void BonusData::AddBonus(uint32 type, std::array<int32, 4> const& values)
             if (statIndex < MAX_ITEM_PROTO_STATS)
             {
                 ItemStatType[statIndex] = values[0];
-                ItemStatAmount[statIndex] += values[1];
+                StatPercentEditor[statIndex] += values[1];
             }
             break;
         }

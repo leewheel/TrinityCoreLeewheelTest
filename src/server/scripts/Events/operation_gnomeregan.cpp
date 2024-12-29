@@ -35,6 +35,8 @@ enum BasicOrdersEmote
    73886 - [DND] Test Stop Dance */
 class spell_operation_gnomeregan_basic_orders_emote : public AuraScript
 {
+    PrepareAuraScript(spell_operation_gnomeregan_basic_orders_emote);
+
     void HandlePeriodic(AuraEffect const* /*aurEff*/)
     {
         Unit* target = GetTarget();

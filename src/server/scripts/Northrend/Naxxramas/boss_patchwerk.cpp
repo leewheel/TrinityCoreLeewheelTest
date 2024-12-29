@@ -119,7 +119,7 @@ struct boss_patchwerk : public BossAI
                     auto it = list.begin(), end = list.end();
                     if (it == end)
                     {
-                        EnterEvadeMode(EvadeReason::NoHostiles);
+                        EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
                         return;
                     }
 
@@ -171,6 +171,8 @@ struct boss_patchwerk : public BossAI
             Talk(EMOTE_FRENZY);
             _enraged = true;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

@@ -31,7 +31,10 @@ int32 GuardAI::Permissible(Creature const* creature)
 
 void GuardAI::UpdateAI(uint32 /*diff*/)
 {
-    UpdateVictim();
+    if (!UpdateVictim())
+        return;
+
+    DoMeleeAttackIfReady();
 }
 
 bool GuardAI::CanSeeAlways(WorldObject const* obj)

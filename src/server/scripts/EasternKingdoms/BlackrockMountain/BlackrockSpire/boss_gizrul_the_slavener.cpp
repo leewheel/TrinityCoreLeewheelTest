@@ -30,7 +30,7 @@ enum Spells
 
 enum Paths
 {
-    GIZRUL_PATH                     = 3219600
+    GIZRUL_PATH                     = 402450
 };
 
 enum Events
@@ -95,6 +95,7 @@ struct boss_gizrul_the_slavener : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+        DoMeleeAttackIfReady();
     }
 };
 

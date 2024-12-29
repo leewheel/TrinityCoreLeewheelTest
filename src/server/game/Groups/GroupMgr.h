@@ -18,10 +18,7 @@
 #ifndef _GROUPMGR_H
 #define _GROUPMGR_H
 
-#include "ObjectGuid.h"
-#include <map>
-
-class Group;
+#include "Group.h"
 
 class TC_GAME_API GroupMgr
 {

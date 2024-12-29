@@ -23,15 +23,18 @@
 class Map;
 class Player;
 
-class MapReference : public Reference<Map, Player, MapReference>
+class MapReference : public Reference<Map, Player>
 {
     protected:
-        friend Reference<Map, Player, MapReference>;
-        void targetObjectBuildLink();
-        void targetObjectDestroyLink();
-        void sourceObjectDestroyLink();
+        void targetObjectBuildLink() override;
+        void targetObjectDestroyLink() override;
+        void sourceObjectDestroyLink() override;
     public:
-        MapReference() = default;
+        MapReference() : Reference<Map, Player>() { }
         ~MapReference() { unlink(); }
+        MapReference* next() { return (MapReference*)Reference<Map, Player>::next(); }
+        MapReference const* next() const { return (MapReference const*)Reference<Map, Player>::next(); }
+        MapReference* nockeck_prev() { return (MapReference*)Reference<Map, Player>::nocheck_prev(); }
+        MapReference const* nocheck_prev() const { return (MapReference const*)Reference<Map, Player>::nocheck_prev(); }
 };
 #endif

@@ -99,6 +99,7 @@ struct boss_halycon : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+        DoMeleeAttackIfReady();
     }
     private:
         bool Summoned;

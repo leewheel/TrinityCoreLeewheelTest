@@ -19,12 +19,12 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 
-enum VectusEmotes
+enum Emotes
 {
     EMOTE_FRENZY                 = 0
 };
 
-enum VectusSpells
+enum Spells
 {
     SPELL_FLAMESTRIKE            = 18399,
     SPELL_BLAST_WAVE             = 16046,
@@ -32,23 +32,11 @@ enum VectusSpells
     SPELL_FRENZY                 = 8269  // 28371
 };
 
-enum VectusEvents
+enum Events
 {
     EVENT_FIRE_SHIELD = 1,
     EVENT_BLAST_WAVE,
     EVENT_FRENZY
-};
-
-enum VectusTalks
-{
-    TALK_IDLE   = 1,
-    TALK_IDLE2  = 2,
-    TALK_IDLE3  = 3
-};
-
-enum VectusPaths
-{
-    PATH_VECTUS_IDLE = 3904400
 };
 
 class boss_vectus : public CreatureScript
@@ -56,13 +44,17 @@ class boss_vectus : public CreatureScript
 public:
     boss_vectus() : CreatureScript("boss_vectus") { }
 
-    struct boss_vectusAI : public BossAI
+    struct boss_vectusAI : public ScriptedAI
     {
-        boss_vectusAI(Creature* creature) : BossAI(creature, DATA_VECTUS) { }
+        boss_vectusAI(Creature* creature) : ScriptedAI(creature) { }
 
-        void JustEngagedWith(Unit* who) override
+        void Reset() override
         {
-            _JustEngagedWith(who);
+            events.Reset();
+        }
+
+        void JustEngagedWith(Unit* /*who*/) override
+        {
             events.ScheduleEvent(EVENT_FIRE_SHIELD, 2s);
             events.ScheduleEvent(EVENT_BLAST_WAVE, 14s);
         }
@@ -111,20 +103,12 @@ public:
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
             }
+
+            DoMeleeAttackIfReady();
         }
 
-        void WaypointReached(uint32 waypointId, uint32 pathId) override
-        {
-            if (pathId != PATH_VECTUS_IDLE)
-                return;
-
-            if (waypointId == 2)
-                Talk(TALK_IDLE);
-            else if (waypointId == 3)
-                Talk(TALK_IDLE2);
-            else if (waypointId == 4)
-                Talk(TALK_IDLE3);
-        }
+        private:
+            EventMap events;
     };
 
     CreatureAI* GetAI(Creature* creature) const override

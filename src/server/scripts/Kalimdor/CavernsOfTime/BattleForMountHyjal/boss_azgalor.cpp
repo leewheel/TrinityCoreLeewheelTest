@@ -42,8 +42,6 @@ enum Texts
     SAY_ONAGGRO             = 3,
 };
 
-static constexpr uint32 PATH_ESCORT_AZGALOR = 142738;
-
 class boss_azgalor : public CreatureScript
 {
 public:
@@ -88,13 +86,13 @@ public:
             Initialize();
 
             if (IsEvent)
-                instance->SetBossState(DATA_AZGALOR, NOT_STARTED);
+                instance->SetData(DATA_AZGALOREVENT, NOT_STARTED);
         }
 
         void JustEngagedWith(Unit* /*who*/) override
         {
             if (IsEvent)
-                instance->SetBossState(DATA_AZGALOR, IN_PROGRESS);
+                instance->SetData(DATA_AZGALOREVENT, IN_PROGRESS);
 
             Talk(SAY_ONAGGRO);
         }
@@ -118,7 +116,7 @@ public:
         {
             hyjal_trashAI::JustDied(killer);
             if (IsEvent)
-                instance->SetBossState(DATA_AZGALOR, DONE);
+                instance->SetData(DATA_AZGALOREVENT, DONE);
             Talk(SAY_ONDEATH);
         }
 
@@ -131,8 +129,15 @@ public:
                 if (!go)
                 {
                     go = true;
-                    LoadPath(PATH_ESCORT_AZGALOR);
-                    Start(false);
+                    AddWaypoint(0, 5492.91f,    -2404.61f,    1462.63f);
+                    AddWaypoint(1, 5531.76f,    -2460.87f,    1469.55f);
+                    AddWaypoint(2, 5554.58f,    -2514.66f,    1476.12f);
+                    AddWaypoint(3, 5554.16f,    -2567.23f,    1479.90f);
+                    AddWaypoint(4, 5540.67f,    -2625.99f,    1480.89f);
+                    AddWaypoint(5, 5508.16f,    -2659.2f,    1480.15f);
+                    AddWaypoint(6, 5489.62f,    -2704.05f,    1482.18f);
+                    AddWaypoint(7, 5457.04f,    -2726.26f,    1485.10f);
+                    Start(false, true);
                     SetDespawnAtEnd(false);
                 }
             }
@@ -172,6 +177,8 @@ public:
                 enraged = true;
                 EnrageTimer = 600000;
             } else EnrageTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -260,6 +267,8 @@ public:
                 DoCast(SelectTarget(SelectTargetMethod::Random, 0, 100, true), SPELL_CRIPPLE);
                 CrippleTimer = 25000 + rand32() % 5000;
             } else CrippleTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 

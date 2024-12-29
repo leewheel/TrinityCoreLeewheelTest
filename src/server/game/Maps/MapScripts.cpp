@@ -41,7 +41,7 @@ void Map::ScriptsStart(std::map<uint32, std::multimap<uint32, ScriptInfo>> const
     // prepare static data
     ObjectGuid sourceGUID = source ? source->GetGUID() : ObjectGuid::Empty; //some script commands doesn't have source
     ObjectGuid targetGUID = target ? target->GetGUID() : ObjectGuid::Empty;
-    ObjectGuid ownerGUID = [&] { if (Item* item = Object::ToItem(source)) return item->GetOwnerGUID(); return ObjectGuid::Empty; }();
+    ObjectGuid ownerGUID = (source && source->isType(TYPEMASK_ITEM)) ? ((Item*)source)->GetOwnerGUID() : ObjectGuid::Empty;
 
     ///- Schedule script execution for all scripts in the script map
     ScriptMap const* s2 = &(s->second);
@@ -76,7 +76,7 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
     // prepare static data
     ObjectGuid sourceGUID = source ? source->GetGUID() : ObjectGuid::Empty;
     ObjectGuid targetGUID = target ? target->GetGUID() : ObjectGuid::Empty;
-    ObjectGuid ownerGUID = [&] { if (Item* item = Object::ToItem(source)) return item->GetOwnerGUID(); return ObjectGuid::Empty; }();
+    ObjectGuid ownerGUID = (source && source->isType(TYPEMASK_ITEM)) ? ((Item*)source)->GetOwnerGUID() : ObjectGuid::Empty;
 
     ScriptAction sa;
     sa.sourceGUID = sourceGUID;
@@ -191,7 +191,7 @@ inline Unit* Map::_GetScriptUnit(Object* obj, bool isSource, ScriptInfo const* s
     Unit* unit = nullptr;
     if (!obj)
         TC_LOG_ERROR("scripts", "{} {} object is NULL.", scriptInfo->GetDebugInfo(), isSource ? "source" : "target");
-    else if (!obj->IsUnit())
+    else if (!obj->isType(TYPEMASK_UNIT))
         TC_LOG_ERROR("scripts", "{} {} object is not unit {}, skipping.",
             scriptInfo->GetDebugInfo(), isSource ? "source" : "target", obj->GetGUID().ToString());
     else
@@ -239,13 +239,13 @@ inline WorldObject* Map::_GetScriptWorldObject(Object* obj, bool isSource, Scrip
     WorldObject* pWorldObject = nullptr;
     if (!obj)
         TC_LOG_ERROR("scripts", "{} {} object is NULL.",
-            scriptInfo->GetDebugInfo(), isSource ? "source" : "target");
+            scriptInfo->GetDebugInfo().c_str(), isSource ? "source" : "target");
     else
     {
         pWorldObject = dynamic_cast<WorldObject*>(obj);
         if (!pWorldObject)
             TC_LOG_ERROR("scripts", "{} {} object is not a world object {}.",
-                scriptInfo->GetDebugInfo(), isSource ? "source" : "target", obj->GetGUID().ToString());
+                scriptInfo->GetDebugInfo().c_str(), isSource ? "source" : "target", obj->GetGUID().ToString().c_str());
     }
     return pWorldObject;
 }
@@ -267,7 +267,7 @@ inline void Map::_ScriptProcessDoor(Object* source, Object* target, ScriptInfo c
         TC_LOG_ERROR("scripts", "{} door guid is not specified.", scriptInfo->GetDebugInfo());
     else if (!source)
         TC_LOG_ERROR("scripts", "{} source object is NULL.", scriptInfo->GetDebugInfo());
-    else if (!source->IsUnit())
+    else if (!source->isType(TYPEMASK_UNIT))
         TC_LOG_ERROR("scripts", "{} source object is not unit {}, skipping.", scriptInfo->GetDebugInfo(),
             source->GetGUID().ToString());
     else
@@ -275,7 +275,7 @@ inline void Map::_ScriptProcessDoor(Object* source, Object* target, ScriptInfo c
         WorldObject* wSource = dynamic_cast <WorldObject*> (source);
         if (!wSource)
             TC_LOG_ERROR("scripts", "{} source object could not be cast to world object {}, skipping.",
-                scriptInfo->GetDebugInfo(), source->GetGUID().ToString());
+                scriptInfo->GetDebugInfo().c_str(), source->GetGUID().ToString().c_str());
         else
         {
             GameObject* pDoor = _FindGameObject(wSource, guid);
@@ -288,8 +288,9 @@ inline void Map::_ScriptProcessDoor(Object* source, Object* target, ScriptInfo c
             {
                 pDoor->UseDoorOrButton(nTimeToToggle);
 
-                if (GameObject* goTarget = Object::ToGameObject(target))
+                if (target && target->isType(TYPEMASK_GAMEOBJECT))
                 {
+                    GameObject* goTarget = target->ToGameObject();
                     if (goTarget && goTarget->GetGoType() == GAMEOBJECT_TYPE_BUTTON)
                         goTarget->UseDoorOrButton(nTimeToToggle);
                 }
@@ -348,7 +349,7 @@ void Map::ScriptsProcess()
                     break;
                 default:
                     TC_LOG_ERROR("scripts", "{} source with unsupported high guid {}.",
-                        step.script->GetDebugInfo(), step.sourceGUID.ToString());
+                        step.script->GetDebugInfo().c_str(), step.sourceGUID.ToString().c_str());
                     break;
             }
         }
@@ -626,7 +627,7 @@ void Map::ScriptsProcess()
                     if (target->GetTypeId() != TYPEID_GAMEOBJECT)
                     {
                         TC_LOG_ERROR("scripts", "{} target object is not gameobject {}, skipping.",
-                            step.script->GetDebugInfo(), target->GetGUID().ToString());
+                            step.script->GetDebugInfo().c_str(), target->GetGUID().ToString().c_str());
                         break;
                     }
 
@@ -807,7 +808,7 @@ void Map::ScriptsProcess()
                 {
                     if (cSource->isDead())
                         TC_LOG_ERROR("scripts", "{} creature is already dead {}",
-                            step.script->GetDebugInfo(), cSource->GetGUID().ToString());
+                            step.script->GetDebugInfo().c_str(), cSource->GetGUID().ToString().c_str());
                     else
                     {
                         cSource->setDeathState(JUST_DIED);

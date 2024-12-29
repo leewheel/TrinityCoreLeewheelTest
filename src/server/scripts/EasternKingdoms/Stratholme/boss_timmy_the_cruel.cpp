@@ -46,9 +46,9 @@ public:
         return GetStratholmeAI<boss_timmy_the_cruelAI>(creature);
     }
 
-    struct boss_timmy_the_cruelAI : public BossAI
+    struct boss_timmy_the_cruelAI : public ScriptedAI
     {
-        boss_timmy_the_cruelAI(Creature* creature) : BossAI(creature, BOSS_TIMMY_THE_CRUEL)
+        boss_timmy_the_cruelAI(Creature* creature) : ScriptedAI(creature)
         {
             Initialize();
         }
@@ -64,15 +64,11 @@ public:
 
         void Reset() override
         {
-            BossAI::Reset();
-
             Initialize();
         }
 
-        void JustEngagedWith(Unit* who) override
+        void JustEngagedWith(Unit* /*who*/) override
         {
-            BossAI::JustEngagedWith(who);
-
             if (!HasYelled)
             {
                 Talk(SAY_SPAWN);
@@ -94,6 +90,8 @@ public:
                 //15 seconds until we should cast this again
                 RavenousClaw_Timer = 15000;
             } else RavenousClaw_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 

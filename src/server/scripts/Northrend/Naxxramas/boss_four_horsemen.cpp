@@ -177,6 +177,7 @@ struct boss_four_horsemen_baseAI : public BossAI
                 case ACTION_BEGIN_FIGHTING:
                     if (_ourMovementFinished)
                         break;
+                    me->SetCombatPulseDelay(5);
                     BeginFighting();
                     _ourMovementFinished = true;
                     break;
@@ -304,6 +305,7 @@ struct boss_four_horsemen_baseAI : public BossAI
             _ourMovementFinished = false;
             me->SetReactState(REACT_AGGRESSIVE);
             SetCombatMovement(false);
+            me->SetCombatPulseDelay(0);
             me->ResetLootMode();
             events.Reset();
             summons.DespawnAll();
@@ -431,6 +433,10 @@ struct boss_four_horsemen_baron : public boss_four_horsemen_baseAI
                     break;
             }
         }
+
+        if (me->HasUnitState(UNIT_STATE_CASTING))
+            return;
+        DoMeleeAttackIfReady();
     }
 
     void SpellHitTarget(WorldObject* /*target*/, SpellInfo const* spellInfo) override
@@ -492,6 +498,10 @@ struct boss_four_horsemen_thane : public boss_four_horsemen_baseAI
                     break;
             }
         }
+
+        if (me->HasUnitState(UNIT_STATE_CASTING))
+            return;
+        DoMeleeAttackIfReady();
     }
 
     void SpellHitTarget(WorldObject* /*target*/, SpellInfo const* spellInfo) override
@@ -509,11 +519,7 @@ struct boss_four_horsemen_thane : public boss_four_horsemen_baseAI
 
 struct boss_four_horsemen_lady : public boss_four_horsemen_baseAI
 {
-    boss_four_horsemen_lady(Creature* creature) : boss_four_horsemen_baseAI(creature, LADY, ladyPath)
-    {
-        me->SetCanMelee(false);
-    }
-
+    boss_four_horsemen_lady(Creature* creature) : boss_four_horsemen_baseAI(creature, LADY, ladyPath) { }
     void BeginFighting() override
     {
         events.ScheduleEvent(EVENT_BERSERK, 10min);
@@ -529,7 +535,7 @@ struct boss_four_horsemen_lady : public boss_four_horsemen_baseAI
             return;
         if (me->GetThreatManager().IsThreatListEmpty())
         {
-            EnterEvadeMode(EvadeReason::NoHostiles);
+            EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
             return;
         }
 
@@ -572,11 +578,7 @@ struct boss_four_horsemen_lady : public boss_four_horsemen_baseAI
 
 struct boss_four_horsemen_sir : public boss_four_horsemen_baseAI
 {
-    boss_four_horsemen_sir(Creature* creature) : boss_four_horsemen_baseAI(creature, SIR, sirPath), _shouldSay(true)
-    {
-        me->SetCanMelee(false);
-    }
-
+    boss_four_horsemen_sir(Creature* creature) : boss_four_horsemen_baseAI(creature, SIR, sirPath), _shouldSay(true) { }
     void BeginFighting() override
     {
         events.ScheduleEvent(EVENT_BERSERK, 10min);
@@ -592,7 +594,7 @@ struct boss_four_horsemen_sir : public boss_four_horsemen_baseAI
             return;
         if (me->GetThreatManager().IsThreatListEmpty())
         {
-            EnterEvadeMode(EvadeReason::NoHostiles);
+            EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
             return;
         }
 
@@ -651,6 +653,8 @@ struct boss_four_horsemen_sir : public boss_four_horsemen_baseAI
 // 28835 - Mark of Zeliek
 class spell_four_horsemen_mark : public AuraScript
 {
+    PrepareAuraScript(spell_four_horsemen_mark);
+
     void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         if (Unit* caster = GetCaster())

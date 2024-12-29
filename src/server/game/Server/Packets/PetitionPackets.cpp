@@ -16,17 +16,14 @@
  */
 
 #include "PetitionPackets.h"
-#include "PacketUtilities.h"
 
-namespace WorldPackets::Petition
-{
-void QueryPetition::Read()
+void WorldPackets::Petition::QueryPetition::Read()
 {
     _worldPacket >> PetitionID;
     _worldPacket >> ItemGUID;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, PetitionInfo const& petitionInfo)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Petition::PetitionInfo const& petitionInfo)
 {
     data << int32(petitionInfo.PetitionID);
     data << petitionInfo.Petitioner;
@@ -44,24 +41,24 @@ ByteBuffer& operator<<(ByteBuffer& data, PetitionInfo const& petitionInfo)
     data << int32(petitionInfo.StaticType);
     data << uint32(petitionInfo.Muid);
 
-    data << SizedString::BitsSize<7>(petitionInfo.Title);
-    data << SizedString::BitsSize<12>(petitionInfo.BodyText);
+    data.WriteBits(petitionInfo.Title.length(), 7);
+    data.WriteBits(petitionInfo.BodyText.length(), 12);
 
-    for (std::string const& choiceText : petitionInfo.Choicetext)
-        data << SizedString::BitsSize<6>(choiceText);
+    for (std::size_t i = 0; i < petitionInfo.Choicetext.size(); ++i)
+        data.WriteBits(petitionInfo.Choicetext[i].length(), 6);
 
     data.FlushBits();
 
-    for (std::string const& choiceText : petitionInfo.Choicetext)
-        data << SizedString::Data(choiceText);
+    for (std::size_t i = 0; i < petitionInfo.Choicetext.size(); ++i)
+        data.WriteString(petitionInfo.Choicetext[i]);
 
-    data << SizedString::Data(petitionInfo.Title);
-    data << SizedString::Data(petitionInfo.BodyText);
+    data.WriteString(petitionInfo.Title);
+    data.WriteString(petitionInfo.BodyText);
 
     return data;
 }
 
-WorldPacket const* QueryPetitionResponse::Write()
+WorldPacket const* WorldPackets::Petition::QueryPetitionResponse::Write()
 {
     _worldPacket << uint32(PetitionID);
     _worldPacket.WriteBit(Allow);
@@ -73,12 +70,12 @@ WorldPacket const* QueryPetitionResponse::Write()
     return &_worldPacket;
 }
 
-void PetitionShowList::Read()
+void WorldPackets::Petition::PetitionShowList::Read()
 {
     _worldPacket >> PetitionUnit;
 }
 
-WorldPacket const* ServerPetitionShowList::Write()
+WorldPacket const* WorldPackets::Petition::ServerPetitionShowList::Write()
 {
     _worldPacket << Unit;
     _worldPacket << Price;
@@ -86,7 +83,7 @@ WorldPacket const* ServerPetitionShowList::Write()
     return &_worldPacket;
 }
 
-void PetitionBuy::Read()
+void WorldPackets::Petition::PetitionBuy::Read()
 {
     uint32 titleLen = _worldPacket.ReadBits(7);
 
@@ -95,12 +92,12 @@ void PetitionBuy::Read()
     Title = _worldPacket.ReadString(titleLen);
 }
 
-void PetitionShowSignatures::Read()
+void WorldPackets::Petition::PetitionShowSignatures::Read()
 {
     _worldPacket >> Item;
 }
 
-WorldPacket const* ServerPetitionShowSignatures::Write()
+WorldPacket const* WorldPackets::Petition::ServerPetitionShowSignatures::Write()
 {
     _worldPacket << Item;
     _worldPacket << Owner;
@@ -117,13 +114,13 @@ WorldPacket const* ServerPetitionShowSignatures::Write()
     return &_worldPacket;
 }
 
-void SignPetition::Read()
+void WorldPackets::Petition::SignPetition::Read()
 {
     _worldPacket >> PetitionGUID;
     _worldPacket >> Choice;
 }
 
-WorldPacket const* PetitionSignResults::Write()
+WorldPacket const* WorldPackets::Petition::PetitionSignResults::Write()
 {
     _worldPacket << Item;
     _worldPacket << Player;
@@ -134,24 +131,24 @@ WorldPacket const* PetitionSignResults::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* PetitionAlreadySigned::Write()
+WorldPacket const* WorldPackets::Petition::PetitionAlreadySigned::Write()
 {
     _worldPacket << SignerGUID;
 
     return &_worldPacket;
 }
 
-void DeclinePetition::Read()
+void WorldPackets::Petition::DeclinePetition::Read()
 {
     _worldPacket >> PetitionGUID;
 }
 
-void TurnInPetition::Read()
+void WorldPackets::Petition::TurnInPetition::Read()
 {
     _worldPacket >> Item;
 }
 
-WorldPacket const* TurnInPetitionResult::Write()
+WorldPacket const* WorldPackets::Petition::TurnInPetitionResult::Write()
 {
     _worldPacket.WriteBits(Result, 4);
     _worldPacket.FlushBits();
@@ -159,20 +156,20 @@ WorldPacket const* TurnInPetitionResult::Write()
     return &_worldPacket;
 }
 
-void OfferPetition::Read()
+void WorldPackets::Petition::OfferPetition::Read()
 {
     _worldPacket >> ItemGUID;
     _worldPacket >> TargetPlayer;
 }
 
-WorldPacket const* OfferPetitionError::Write()
+WorldPacket const* WorldPackets::Petition::OfferPetitionError::Write()
 {
     _worldPacket << PlayerGUID;
 
     return &_worldPacket;
 }
 
-void PetitionRenameGuild::Read()
+void WorldPackets::Petition::PetitionRenameGuild::Read()
 {
     _worldPacket >> PetitionGuid;
 
@@ -182,7 +179,7 @@ void PetitionRenameGuild::Read()
     NewGuildName = _worldPacket.ReadString(nameLen);
 }
 
-WorldPacket const* PetitionRenameGuildResponse::Write()
+WorldPacket const* WorldPackets::Petition::PetitionRenameGuildResponse::Write()
 {
     _worldPacket << PetitionGuid;
 
@@ -192,5 +189,4 @@ WorldPacket const* PetitionRenameGuildResponse::Write()
     _worldPacket.WriteString(NewGuildName);
 
     return &_worldPacket;
-}
 }

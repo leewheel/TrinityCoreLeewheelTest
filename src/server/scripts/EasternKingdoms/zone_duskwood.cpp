@@ -120,6 +120,8 @@ public:
                         break;
                 }
             }
+
+            DoMeleeAttackIfReady();
         }
 
         private:

@@ -133,7 +133,10 @@ struct boss_slad_ran : public BossAI
         if (!UpdateVictim())
             return;
 
-        scheduler.Update(diff);
+        scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
     void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override

@@ -26,7 +26,6 @@
 #include <CascLib.h>
 #include <algorithm>
 #include <cstdio>
-#include "advstd.h"
 
 bool ExtractSingleModel(std::string& fname)
 {
@@ -61,16 +60,15 @@ bool ExtractSingleModel(std::string& fname)
 
 extern std::shared_ptr<CASC::Storage> CascStorage;
 
-bool GetHeaderMagic(std::string const& fileName, std::array<char, 4>* magic)
+bool GetHeaderMagic(std::string const& fileName, uint32* magic)
 {
-    *magic = { };
+    *magic = 0;
     std::unique_ptr<CASC::File> file(CascStorage->OpenFile(fileName.c_str(), CASC_LOCALE_ALL_WOW));
     if (!file)
         return false;
 
-    uint32 bytesToRead = uint32(magic->size() * sizeof(std::remove_pointer_t<decltype(magic)>::value_type));
     uint32 bytesRead = 0;
-    if (!file->ReadFile(magic->data(), bytesToRead, &bytesRead) || bytesRead != bytesToRead)
+    if (!file->ReadFile(magic, 4, &bytesRead) || bytesRead != 4)
         return false;
 
     return true;
@@ -80,11 +78,11 @@ void ExtractGameobjectModels()
 {
     printf("Extracting GameObject models...\n");
 
-    DB2CascFileSource source(CascStorage, GameobjectDisplayInfoLoadInfo::Instance.Meta->FileDataId);
+    DB2CascFileSource source(CascStorage, GameobjectDisplayInfoLoadInfo::Instance()->Meta->FileDataId);
     DB2FileLoader db2;
     try
     {
-        db2.Load(&source, &GameobjectDisplayInfoLoadInfo::Instance);
+        db2.Load(&source, GameobjectDisplayInfoLoadInfo::Instance());
     }
     catch (std::exception const& e)
     {
@@ -117,27 +115,27 @@ void ExtractGameobjectModels()
 
         std::string fileName = Trinity::StringFormat("FILE{:08X}.xxx", fileId);
         bool result = false;
-        std::array<char, 4> headerRaw;
-        if (!GetHeaderMagic(fileName, &headerRaw))
+        uint32 header;
+        if (!GetHeaderMagic(fileName, &header))
             continue;
 
-        std::string_view header(headerRaw.data(), headerRaw.size());
-        if (header == "REVM")
+        uint8 isWmo = 0;
+        if (!memcmp(&header, "REVM", 4))
+        {
+            isWmo = 1;
             result = ExtractSingleWmo(fileName);
-        else if (header == "MD20" || header == "MD21")
+        }
+        else if (!memcmp(&header, "MD20", 4) || !memcmp(&header, "MD21", 4))
             result = ExtractSingleModel(fileName);
-        else if (header == "BLP2")
-            continue;   // broken db2 data
         else
-            ABORT_MSG("%s header: 0x%X%X%X%X - " STRING_VIEW_FMT, fileName.c_str(),
-                uint32(headerRaw[3]), uint32(headerRaw[2]), uint32(headerRaw[1]), uint32(headerRaw[0]),
-                STRING_VIEW_FMT_ARG(header));
+            ABORT_MSG("%s header: %d - %c%c%c%c", fileName.c_str(), header, (header >> 24) & 0xFF, (header >> 16) & 0xFF, (header >> 8) & 0xFF, header & 0xFF);
 
         if (result)
         {
             uint32 displayId = record.GetId();
             uint32 path_length = fileName.length();
             fwrite(&displayId, sizeof(uint32), 1, model_list);
+            fwrite(&isWmo, sizeof(uint8), 1, model_list);
             fwrite(&path_length, sizeof(uint32), 1, model_list);
             fwrite(fileName.c_str(), sizeof(char), path_length, model_list);
         }

@@ -39,20 +39,19 @@ enum HungarfenSpells
     SPELL_GROW                       = 31698
 };
 
-struct boss_hungarfen : public BossAI
+struct boss_hungarfen : public ScriptedAI
 {
-    boss_hungarfen(Creature* creature) : BossAI(creature, DATA_HUNGARFEN), _roared(false) { }
+    boss_hungarfen(Creature* creature) : ScriptedAI(creature), _roared(false) { }
 
     void Reset() override
     {
-        BossAI::Reset();
+        _scheduler.CancelAll();
         _roared = false;
         me->SetReactState(REACT_AGGRESSIVE);
     }
 
-    void JustEngagedWith(Unit* who) override
+    void JustEngagedWith(Unit* /*who*/) override
     {
-        BossAI::JustEngagedWith(who);
         _scheduler.Schedule(IsHeroic() ? 2500ms : 5s, [this](TaskContext task)
         {
             /// @todo cast here SPELL_PUTRID_MUSHROOM_PRIMER and do it in spell script
@@ -75,13 +74,12 @@ struct boss_hungarfen : public BossAI
     void EnterEvadeMode(EvadeReason why) override
     {
         DoCastSelf(SPELL_DESPAWN_UNDERBOG_MUSHROOMS, true);
-        BossAI::EnterEvadeMode(why);
+        ScriptedAI::EnterEvadeMode(why);
     }
 
-    void JustDied(Unit* killer) override
+    void JustDied(Unit* /*killer*/) override
     {
         DoCastSelf(SPELL_DESPAWN_UNDERBOG_MUSHROOMS, true);
-        BossAI::JustDied(killer);
     }
 
     void UpdateAI(uint32 diff) override
@@ -89,7 +87,10 @@ struct boss_hungarfen : public BossAI
         if (!UpdateVictim())
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
 
         if (!HealthAbovePct(20) && !_roared)
         {

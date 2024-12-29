@@ -20,6 +20,8 @@ endif()
 
 GroupSources(${CMAKE_CURRENT_SOURCE_DIR})
 
+add_definitions(-DTRINITY_API_EXPORT_GAME)
+
 CollectIncludeDirectories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   PUBLIC_INCLUDES
@@ -54,10 +56,9 @@ target_link_libraries(game
     game-interface)
 
 set_target_properties(game
-  PROPERTIES
-    COMPILE_WARNING_AS_ERROR ${WITH_WARNINGS_AS_ERRORS}
-    DEFINE_SYMBOL TRINITY_API_EXPORT_GAME
-    FOLDER "server")
+    PROPERTIES
+      FOLDER
+        "server")
 
 if(BUILD_SHARED_LIBS)
   if(UNIX)

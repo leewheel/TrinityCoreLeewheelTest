@@ -32,6 +32,11 @@ void WorldPackets::Trade::InitiateTrade::Read()
     _worldPacket >> Guid;
 }
 
+void WorldPackets::Trade::SetTradeCurrency::Read()
+{
+    _worldPacket >> Type >> Quantity;
+}
+
 void WorldPackets::Trade::SetTradeGold::Read()
 {
     _worldPacket >> Coinage;

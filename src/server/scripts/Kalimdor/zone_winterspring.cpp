@@ -256,8 +256,6 @@ static Position wingThicketLocations[] =
 # npc_ranshalla
 #####*/
 
-static constexpr uint32 PATH_ESCORT_RANSHALLA = 82402;
-
 class npc_ranshalla : public CreatureScript
 {
 public:
@@ -546,8 +544,7 @@ public:
                 Talk(SAY_QUEST_START);
                 me->SetFaction(FACTION_ESCORTEE_A_NEUTRAL_PASSIVE);
 
-                LoadPath(PATH_ESCORT_RANSHALLA);
-                Start(false, player->GetGUID(), quest);
+                Start(false, false, player->GetGUID(), quest);
             }
         }
 

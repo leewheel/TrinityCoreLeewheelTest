@@ -30,6 +30,7 @@ EndScriptData */
 #include "InstanceScript.h"
 #include "Log.h"
 #include "Map.h"
+#include <sstream>
 
 /* Battle of Mount Hyjal encounters:
 0 - Rage Winterchill event
@@ -46,25 +47,8 @@ enum Yells
 
 ObjectData const creatureData[] =
 {
-    { RAGE_WINTERCHILL,   DATA_RAGEWINTERCHILL    },
-    { ANETHERON,          DATA_ANETHERON          },
-    { KAZROGAL,           DATA_KAZROGAL           },
-    { AZGALOR,            DATA_AZGALOR            },
-    { ARCHIMONDE,         DATA_ARCHIMONDE         },
-    { JAINA,              DATA_JAINAPROUDMOORE    },
-    { THRALL,             DATA_THRALL             },
-    { TYRANDE,            DATA_TYRANDEWHISPERWIND },
-    { NPC_CHANNEL_TARGET, DATA_CHANNEL_TARGET     },
-    { 0,                  0                       } // END
-};
-
-DungeonEncounterData const encounters[] =
-{
-    { DATA_RAGEWINTERCHILL, {{ 618 }} },
-    { DATA_ANETHERON, {{ 619 }} },
-    { DATA_KAZROGAL, {{ 620 }} },
-    { DATA_AZGALOR, {{ 621 }} },
-    { DATA_ARCHIMONDE, {{ 622 }} }
+    { NPC_CHANNEL_TARGET, DATA_CHANNEL_TARGET },
+    { 0,                  0                   } // END
 };
 
 class instance_hyjal : public InstanceMapScript
@@ -82,9 +66,8 @@ public:
         instance_mount_hyjal_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
         {
             SetHeaders(DataHeader);
-            SetBossNumber(EncounterCount);
             LoadObjectData(creatureData, nullptr);
-            LoadDungeonEncounterData(encounters);
+            memset(&m_auiEncounter, 0, sizeof(m_auiEncounter));
 
             RaidDamage = 0;
             Trash = 0;
@@ -92,6 +75,15 @@ public:
             allianceRetreat = 0;
 
             ArchiYell = false;
+        }
+
+        bool IsEncounterInProgress() const override
+        {
+            for (uint8 i = 0; i < EncounterCount; ++i)
+                if (m_auiEncounter[i] == IN_PROGRESS)
+                    return true;
+
+            return false;
         }
 
         void OnGameObjectCreate(GameObject* go) override
@@ -116,30 +108,97 @@ public:
                     m_uiAncientGemGUID.push_back(go->GetGUID());
                     break;
             }
-
-            InstanceScript::OnGameObjectCreate(go);
         }
 
         void OnCreatureCreate(Creature* creature) override
         {
             switch (creature->GetEntry())
             {
+                case RAGE_WINTERCHILL:
+                    RageWinterchill = creature->GetGUID();
+                    break;
+                case ANETHERON:
+                    Anetheron = creature->GetGUID();
+                    break;
+                case KAZROGAL:
+                    Kazrogal = creature->GetGUID();
+                    break;
+                case AZGALOR:
+                    Azgalor = creature->GetGUID();
+                    break;
                 case ARCHIMONDE:
-                    if (GetBossState(DATA_AZGALOR) != DONE)
+                    Archimonde = creature->GetGUID();
+                    if (GetData(DATA_AZGALOREVENT) != DONE)
                     {
                         creature->SetVisible(false);
                         creature->SetReactState(REACT_PASSIVE);
                     }
+                    break;
+                case JAINA:
+                    JainaProudmoore = creature->GetGUID();
+                    break;
+                case THRALL:
+                    Thrall = creature->GetGUID();
+                    break;
+                case TYRANDE:
+                    TyrandeWhisperwind = creature->GetGUID();
                     break;
             }
 
             InstanceScript::OnCreatureCreate(creature);
         }
 
+        ObjectGuid GetGuidData(uint32 identifier) const override
+        {
+            switch (identifier)
+            {
+                case DATA_RAGEWINTERCHILL:    return RageWinterchill;
+                case DATA_ANETHERON:          return Anetheron;
+                case DATA_KAZROGAL:           return Kazrogal;
+                case DATA_AZGALOR:            return Azgalor;
+                case DATA_ARCHIMONDE:         return Archimonde;
+                case DATA_JAINAPROUDMOORE:    return JainaProudmoore;
+                case DATA_THRALL:             return Thrall;
+                case DATA_TYRANDEWHISPERWIND: return TyrandeWhisperwind;
+            }
+
+            return ObjectGuid::Empty;
+        }
+
         void SetData(uint32 type, uint32 data) override
         {
             switch (type)
             {
+                case DATA_RAGEWINTERCHILLEVENT:
+                    m_auiEncounter[0] = data;
+                    break;
+                case DATA_ANETHERONEVENT:
+                    m_auiEncounter[1] = data;
+                    break;
+                case DATA_KAZROGALEVENT:
+                    m_auiEncounter[2] = data;
+                    break;
+                case DATA_AZGALOREVENT:
+                    m_auiEncounter[3] = data;
+                    if (data == DONE)
+                    {
+                        instance->LoadGrid(5581.49f, -3445.63f);
+                        if (Creature* archimonde = instance->GetCreature(Archimonde))
+                        {
+                            archimonde->SetVisible(true);
+                            archimonde->SetReactState(REACT_AGGRESSIVE);
+
+                            if (!ArchiYell)
+                            {
+                                ArchiYell = true;
+                                archimonde->AI()->Talk(YELL_ARCHIMONDE_INTRO);
+                            }
+                        }
+                    }
+                    break;
+                case DATA_ARCHIMONDEEVENT:
+                    m_auiEncounter[4] = data;
+                    break;
                 case DATA_RESET_TRASH_COUNT:
                     Trash = 0;
                     break;
@@ -166,10 +225,12 @@ public:
                 case DATA_ALLIANCE_RETREAT:
                     allianceRetreat = data;
                     HandleGameObject(HordeGate, true);
+                    SaveToDB();
                     break;
                 case DATA_HORDE_RETREAT:
                     hordeRetreat = data;
                     HandleGameObject(ElfGate, true);
+                    SaveToDB();
                     break;
                 case DATA_RAIDDAMAGE:
                     RaidDamage += data;
@@ -181,42 +242,35 @@ public:
                     break;
             }
 
-            TC_LOG_DEBUG("scripts", "Instance Hyjal: Instance data updated for event {} (Data={})", type, data);
-        }
+             TC_LOG_DEBUG("scripts", "Instance Hyjal: Instance data updated for event {} (Data={})", type, data);
 
-        bool SetBossState(uint32 id, EncounterState state) override
-        {
-            if (!InstanceScript::SetBossState(id, state))
-                return false;
-
-            switch (id)
+            if (data == DONE)
             {
-                case DATA_AZGALOR:
-                    if (state == DONE)
-                    {
-                        instance->LoadGrid(5581.49f, -3445.63f);
-                        if (Creature* archimonde = GetCreature(DATA_ARCHIMONDE))
-                        {
-                            archimonde->SetVisible(true);
-                            archimonde->SetReactState(REACT_AGGRESSIVE);
+                OUT_SAVE_INST_DATA;
 
-                            if (!ArchiYell)
-                            {
-                                ArchiYell = true;
-                                archimonde->AI()->Talk(YELL_ARCHIMONDE_INTRO);
-                            }
-                        }
-                    }
-                    break;
+                std::ostringstream saveStream;
+                saveStream << m_auiEncounter[0] << ' ' << m_auiEncounter[1] << ' ' << m_auiEncounter[2] << ' '
+                    << m_auiEncounter[3] << ' ' << m_auiEncounter[4]
+                    << ' ' << allianceRetreat << ' ' << hordeRetreat
+                    << ' ' << RaidDamage;
+
+                str_data = saveStream.str();
+
+                SaveToDB();
+                OUT_SAVE_INST_DATA_COMPLETE;
             }
 
-            return true;
         }
 
         uint32 GetData(uint32 type) const override
         {
             switch (type)
             {
+                case DATA_RAGEWINTERCHILLEVENT: return m_auiEncounter[0];
+                case DATA_ANETHERONEVENT:       return m_auiEncounter[1];
+                case DATA_KAZROGALEVENT:        return m_auiEncounter[2];
+                case DATA_AZGALOREVENT:         return m_auiEncounter[3];
+                case DATA_ARCHIMONDEEVENT:      return m_auiEncounter[4];
                 case DATA_TRASH:                return Trash;
                 case DATA_ALLIANCE_RETREAT:     return allianceRetreat;
                 case DATA_HORDE_RETREAT:        return hordeRetreat;
@@ -225,16 +279,40 @@ public:
             return 0;
         }
 
-        void AfterDataLoad() override
+        std::string GetSaveData() override
         {
-            if (GetBossState(DATA_ANETHERON) == DONE)
-                allianceRetreat = 1;
-            if (GetBossState(DATA_AZGALOR) == DONE)
-                hordeRetreat = 1;
+            return str_data;
+        }
+
+        void Load(char const* in) override
+        {
+            if (!in)
+            {
+                OUT_LOAD_INST_DATA_FAIL;
+                return;
+            }
+
+            OUT_LOAD_INST_DATA(in);
+            std::istringstream loadStream(in);
+            loadStream >> m_auiEncounter[0] >> m_auiEncounter[1] >> m_auiEncounter[2] >> m_auiEncounter[3] >> m_auiEncounter[4] >> allianceRetreat >> hordeRetreat >> RaidDamage;
+            for (uint8 i = 0; i < EncounterCount; ++i)
+                if (m_auiEncounter[i] == IN_PROGRESS)                // Do not load an encounter as IN_PROGRESS - reset it instead.
+                    m_auiEncounter[i] = NOT_STARTED;
+            OUT_LOAD_INST_DATA_COMPLETE;
         }
 
         protected:
+            uint32 m_auiEncounter[EncounterCount];
+            std::string str_data;
             GuidList m_uiAncientGemGUID;
+            ObjectGuid RageWinterchill;
+            ObjectGuid Anetheron;
+            ObjectGuid Kazrogal;
+            ObjectGuid Azgalor;
+            ObjectGuid Archimonde;
+            ObjectGuid JainaProudmoore;
+            ObjectGuid Thrall;
+            ObjectGuid TyrandeWhisperwind;
             ObjectGuid HordeGate;
             ObjectGuid ElfGate;
             uint32 Trash;

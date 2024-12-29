@@ -19,13 +19,6 @@
 #include "ScriptMgr.h"
 #include "the_stockade.h"
 
-DungeonEncounterData const encounters[] =
-{
-    { DATA_RANDOLPH_MOLOCH, {{ 1146 }} },
-    { DATA_LORD_OVERHEAT, {{ 1145 }} },
-    { DATA_HOGGER, {{ 1144 }} }
-};
-
 class instance_the_stockade : public InstanceMapScript
 {
 public:
@@ -37,7 +30,6 @@ public:
         {
             SetHeaders(DataHeader);
             SetBossNumber(EncounterCount);
-            LoadDungeonEncounterData(encounters);
         }
     };
 

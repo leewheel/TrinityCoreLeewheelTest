@@ -23,7 +23,6 @@ SDCategory: Karazhan
 EndScriptData */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "karazhan.h"
 #include "InstanceScript.h"
 #include "ObjectAccessor.h"
@@ -287,7 +286,6 @@ public:
                 if (Vanish_Timer <= diff)
                 {
                     DoCast(me, SPELL_VANISH);
-                    me->SetCanMelee(false);
                     InVanish = true;
                     Vanish_Timer = 30000;
                     Wait_Timer = 5000;
@@ -317,9 +315,11 @@ public:
                         target->CastSpell(target, SPELL_GARROTE, true);
 
                     InVanish = false;
-                    me->SetCanMelee(true);
                 } else Wait_Timer -= diff;
             }
+
+            if (!InVanish)
+                DoMeleeAttackIfReady();
         }
     };
 };
@@ -370,6 +370,8 @@ struct boss_moroes_guestAI : public ScriptedAI
     {
         if (instance->GetBossState(DATA_MOROES) != IN_PROGRESS)
             EnterEvadeMode();
+
+        DoMeleeAttackIfReady();
     }
 };
 

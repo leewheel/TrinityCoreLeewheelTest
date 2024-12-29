@@ -24,12 +24,10 @@
 #include "IteratorPair.h"
 #include "Log.h"
 #include "Map.h"
-#include "ObjectAccessor.h"
 #include "PhasingHandler.h"
 #include "Player.h"
 #include "ScriptMgr.h"
 #include "UpdateData.h"
-#include "WorldSession.h"
 
 Conversation::Conversation() : WorldObject(false), _duration(0), _textureKitId(0)
 {
@@ -38,6 +36,9 @@ Conversation::Conversation() : WorldObject(false), _duration(0), _textureKitId(0
 
     m_updateFlag.Stationary = true;
     m_updateFlag.Conversation = true;
+
+    m_valuesCount = UF::CONVERSATION_END;
+    m_dynamicValuesCount = UF::CONVERSATION_DYNAMIC_END;
 
     _lastLineEndTimes.fill(Milliseconds::zero());
 }
@@ -66,10 +67,16 @@ void Conversation::RemoveFromWorld()
 
 void Conversation::Update(uint32 diff)
 {
-    sScriptMgr->OnConversationUpdate(this, diff);
-
     if (GetDuration() > Milliseconds(diff))
+    {
         _duration -= Milliseconds(diff);
+        DoWithSuppressingObjectUpdates([&]()
+        {
+            // Only sent in CreateObject
+            ApplyModUpdateFieldValue(m_values.ModifyValue(&Conversation::m_conversationData).ModifyValue(&UF::ConversationData::Progress), int32(diff), true);
+            const_cast<UF::ConversationData&>(*m_conversationData).ClearChanged(&UF::ConversationData::Progress);
+        });
+    }
     else
     {
         Remove(); // expired
@@ -87,7 +94,7 @@ void Conversation::Remove()
     }
 }
 
-Conversation* Conversation::CreateConversation(uint32 conversationEntry, Unit* creator, Position const& pos, ObjectGuid privateObjectOwner, SpellInfo const* spellInfo /*= nullptr*/, bool autoStart /*= true*/)
+Conversation* Conversation::CreateConversation(uint32 conversationEntry, Unit* creator, Position const& pos, ObjectGuid privateObjectOwner, SpellInfo const* spellInfo /*= nullptr*/)
 {
     ConversationTemplate const* conversationTemplate = sConversationDataStore->GetConversationTemplate(conversationEntry);
     if (!conversationTemplate)
@@ -96,8 +103,7 @@ Conversation* Conversation::CreateConversation(uint32 conversationEntry, Unit* c
     ObjectGuid::LowType lowGuid = creator->GetMap()->GenerateLowGuid<HighGuid::Conversation>();
 
     Conversation* conversation = new Conversation();
-    conversation->Create(lowGuid, conversationEntry, creator->GetMap(), creator, pos, privateObjectOwner, spellInfo);
-    if (autoStart && !conversation->Start())
+    if (!conversation->Create(lowGuid, conversationEntry, creator->GetMap(), creator, pos, privateObjectOwner, spellInfo))
     {
         delete conversation;
         return nullptr;
@@ -152,7 +158,7 @@ private:
     ConversationActorTemplate const& _actor;
 };
 
-void Conversation::Create(ObjectGuid::LowType lowGuid, uint32 conversationEntry, Map* map, Unit* creator, Position const& pos, ObjectGuid privateObjectOwner, SpellInfo const* /*spellInfo = nullptr*/)
+bool Conversation::Create(ObjectGuid::LowType lowGuid, uint32 conversationEntry, Map* map, Unit* creator, Position const& pos, ObjectGuid privateObjectOwner, SpellInfo const* /*spellInfo = nullptr*/)
 {
     ConversationTemplate const* conversationTemplate = sConversationDataStore->GetConversationTemplate(conversationEntry);
     ASSERT(conversationTemplate);
@@ -178,20 +184,23 @@ void Conversation::Create(ObjectGuid::LowType lowGuid, uint32 conversationEntry,
     for (ConversationActorTemplate const& actor : conversationTemplate->Actors)
         std::visit(ConversationActorFillVisitor(this, creator, map, actor), actor.Data);
 
+    std::set<uint16> actorIndices;
     std::vector<UF::ConversationLine> lines;
     for (ConversationLineTemplate const* line : conversationTemplate->Lines)
     {
         if (!sConditionMgr->IsObjectMeetingNotGroupedConditions(CONDITION_SOURCE_TYPE_CONVERSATION_LINE, line->Id, creator))
             continue;
 
-        ConversationLineEntry const* convoLine = sConversationLineStore.LookupEntry(line->Id); // never null for conversationTemplate->Lines
+        actorIndices.insert(line->ActorIdx);
+        lines.emplace_back();
 
-        UF::ConversationLine& lineField = lines.emplace_back();
+        UF::ConversationLine& lineField = lines.back();
         lineField.ConversationLineID = line->Id;
-        //lineField.BroadcastTextID = convoLine->BroadcastTextID;
         lineField.UiCameraID = line->UiCameraID;
         lineField.ActorIndex = line->ActorIdx;
         lineField.Flags = line->Flags;
+
+        ConversationLineEntry const* convoLine = sConversationLineStore.LookupEntry(line->Id); // never null for conversationTemplate->Lines
 
         for (LocaleConstant locale = LOCALE_enUS; locale < TOTAL_LOCALES; locale = LocaleConstant(locale + 1))
         {
@@ -201,9 +210,6 @@ void Conversation::Create(ObjectGuid::LowType lowGuid, uint32 conversationEntry,
             _lineStartTimes[{ locale, line->Id }] = _lastLineEndTimes[locale];
             if (locale == DEFAULT_LOCALE)
                 lineField.StartTime = _lastLineEndTimes[locale].count();
-
-            if (int32 const* broadcastTextDuration = sDB2Manager.GetBroadcastTextDuration(convoLine->BroadcastTextID, locale))
-                _lastLineEndTimes[locale] += Milliseconds(*broadcastTextDuration);
 
             _lastLineEndTimes[locale] += Milliseconds(convoLine->AdditionalDuration);
         }
@@ -217,34 +223,10 @@ void Conversation::Create(ObjectGuid::LowType lowGuid, uint32 conversationEntry,
     _duration += 10s;
 
     sScriptMgr->OnConversationCreate(this, creator);
-}
-
-bool Conversation::Start()
-{
-    ConversationTemplate const* conversationTemplate = sConversationDataStore->GetConversationTemplate(GetEntry()); // never null, already checked in ::Create / ::CreateConversation
-    if (!conversationTemplate->Flags.HasFlag(ConversationFlags::AllowWithoutSpawnedActor))
-    {
-        for (UF::ConversationLine const& line : *m_conversationData->Lines)
-        {
-            UF::ConversationActor const* actor = line.ActorIndex < m_conversationData->Actors.size() ? &m_conversationData->Actors[line.ActorIndex] : nullptr;
-            if (!actor || (!actor->CreatureID && actor->ActorGUID.IsEmpty()))
-            {
-                TC_LOG_ERROR("entities.conversation", "Failed to create conversation (Id: {}) due to missing actor (Idx: {}).", GetEntry(), line.ActorIndex);
-                return false;
-            }
-        }
-    }
-
-    if (IsInWorld())
-    {
-        TC_LOG_ERROR("entities.conversation", "Attempted to start conversation (Id: {}) multiple times.", GetEntry());
-        return true; // returning true to not cause delete in Conversation::CreateConversation if convo is already started in ConversationScript::OnConversationCreate
-    }
 
     if (!GetMap()->AddToMap(this))
         return false;
 
-    sScriptMgr->OnConversationStart(this);
     return true;
 }
 
@@ -278,72 +260,30 @@ Milliseconds Conversation::GetLastLineEndTime(LocaleConstant locale) const
     return _lastLineEndTimes[locale];
 }
 
-int32 Conversation::GetLineDuration(LocaleConstant locale, int32 lineId)
-{
-    ConversationLineEntry const* convoLine = sConversationLineStore.LookupEntry(lineId);
-    if (!convoLine)
-    {
-        TC_LOG_ERROR("entities.conversation", "Conversation::GetLineDuration: Tried to get duration for invalid ConversationLine id {}.", lineId);
-        return 0;
-    }
-
-    int32 const* textDuration = sDB2Manager.GetBroadcastTextDuration(convoLine->BroadcastTextID, locale);
-    if (!textDuration)
-        return 0;
-
-    return *textDuration + convoLine->AdditionalDuration;
-}
-
-Milliseconds Conversation::GetLineEndTime(LocaleConstant locale, int32 lineId) const
-{
-    Milliseconds const* lineStartTime = GetLineStartTime(locale, lineId);
-    if (!lineStartTime)
-    {
-        TC_LOG_ERROR("entities.conversation", "Conversation::GetLineEndTime: Unable to get line start time for locale {}, lineid {} (Conversation ID: {}).", locale, lineId, GetEntry());
-        return Milliseconds(0);
-    }
-    return *lineStartTime + Milliseconds(GetLineDuration(locale, lineId));
-}
-
-LocaleConstant Conversation::GetPrivateObjectOwnerLocale() const
-{
-    LocaleConstant privateOwnerLocale = LOCALE_enUS;
-    if (Player* owner = ObjectAccessor::GetPlayer(*this, GetPrivateObjectOwner()))
-        privateOwnerLocale = owner->GetSession()->GetSessionDbLocaleIndex();
-    return privateOwnerLocale;
-}
-
-Unit* Conversation::GetActorUnit(uint32 actorIdx) const
-{
-    if (m_conversationData->Actors.size() <= actorIdx)
-    {
-        TC_LOG_ERROR("entities.conversation", "Conversation::GetActorUnit: Tried to access invalid actor idx {} (Conversation ID: {}).", actorIdx, GetEntry());
-        return nullptr;
-    }
-    return ObjectAccessor::GetUnit(*this, m_conversationData->Actors[actorIdx].ActorGUID);
-}
-
-Creature* Conversation::GetActorCreature(uint32 actorIdx) const
-{
-    Unit* actor = GetActorUnit(actorIdx);
-    if (!actor)
-        return nullptr;
-    return actor->ToCreature();
-}
-
 uint32 Conversation::GetScriptId() const
 {
     return sConversationDataStore->GetConversationTemplate(GetEntry())->ScriptId;
 }
 
-void Conversation::BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Conversation::BuildValuesCreate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
+    *data << uint8(flags);
     m_objectData->WriteCreate(*data, flags, this, target);
     m_conversationData->WriteCreate(*data, flags, this, target);
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
 }
 
-void Conversation::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Conversation::BuildValuesUpdate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
     *data << uint32(m_values.GetChangedObjectTypeMask());
 
     if (m_values.HasChanged(TYPEID_OBJECT))
@@ -351,11 +291,24 @@ void Conversation::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags
 
     if (m_values.HasChanged(TYPEID_CONVERSATION))
         m_conversationData->WriteUpdate(*data, flags, this, target);
+
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
+}
+
+void Conversation::BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    ABORT_MSG("Not implemented Conversation BuildValues");
+}
+void Conversation::BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    ABORT_MSG("Not implemented Conversation BuildValues");
 }
 
 void Conversation::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::Mask const& requestedObjectMask,
     UF::ConversationData::Mask const& requestedConversationMask, Player const* target) const
 {
+    /*
     UpdateMask<NUM_CLIENT_OBJECT_TYPES> valuesMask;
     if (requestedObjectMask.IsAnySet())
         valuesMask.Set(TYPEID_OBJECT);
@@ -363,9 +316,9 @@ void Conversation::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::Obje
     if (requestedConversationMask.IsAnySet())
         valuesMask.Set(TYPEID_CONVERSATION);
 
-    ByteBuffer& buffer = PrepareValuesUpdateBuffer(data);
+    ByteBuffer buffer = PrepareValuesUpdateBuffer();
     std::size_t sizePos = buffer.wpos();
-    buffer << uint32(0);
+    buffer << uint32(0); // placeholder for data size.
     buffer << uint32(valuesMask.GetBlock(0));
 
     if (valuesMask[TYPEID_OBJECT])
@@ -376,7 +329,8 @@ void Conversation::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::Obje
 
     buffer.put<uint32>(sizePos, buffer.wpos() - sizePos - 4);
 
-    data->AddUpdateBlock();
+    data->AddUpdateBlock(buffer);
+    */
 }
 
 void Conversation::ValuesUpdateForPlayerWithMaskSender::operator()(Player const* player) const

@@ -184,6 +184,8 @@ public:
                     Summon25 = true;
                 }
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -262,6 +264,8 @@ public:
 
             if (!UpdateVictim())
                 return;
+
+            DoMeleeAttackIfReady();
         }
     };
 

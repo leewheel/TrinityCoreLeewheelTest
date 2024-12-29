@@ -27,7 +27,7 @@
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -290,19 +290,18 @@ void BattlePetMgr::LoadFromDB(PreparedQueryResult pets, PreparedQueryResult slot
                 pet.NameTimestamp = fields[10].GetInt64();
                 pet.PacketInfo.CreatureID = speciesEntry->CreatureID;
 
-                if (!fields[13].IsNull())
+                if (!fields[12].IsNull())
                 {
                     pet.DeclinedName = std::make_unique<DeclinedName>();
                     for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
-                        pet.DeclinedName->name[i] = fields[13 + i].GetString();
+                        pet.DeclinedName->name[i] = fields[12 + i].GetString();
                 }
 
                 if (!ownerGuid.IsEmpty())
                 {
                     pet.PacketInfo.OwnerInfo.emplace();
                     pet.PacketInfo.OwnerInfo->Guid = ownerGuid;
-                    if (std::shared_ptr<Realm const> ownerRealm = sRealmList->GetRealm(fields[12].GetInt32()))
-                        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = ownerRealm->Id.GetAddress();
+                    pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = GetVirtualRealmAddress();
                 }
 
                 pet.SaveInfo = BATTLE_PET_UNCHANGED;
@@ -354,7 +353,7 @@ void BattlePetMgr::SaveToDB(LoginDatabaseTransaction trans)
                 if (itr->second.PacketInfo.OwnerInfo)
                 {
                     stmt->setInt64(12, itr->second.PacketInfo.OwnerInfo->Guid.GetCounter());
-                    stmt->setInt32(13, sRealmList->GetCurrentRealmId().Realm);
+                    stmt->setInt32(13, realm.Id.Realm);
                 }
                 else
                 {
@@ -475,7 +474,7 @@ void BattlePetMgr::AddPet(uint32 species, uint32 display, uint16 breed, BattlePe
     {
         pet.PacketInfo.OwnerInfo.emplace();
         pet.PacketInfo.OwnerInfo->Guid = player->GetGUID();
-        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = player->m_playerData->VirtualPlayerRealm;
+        pet.PacketInfo.OwnerInfo->PlayerVirtualRealm = pet.PacketInfo.OwnerInfo->PlayerNativeRealm = GetVirtualRealmAddress();
     }
 
     pet.SaveInfo = BATTLE_PET_NEW;
@@ -530,11 +529,6 @@ void BattlePetMgr::ModifyName(ObjectGuid guid, std::string const& name, std::uni
 
     if (pet->SaveInfo != BATTLE_PET_NEW)
         pet->SaveInfo = BATTLE_PET_CHANGED;
-
-    // Update the timestamp if the battle pet is summoned
-    if (Creature* summonedBattlePet = _owner->GetPlayer()->GetSummonedBattlePet())
-        if (summonedBattlePet->GetBattlePetCompanionGUID() == guid)
-            summonedBattlePet->SetBattlePetCompanionNameTimestamp(pet->NameTimestamp);
 }
 
 bool BattlePetMgr::IsPetInSlot(ObjectGuid guid)
@@ -584,20 +578,20 @@ uint32 BattlePetMgr::GetPetUniqueSpeciesCount() const
 
 void BattlePetMgr::UnlockSlot(BattlePetSlot slot)
 {
-    if (slot >= BattlePetSlot::Count)
-        return;
+    //if (slot >= BattlePetSlot::Count)
+    //    return;
 
-    uint8 slotIndex = AsUnderlyingType(slot);
-    if (!_slots[slotIndex].Locked)
-        return;
+    //uint8 slotIndex = AsUnderlyingType(slot);
+    //if (!_slots[slotIndex].Locked)
+    //    return;
 
-    _slots[slotIndex].Locked = false;
+    //_slots[slotIndex].Locked = false;
 
-    WorldPackets::BattlePet::PetBattleSlotUpdates updates;
-    updates.Slots.push_back(_slots[slotIndex]);
-    updates.AutoSlotted = false; // what's this?
-    updates.NewSlot = true; // causes the "new slot unlocked" bubble to appear
-    _owner->SendPacket(updates.Write());
+    //WorldPackets::BattlePet::PetBattleSlotUpdates updates;
+    //updates.Slots.push_back(_slots[slotIndex]);
+    //updates.AutoSlotted = false; // what's this?
+    //updates.NewSlot = true; // causes the "new slot unlocked" bubble to appear
+    //_owner->SendPacket(updates.Write());
 }
 
 uint16 BattlePetMgr::GetMaxPetLevel() const
@@ -612,294 +606,250 @@ uint16 BattlePetMgr::GetMaxPetLevel() const
 
 void BattlePetMgr::CageBattlePet(ObjectGuid guid)
 {
-    if (!HasJournalLock())
-        return;
+    //if (!HasJournalLock())
+    //    return;
 
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
+    //BattlePet* pet = GetPet(guid);
+    //if (!pet)
+    //    return;
 
-    if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
-        if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::NotTradable))
-            return;
+    //if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
+    //    if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::NotTradable))
+    //        return;
 
-    if (IsPetInSlot(guid))
-        return;
+    //if (IsPetInSlot(guid))
+    //    return;
 
-    if (pet->PacketInfo.Health < pet->PacketInfo.MaxHealth)
-        return;
+    //if (pet->PacketInfo.Health < pet->PacketInfo.MaxHealth)
+    //    return;
 
-    ItemPosCountVec dest;
+    //ItemPosCountVec dest;
 
-    if (_owner->GetPlayer()->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, BATTLE_PET_CAGE_ITEM_ID, 1) != EQUIP_ERR_OK)
-        return;
+    //if (_owner->GetPlayer()->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, BATTLE_PET_CAGE_ITEM_ID, 1) != EQUIP_ERR_OK)
+    //    return;
 
-    Item* item = _owner->GetPlayer()->StoreNewItem(dest, BATTLE_PET_CAGE_ITEM_ID, true);
-    if (!item)
-        return;
+    //Item* item = _owner->GetPlayer()->StoreNewItem(dest, BATTLE_PET_CAGE_ITEM_ID, true);
+    //if (!item)
+    //    return;
 
-    item->SetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID, pet->PacketInfo.Species);
-    item->SetModifier(ITEM_MODIFIER_BATTLE_PET_BREED_DATA, pet->PacketInfo.Breed | (pet->PacketInfo.Quality << 24));
-    item->SetModifier(ITEM_MODIFIER_BATTLE_PET_LEVEL, pet->PacketInfo.Level);
-    item->SetModifier(ITEM_MODIFIER_BATTLE_PET_DISPLAY_ID, pet->PacketInfo.DisplayID);
+    //item->SetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID, pet->PacketInfo.Species);
+    //item->SetModifier(ITEM_MODIFIER_BATTLE_PET_BREED_DATA, pet->PacketInfo.Breed | (pet->PacketInfo.Quality << 24));
+    //item->SetModifier(ITEM_MODIFIER_BATTLE_PET_LEVEL, pet->PacketInfo.Level);
+    //item->SetModifier(ITEM_MODIFIER_BATTLE_PET_DISPLAY_ID, pet->PacketInfo.DisplayID);
 
-    _owner->GetPlayer()->SendNewItem(item, 1, true, false);
+    //_owner->GetPlayer()->SendNewItem(item, 1, true, false);
 
-    RemovePet(guid);
+    //RemovePet(guid);
 
-    WorldPackets::BattlePet::BattlePetDeleted deletePet;
-    deletePet.PetGuid = guid;
-    _owner->SendPacket(deletePet.Write());
-
-    // Battle pet despawns if it's summoned
-    Player* player = _owner->GetPlayer();
-    if (Creature* summonedBattlePet = player->GetSummonedBattlePet())
-    {
-        if (summonedBattlePet->GetBattlePetCompanionGUID() == guid)
-        {
-            summonedBattlePet->DespawnOrUnsummon();
-            player->SetBattlePetData(nullptr);
-        }
-    }
+    //WorldPackets::BattlePet::BattlePetDeleted deletePet;
+    //deletePet.PetGuid = guid;
+    //_owner->SendPacket(deletePet.Write());
 }
 
 void BattlePetMgr::ChangeBattlePetQuality(ObjectGuid guid, BattlePetBreedQuality quality)
 {
-    if (!HasJournalLock())
-        return;
+    //if (!HasJournalLock())
+    //    return;
 
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
+    //BattlePet* pet = GetPet(guid);
+    //if (!pet)
+    //    return;
 
-    if (quality > BattlePetBreedQuality::Rare)
-        return;
+    //if (quality > BattlePetBreedQuality::Rare)
+    //    return;
 
-    if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
-        if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
-            return;
+    //if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
+    //    if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
+    //        return;
 
-    uint8 qualityValue = AsUnderlyingType(quality);
-    if (pet->PacketInfo.Quality >= qualityValue)
-        return;
+    //uint8 qualityValue = AsUnderlyingType(quality);
+    //if (pet->PacketInfo.Quality >= qualityValue)
+    //    return;
 
-    pet->PacketInfo.Quality = qualityValue;
-    pet->CalculateStats();
-    pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
+    //pet->PacketInfo.Quality = qualityValue;
+    //pet->CalculateStats();
+    //pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
 
-    if (pet->SaveInfo != BATTLE_PET_NEW)
-        pet->SaveInfo = BATTLE_PET_CHANGED;
+    //if (pet->SaveInfo != BATTLE_PET_NEW)
+    //    pet->SaveInfo = BATTLE_PET_CHANGED;
 
-    std::vector<std::reference_wrapper<BattlePet>> updates;
-    updates.push_back(std::ref(*pet));
-    SendUpdates(std::move(updates), false);
+    //std::vector<std::reference_wrapper<BattlePet>> updates;
+    //updates.push_back(std::ref(*pet));
+    //SendUpdates(std::move(updates), false);
 
-    // UF::PlayerData::CurrentBattlePetBreedQuality isn't updated (Intended)
-    // _owner->GetPlayer()->SetCurrentBattlePetBreedQuality(qualityValue);
+    //// UF::PlayerData::CurrentBattlePetBreedQuality isn't updated (Intended)
+    //// _owner->GetPlayer()->SetCurrentBattlePetBreedQuality(qualityValue);
 }
 
-void BattlePetMgr::GrantBattlePetExperience(ObjectGuid /*guid*/, uint16 /*xp*/, BattlePetXpSource /*xpSource*/)
+void BattlePetMgr::GrantBattlePetExperience(ObjectGuid guid, uint16 xp, BattlePetXpSource xpSource)
 {
-    return;
+    //if (!HasJournalLock())
+    //    return;
 
-    /*
-    if (!HasJournalLock())
-        return;
+    //BattlePet* pet = GetPet(guid);
+    //if (!pet)
+    //    return;
 
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
+    //if (xp <= 0 || xpSource >= BattlePetXpSource::Count)
+    //    return;
 
-    if (xp <= 0 || xpSource >= BattlePetXpSource::Count)
-        return;
+    //if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
+    //    if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
+    //        return;
 
-    if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
-        if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
-            return;
+    //uint16 level = pet->PacketInfo.Level;
+    //if (level >= MAX_BATTLE_PET_LEVEL)
+    //    return;
 
-    uint16 level = pet->PacketInfo.Level;
-    if (level >= MAX_BATTLE_PET_LEVEL)
-        return;
+    //GtBattlePetXPEntry const* xpEntry = sBattlePetXPGameTable.GetRow(level);
+    //if (!xpEntry)
+    //    return;
 
-    GtBattlePetXPEntry const* xpEntry = sBattlePetXPGameTable.GetRow(level);
-    if (!xpEntry)
-        return;
+    //Player* player = _owner->GetPlayer();
+    //uint16 nextLevelXp = uint16(GetBattlePetXPPerLevel(xpEntry));
 
-    Player* player = _owner->GetPlayer();
-    uint16 nextLevelXp = uint16(GetBattlePetXPPerLevel(xpEntry));
+    //if (xpSource == BattlePetXpSource::PetBattle)
+    //    xp *= player->GetTotalAuraMultiplier(SPELL_AURA_MOD_BATTLE_PET_XP_PCT);
 
-    if (xpSource == BattlePetXpSource::PetBattle)
-        xp *= player->GetTotalAuraMultiplier(SPELL_AURA_MOD_BATTLE_PET_XP_PCT);
+    //xp += pet->PacketInfo.Exp;
 
-    xp += pet->PacketInfo.Exp;
+    //while (xp >= nextLevelXp && level < MAX_BATTLE_PET_LEVEL)
+    //{
+    //    xp -= nextLevelXp;
 
-    while (xp >= nextLevelXp && level < MAX_BATTLE_PET_LEVEL)
-    {
-        xp -= nextLevelXp;
+    //    xpEntry = sBattlePetXPGameTable.GetRow(++level);
+    //    if (!xpEntry)
+    //        return;
 
-        xpEntry = sBattlePetXPGameTable.GetRow(++level);
-        if (!xpEntry)
-            return;
+    //    nextLevelXp = uint16(GetBattlePetXPPerLevel(xpEntry));
 
-        nextLevelXp = uint16(GetBattlePetXPPerLevel(xpEntry));
+    //    player->UpdateCriteria(CriteriaType::BattlePetReachLevel, pet->PacketInfo.Species, level);
+    //    if (xpSource == BattlePetXpSource::PetBattle)
+    //        player->UpdateCriteria(CriteriaType::ActivelyEarnPetLevel, pet->PacketInfo.Species, level);
+    //}
 
-        player->UpdateCriteria(CriteriaType::BattlePetReachLevel, pet->PacketInfo.Species, level);
-        if (xpSource == BattlePetXpSource::PetBattle)
-            player->UpdateCriteria(CriteriaType::ActivelyEarnPetLevel, pet->PacketInfo.Species, level);
-    }
+    //pet->PacketInfo.Level = level;
+    //pet->PacketInfo.Exp = level < MAX_BATTLE_PET_LEVEL ? xp : 0;
+    //pet->CalculateStats();
+    //pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
 
-    pet->PacketInfo.Level = level;
-    pet->PacketInfo.Exp = level < MAX_BATTLE_PET_LEVEL ? xp : 0;
-    pet->CalculateStats();
-    pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
+    //if (pet->SaveInfo != BATTLE_PET_NEW)
+    //    pet->SaveInfo = BATTLE_PET_CHANGED;
 
-    if (pet->SaveInfo != BATTLE_PET_NEW)
-        pet->SaveInfo = BATTLE_PET_CHANGED;
-
-    std::vector<std::reference_wrapper<BattlePet>> updates;
-    updates.push_back(std::ref(*pet));
-    SendUpdates(std::move(updates), false);
-    */
+    //std::vector<std::reference_wrapper<BattlePet>> updates;
+    //updates.push_back(std::ref(*pet));
+    //SendUpdates(std::move(updates), false);
 }
 
 void BattlePetMgr::GrantBattlePetLevel(ObjectGuid guid, uint16 grantedLevels)
 {
-    if (!HasJournalLock())
-        return;
+    //if (!HasJournalLock())
+    //    return;
 
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
+    //BattlePet* pet = GetPet(guid);
+    //if (!pet)
+    //    return;
 
-    if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
-        if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
-            return;
+    //if (BattlePetSpeciesEntry const* battlePetSpecies = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species))
+    //    if (battlePetSpecies->GetFlags().HasFlag(BattlePetSpeciesFlags::CantBattle))
+    //        return;
 
-    uint16 level = pet->PacketInfo.Level;
-    if (level >= MAX_BATTLE_PET_LEVEL)
-        return;
+    //uint16 level = pet->PacketInfo.Level;
+    //if (level >= MAX_BATTLE_PET_LEVEL)
+    //    return;
 
-    while (grantedLevels > 0 && level < MAX_BATTLE_PET_LEVEL)
-    {
-        ++level;
-        --grantedLevels;
+    //while (grantedLevels > 0 && level < MAX_BATTLE_PET_LEVEL)
+    //{
+    //    ++level;
+    //    --grantedLevels;
 
-        _owner->GetPlayer()->UpdateCriteria(CriteriaType::BattlePetReachLevel, pet->PacketInfo.Species, level);
-    }
+    //    _owner->GetPlayer()->UpdateCriteria(CriteriaType::BattlePetReachLevel, pet->PacketInfo.Species, level);
+    //}
 
-    pet->PacketInfo.Level = level;
-    if (level >= MAX_BATTLE_PET_LEVEL)
-        pet->PacketInfo.Exp = 0;
-    pet->CalculateStats();
-    pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
+    //pet->PacketInfo.Level = level;
+    //if (level >= MAX_BATTLE_PET_LEVEL)
+    //    pet->PacketInfo.Exp = 0;
+    //pet->CalculateStats();
+    //pet->PacketInfo.Health = pet->PacketInfo.MaxHealth;
 
-    if (pet->SaveInfo != BATTLE_PET_NEW)
-        pet->SaveInfo = BATTLE_PET_CHANGED;
+    //if (pet->SaveInfo != BATTLE_PET_NEW)
+    //    pet->SaveInfo = BATTLE_PET_CHANGED;
 
-    std::vector<std::reference_wrapper<BattlePet>> updates;
-    updates.push_back(std::ref(*pet));
-    SendUpdates(std::move(updates), false);
+    //std::vector<std::reference_wrapper<BattlePet>> updates;
+    //updates.push_back(std::ref(*pet));
+    //SendUpdates(std::move(updates), false);
 }
 
 void BattlePetMgr::HealBattlePetsPct(uint8 pct)
 {
-    // TODO: After each Pet Battle, any injured companion will automatically
-    // regain 50 % of the damage that was taken during combat
-    std::vector<std::reference_wrapper<BattlePet>> updates;
+    //// TODO: After each Pet Battle, any injured companion will automatically
+    //// regain 50 % of the damage that was taken during combat
+    //std::vector<std::reference_wrapper<BattlePet>> updates;
 
-    for (auto& pet : _pets)
-        if (pet.second.PacketInfo.Health != pet.second.PacketInfo.MaxHealth)
-        {
-            pet.second.PacketInfo.Health += CalculatePct(pet.second.PacketInfo.MaxHealth, pct);
-            // don't allow Health to be greater than MaxHealth
-            pet.second.PacketInfo.Health = std::min(pet.second.PacketInfo.Health, pet.second.PacketInfo.MaxHealth);
-            if (pet.second.SaveInfo != BATTLE_PET_NEW)
-                pet.second.SaveInfo = BATTLE_PET_CHANGED;
-            updates.push_back(std::ref(pet.second));
-        }
+    //for (auto& pet : _pets)
+    //    if (pet.second.PacketInfo.Health != pet.second.PacketInfo.MaxHealth)
+    //    {
+    //        pet.second.PacketInfo.Health += CalculatePct(pet.second.PacketInfo.MaxHealth, pct);
+    //        // don't allow Health to be greater than MaxHealth
+    //        pet.second.PacketInfo.Health = std::min(pet.second.PacketInfo.Health, pet.second.PacketInfo.MaxHealth);
+    //        if (pet.second.SaveInfo != BATTLE_PET_NEW)
+    //            pet.second.SaveInfo = BATTLE_PET_CHANGED;
+    //        updates.push_back(std::ref(pet.second));
+    //    }
 
-    SendUpdates(std::move(updates), false);
-}
-
-void BattlePetMgr::UpdateBattlePetData(ObjectGuid guid)
-{
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
-
-    Player* player = _owner->GetPlayer();
-
-    // Update battle pet related update fields
-    if (Creature* summonedBattlePet = player->GetSummonedBattlePet())
-    {
-        if (summonedBattlePet->GetBattlePetCompanionGUID() == guid)
-        {
-            summonedBattlePet->SetWildBattlePetLevel(pet->PacketInfo.Level);
-            player->SetBattlePetData(pet);
-        }
-    }
+    //SendUpdates(std::move(updates), false);
 }
 
 void BattlePetMgr::SummonPet(ObjectGuid guid)
 {
-    BattlePet* pet = GetPet(guid);
-    if (!pet)
-        return;
+    //BattlePet* pet = GetPet(guid);
+    //if (!pet)
+    //    return;
 
-    BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species);
-    if (!speciesEntry)
-        return;
+    //BattlePetSpeciesEntry const* speciesEntry = sBattlePetSpeciesStore.LookupEntry(pet->PacketInfo.Species);
+    //if (!speciesEntry)
+    //    return;
 
-    Player* player = _owner->GetPlayer();
-    player->SetBattlePetData(pet);
+    //Player* player = _owner->GetPlayer();
+    //player->SetBattlePetData(pet);
 
-    CastSpellExtraArgs args;
-    uint32 summonSpellId = speciesEntry->SummonSpellID;
-    if (!summonSpellId)
-    {
-        summonSpellId = uint32(SPELL_SUMMON_BATTLE_PET);
-        args.AddSpellBP0(speciesEntry->CreatureID);
-    }
-    player->CastSpell(_owner->GetPlayer(), summonSpellId, args);
-}
-
-void BattlePetMgr::DismissPet()
-{
-    Player* player = _owner->GetPlayer();
-    if (Creature* summonedBattlePet = player->GetSummonedBattlePet())
-    {
-        summonedBattlePet->DespawnOrUnsummon();
-        player->SetBattlePetData(nullptr);
-    }
+    //CastSpellExtraArgs args;
+    //uint32 summonSpellId = speciesEntry->SummonSpellID;
+    //if (!summonSpellId)
+    //{
+    //    summonSpellId = uint32(SPELL_SUMMON_BATTLE_PET);
+    //    args.AddSpellBP0(speciesEntry->CreatureID);
+    //}
+    //player->CastSpell(_owner->GetPlayer(), summonSpellId, args);
 }
 
 void BattlePetMgr::SendJournal()
 {
-    if (!HasJournalLock())
-        SendJournalLockStatus();
+    //if (!HasJournalLock())
+    //    SendJournalLockStatus();
 
-    WorldPackets::BattlePet::BattlePetJournal battlePetJournal;
-    battlePetJournal.Trap = _trapLevel;
-    battlePetJournal.HasJournalLock = _hasJournalLock;
+    //WorldPackets::BattlePet::BattlePetJournal battlePetJournal;
+    //battlePetJournal.Trap = _trapLevel;
+    //battlePetJournal.HasJournalLock = _hasJournalLock;
 
-    for (auto& pet : _pets)
-        if (pet.second.SaveInfo != BATTLE_PET_REMOVED)
-            if (!pet.second.PacketInfo.OwnerInfo || pet.second.PacketInfo.OwnerInfo->Guid == _owner->GetPlayer()->GetGUID())
-                battlePetJournal.Pets.push_back(std::ref(pet.second.PacketInfo));
+    //for (auto& pet : _pets)
+    //    if (pet.second.SaveInfo != BATTLE_PET_REMOVED)
+    //        if (!pet.second.PacketInfo.OwnerInfo || pet.second.PacketInfo.OwnerInfo->Guid == _owner->GetPlayer()->GetGUID())
+    //            battlePetJournal.Pets.push_back(std::ref(pet.second.PacketInfo));
 
-    battlePetJournal.Slots.reserve(_slots.size());
-    std::transform(_slots.begin(), _slots.end(), std::back_inserter(battlePetJournal.Slots), [](WorldPackets::BattlePet::BattlePetSlot& slot) { return std::ref(slot); });
-    _owner->SendPacket(battlePetJournal.Write());
+    //battlePetJournal.Slots.reserve(_slots.size());
+    //std::transform(_slots.begin(), _slots.end(), std::back_inserter(battlePetJournal.Slots), [](WorldPackets::BattlePet::BattlePetSlot& slot) { return std::ref(slot); });
+    //_owner->SendPacket(battlePetJournal.Write());
 }
 
 void BattlePetMgr::SendUpdates(std::vector<std::reference_wrapper<BattlePet>> pets, bool petAdded)
 {
-    WorldPackets::BattlePet::BattlePetUpdates updates;
-    for (BattlePet& pet : pets)
-        updates.Pets.push_back(std::ref(pet.PacketInfo));
+    //WorldPackets::BattlePet::BattlePetUpdates updates;
+    //for (BattlePet& pet : pets)
+    //    updates.Pets.push_back(std::ref(pet.PacketInfo));
 
-    updates.PetAdded = petAdded;
-    _owner->SendPacket(updates.Write());
+    //updates.PetAdded = petAdded;
+    //_owner->SendPacket(updates.Write());
 }
 
 void BattlePetMgr::SendError(BattlePetError error, uint32 creatureId)
@@ -912,19 +862,19 @@ void BattlePetMgr::SendError(BattlePetError error, uint32 creatureId)
 
 void BattlePetMgr::SendJournalLockStatus()
 {
-    if (!IsJournalLockAcquired())
-        ToggleJournalLock(true);
+    //if (!IsJournalLockAcquired())
+    //    ToggleJournalLock(true);
 
-    if (HasJournalLock())
-    {
-        WorldPackets::BattlePet::BattlePetJournalLockAcquired battlePetJournalLockAcquired;
-        _owner->SendPacket(battlePetJournalLockAcquired.Write());
-    }
-    else
-    {
-        WorldPackets::BattlePet::BattlePetJournalLockDenied BattlePetJournalLockDenied;
-        _owner->SendPacket(BattlePetJournalLockDenied.Write());
-    }
+    //if (HasJournalLock())
+    //{
+    //    WorldPackets::BattlePet::BattlePetJournalLockAcquired battlePetJournalLockAcquired;
+    //    _owner->SendPacket(battlePetJournalLockAcquired.Write());
+    //}
+    //else
+    //{
+    //    WorldPackets::BattlePet::BattlePetJournalLockDenied BattlePetJournalLockDenied;
+    //    _owner->SendPacket(BattlePetJournalLockDenied.Write());
+    //}
 }
 
 bool BattlePetMgr::IsJournalLockAcquired() const

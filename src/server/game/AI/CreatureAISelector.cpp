@@ -95,7 +95,7 @@ namespace FactorySelector
         catch (InvalidAIException const& e)
         {
             TC_LOG_ERROR("entities.unit", "Exception trying to assign script '{}' to Creature (Entry: {}), this Creature will have a default AI. Exception message: {}",
-                creature->GetScriptName(), creature->GetEntry(), e.what());
+                creature->GetScriptName().c_str(), creature->GetEntry(), e.what());
         }
 
         return SelectFactory<CreatureAI>(creature)->Create(creature);

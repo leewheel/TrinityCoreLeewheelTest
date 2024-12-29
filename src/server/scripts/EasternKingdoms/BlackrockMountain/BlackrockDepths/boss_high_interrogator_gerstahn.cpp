@@ -40,17 +40,21 @@ class boss_high_interrogator_gerstahn : public CreatureScript
     public:
         boss_high_interrogator_gerstahn() : CreatureScript("boss_high_interrogator_gerstahn") { }
 
-        struct boss_high_interrogator_gerstahnAI : public BossAI
+        struct boss_high_interrogator_gerstahnAI : public ScriptedAI
         {
-            boss_high_interrogator_gerstahnAI(Creature* creature) : BossAI(creature, BOSS_HIGH_INTERROGATOR_GERSTAHN) { }
+            boss_high_interrogator_gerstahnAI(Creature* creature) : ScriptedAI(creature) { }
 
-            void JustEngagedWith(Unit* who) override
+            void Reset() override
             {
-                _JustEngagedWith(who);
-                events.ScheduleEvent(EVENT_SHADOW_WORD_PAIN, 4s);
-                events.ScheduleEvent(EVENT_MANABURN, 14s);
-                events.ScheduleEvent(EVENT_PSYCHIC_SCREAM, 32s);
-                events.ScheduleEvent(EVENT_SHADOWSHIELD, 8s);
+                _events.Reset();
+            }
+
+            void JustEngagedWith(Unit* /*who*/) override
+            {
+                _events.ScheduleEvent(EVENT_SHADOW_WORD_PAIN, 4s);
+                _events.ScheduleEvent(EVENT_MANABURN, 14s);
+                _events.ScheduleEvent(EVENT_PSYCHIC_SCREAM, 32s);
+                _events.ScheduleEvent(EVENT_SHADOWSHIELD, 8s);
             }
 
             void UpdateAI(uint32 diff) override
@@ -58,35 +62,40 @@ class boss_high_interrogator_gerstahn : public CreatureScript
                 if (!UpdateVictim())
                     return;
 
-                events.Update(diff);
+                _events.Update(diff);
 
-                while (uint32 eventId = events.ExecuteEvent())
+                while (uint32 eventId = _events.ExecuteEvent())
                 {
                     switch (eventId)
                     {
                         case EVENT_SHADOW_WORD_PAIN:
                             if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 100.0f, true))
                                 DoCast(target, SPELL_SHADOWWORDPAIN);
-                            events.ScheduleEvent(EVENT_SHADOW_WORD_PAIN, 7s);
+                            _events.ScheduleEvent(EVENT_SHADOW_WORD_PAIN, 7s);
                             break;
                         case EVENT_PSYCHIC_SCREAM:
                             DoCastVictim(SPELL_PSYCHICSCREAM);
-                            events.ScheduleEvent(EVENT_PSYCHIC_SCREAM, 30s);
+                            _events.ScheduleEvent(EVENT_PSYCHIC_SCREAM, 30s);
                             break;
                         case EVENT_MANABURN:
                             if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 100.0f, true))
                                 DoCast(target, SPELL_MANABURN);
-                            events.ScheduleEvent(EVENT_MANABURN, 10s);
+                            _events.ScheduleEvent(EVENT_MANABURN, 10s);
                             break;
                         case EVENT_SHADOWSHIELD:
                             DoCast(me, SPELL_SHADOWSHIELD);
-                            events.ScheduleEvent(EVENT_SHADOWSHIELD, 25s);
+                            _events.ScheduleEvent(EVENT_SHADOWSHIELD, 25s);
                             break;
                         default:
                             break;
                     }
                 }
+
+                DoMeleeAttackIfReady();
             }
+
+        private:
+            EventMap _events;
         };
 
         CreatureAI* GetAI(Creature* creature) const override

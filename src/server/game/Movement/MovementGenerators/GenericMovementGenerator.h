@@ -27,19 +27,11 @@ class Unit;
 
 enum MovementGeneratorType : uint8;
 
-struct GenericMovementGeneratorArgs
-{
-    Optional<uint32> ArrivalSpellId;
-    Optional<ObjectGuid> ArrivalSpellTarget;
-    Optional<Milliseconds> Duration;
-    Optional<Scripting::v2::ActionResultSetter<MovementStopReason>> ScriptResult;
-};
-
 class GenericMovementGenerator : public MovementGenerator
 {
     public:
         explicit GenericMovementGenerator(std::function<void(Movement::MoveSplineInit& init)>&& initializer, MovementGeneratorType type, uint32 id,
-            GenericMovementGeneratorArgs&& args = {});
+            uint32 arrivalSpellId = 0, ObjectGuid const& arrivalSpellTargetGuid = ObjectGuid::Empty);
 
         void Initialize(Unit*) override;
         void Reset(Unit*) override;
@@ -54,8 +46,7 @@ class GenericMovementGenerator : public MovementGenerator
         std::function<void(Movement::MoveSplineInit& init)> _splineInit;
         MovementGeneratorType _type;
         uint32 _pointId;
-        Optional<TimeTracker> _duration;
-        bool _durationTracksSpline;
+        TimeTracker _duration;
 
         uint32 _arrivalSpellId;
         ObjectGuid _arrivalSpellTargetGuid;

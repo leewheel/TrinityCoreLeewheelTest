@@ -186,6 +186,8 @@ private:
 // 40869 - Fatal Attraction
 class spell_mother_shahraz_fatal_attraction : public SpellScript
 {
+    PrepareSpellScript(spell_mother_shahraz_fatal_attraction);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -221,6 +223,8 @@ class spell_mother_shahraz_fatal_attraction : public SpellScript
 // 40870 - Fatal Attraction Dummy Visual
 class spell_mother_shahraz_fatal_attraction_link : public SpellScript
 {
+    PrepareSpellScript(spell_mother_shahraz_fatal_attraction_link);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FATAL_ATTRACTION_DAMAGE });
@@ -240,9 +244,11 @@ class spell_mother_shahraz_fatal_attraction_link : public SpellScript
 // 40816 - Saber Lash
 class spell_mother_shahraz_saber_lash : public AuraScript
 {
+    PrepareAuraScript(spell_mother_shahraz_saber_lash);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_1 } })
+        return spellInfo->GetEffects().size() > EFFECT_1
             && ValidateSpellInfo({ spellInfo->GetEffect(EFFECT_1).TriggerSpell });
     }
 
@@ -267,9 +273,11 @@ class spell_mother_shahraz_saber_lash : public AuraScript
    40862 - Sinful Periodic */
 class spell_mother_shahraz_generic_periodic : public AuraScript
 {
+    PrepareAuraScript(spell_mother_shahraz_generic_periodic);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_0 } })
+        return !spellInfo->GetEffects().empty()
             && ValidateSpellInfo({ spellInfo->GetEffect(EFFECT_0).TriggerSpell });
     }
 
@@ -291,6 +299,8 @@ class spell_mother_shahraz_generic_periodic : public AuraScript
 // 40867 - Random Periodic
 class spell_mother_shahraz_random_periodic : public AuraScript
 {
+    PrepareAuraScript(spell_mother_shahraz_random_periodic);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(RandomBeam);

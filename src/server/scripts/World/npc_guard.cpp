@@ -129,8 +129,12 @@ struct npc_guard_generic : public GuardAI
                 {
                     me->resetAttackTimer();
                     DoCastVictim(spellInfo->Id);
+                    meleeContext.Repeat();
+                    return;
                 }
             }
+            me->AttackerStateUpdate(victim);
+            me->resetAttackTimer();
             meleeContext.Repeat();
         }).Schedule(Seconds(5), [this](TaskContext spellContext)
         {
@@ -201,7 +205,7 @@ struct npc_guard_shattrath_faction : public GuardAI
         if (!UpdateVictim())
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, std::bind(&GuardAI::DoMeleeAttackIfReady, this));
     }
 
     void ScheduleVanish()

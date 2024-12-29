@@ -73,7 +73,7 @@ struct boss_general_zarithrian : public BossAI
         _Reset();
         if (instance->GetBossState(DATA_SAVIANA_RAGEFIRE) == DONE && instance->GetBossState(DATA_BALTHARUS_THE_WARBORN) == DONE)
         {
-            me->SetUninteractible(false);
+            me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
             me->SetImmuneToPC(false);
         }
     }
@@ -161,6 +161,8 @@ struct boss_general_zarithrian : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -240,6 +242,8 @@ struct npc_onyx_flamecaller : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 private:
     EventMap _events;

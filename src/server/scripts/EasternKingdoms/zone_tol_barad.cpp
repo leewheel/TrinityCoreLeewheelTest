@@ -17,7 +17,6 @@
 
 #include "ScriptMgr.h"
 #include "Battlefield.h"
-#include "Containers.h"
 #include "Battlefield/BattlefieldTB.h"
 #include "DB2Stores.h"
 #include "ObjectMgr.h"
@@ -29,6 +28,8 @@
 
 enum TBSpiritGuide
 {
+    SPELL_CHANNEL_SPIRIT_HEAL = 22011,
+
     GOSSIP_OPTION_ID_SLAGWORKS = 0,
     GOSSIP_OPTION_ID_IRONCLAD_GARRISON = 1,
     GOSSIP_OPTION_ID_WARDENS_VIGIL = 2,
@@ -37,44 +38,61 @@ enum TBSpiritGuide
     GOSSIP_OPTION_ID_SOUTH_SPIRE = 5,
 };
 
-struct npc_tb_spirit_guide : public ScriptedAI
+class npc_tb_spirit_guide : public CreatureScript
 {
-    npc_tb_spirit_guide(Creature* creature) : ScriptedAI(creature) { }
+    public:
+        npc_tb_spirit_guide() : CreatureScript("npc_tb_spirit_guide") { }
 
-    bool OnGossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId) override
-    {
-        player->PlayerTalkClass->SendCloseGossip();
-
-        uint32 areaId = 0;
-        switch (gossipListId)
+        struct npc_tb_spirit_guideAI : public ScriptedAI
         {
-            case GOSSIP_OPTION_ID_SLAGWORKS:
-                areaId = TB_GY_SLAGWORKS;
-                break;
-            case GOSSIP_OPTION_ID_IRONCLAD_GARRISON:
-                areaId = TB_GY_IRONCLAD_GARRISON;
-                break;
-            case GOSSIP_OPTION_ID_WARDENS_VIGIL:
-                areaId = TB_GY_WARDENS_VIGIL;
-                break;
-            case GOSSIP_OPTION_ID_EAST_SPIRE:
-                areaId = TB_GY_EAST_SPIRE;
-                break;
-            case GOSSIP_OPTION_ID_WEST_SPIRE:
-                areaId = TB_GY_WEST_SPIRE;
-                break;
-            case GOSSIP_OPTION_ID_SOUTH_SPIRE:
-                areaId = TB_GY_SOUTH_SPIRE;
-                break;
-            default:
-                return true;
+            npc_tb_spirit_guideAI(Creature* creature) : ScriptedAI(creature) { }
+
+            void UpdateAI(uint32 /*diff*/) override
+            {
+                if (!me->HasUnitState(UNIT_STATE_CASTING))
+                    DoCast(me, SPELL_CHANNEL_SPIRIT_HEAL);
+            }
+
+            bool OnGossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId) override
+            {
+                player->PlayerTalkClass->SendCloseGossip();
+
+                uint32 areaId = 0;
+                switch (gossipListId)
+                {
+                    case GOSSIP_OPTION_ID_SLAGWORKS:
+                        areaId = TB_GY_SLAGWORKS;
+                        break;
+                    case GOSSIP_OPTION_ID_IRONCLAD_GARRISON:
+                        areaId = TB_GY_IRONCLAD_GARRISON;
+                        break;
+                    case GOSSIP_OPTION_ID_WARDENS_VIGIL:
+                        areaId = TB_GY_WARDENS_VIGIL;
+                        break;
+                    case GOSSIP_OPTION_ID_EAST_SPIRE:
+                        areaId = TB_GY_EAST_SPIRE;
+                        break;
+                    case GOSSIP_OPTION_ID_WEST_SPIRE:
+                        areaId = TB_GY_WEST_SPIRE;
+                        break;
+                    case GOSSIP_OPTION_ID_SOUTH_SPIRE:
+                        areaId = TB_GY_SOUTH_SPIRE;
+                        break;
+                    default:
+                        return true;
+                }
+
+                if (WorldSafeLocsEntry const* safeLoc = sObjectMgr->GetWorldSafeLoc(areaId))
+                    player->TeleportTo(safeLoc->Loc);
+
+                return false;
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new npc_tb_spirit_guideAI(creature);
         }
-
-        if (WorldSafeLocsEntry const* safeLoc = sObjectMgr->GetWorldSafeLoc(areaId))
-            player->TeleportTo(safeLoc->Loc);
-
-        return false;
-    }
 };
 
 // 85123 - Siege Cannon - selects random target
@@ -85,6 +103,8 @@ public:
 
     class spell_siege_cannon_SpellScript : public SpellScript
     {
+        PrepareSpellScript(spell_siege_cannon_SpellScript);
+
         void SelectRandomTarget(std::list<WorldObject*>& targets)
         {
             if (targets.empty())
@@ -109,6 +129,6 @@ public:
 
 void AddSC_tol_barad()
 {
-    RegisterCreatureAI(npc_tb_spirit_guide);
+    new npc_tb_spirit_guide();
     new spell_siege_cannon();
 }

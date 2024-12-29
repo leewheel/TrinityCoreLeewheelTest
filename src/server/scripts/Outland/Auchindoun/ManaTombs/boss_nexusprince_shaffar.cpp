@@ -332,6 +332,8 @@ struct npc_yor : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
     private:

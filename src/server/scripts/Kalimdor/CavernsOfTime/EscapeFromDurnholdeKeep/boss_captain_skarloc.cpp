@@ -47,108 +47,123 @@ enum CaptainSkarloc
     SPELL_CONSECRATION          = 38385
 };
 
-struct boss_captain_skarloc : public BossAI
+class boss_captain_skarloc : public CreatureScript
 {
-    boss_captain_skarloc(Creature* creature) : BossAI(creature, DATA_CAPTAIN_SKARLOC)
+public:
+    boss_captain_skarloc() : CreatureScript("boss_captain_skarloc") { }
+
+    CreatureAI* GetAI(Creature* creature) const override
     {
-        Initialize();
+        return GetOldHillsbradAI<boss_captain_skarlocAI>(creature);
     }
 
-    void Initialize()
+    struct boss_captain_skarlocAI : public ScriptedAI
     {
-        Holy_Light_Timer = urand(20000, 30000);
-        Cleanse_Timer = 10000;
-        HammerOfJustice_Timer = urand(20000, 35000);
-        HolyShield_Timer = 240000;
-        DevotionAura_Timer = 3000;
-        Consecration_Timer = 8000;
-    }
-
-    uint32 Holy_Light_Timer;
-    uint32 Cleanse_Timer;
-    uint32 HammerOfJustice_Timer;
-    uint32 HolyShield_Timer;
-    uint32 DevotionAura_Timer;
-    uint32 Consecration_Timer;
-
-    void Reset() override
-    {
-        BossAI::Reset();
-        Initialize();
-    }
-
-    void JustEngagedWith(Unit* who) override
-    {
-        BossAI::JustEngagedWith(who);
-        //This is not correct. Should taunt Thrall before engage in combat
-        Talk(SAY_TAUNT1);
-        Talk(SAY_TAUNT2);
-    }
-
-    void KilledUnit(Unit* /*victim*/) override
-    {
-        Talk(SAY_SLAY);
-    }
-
-    void JustDied(Unit* killer) override
-    {
-        BossAI::JustDied(killer);
-        Talk(SAY_DEATH);
-
-        instance->SetData(TYPE_THRALL_EVENT, OH_ESCORT_HORSE_RIDE);
-    }
-
-    void UpdateAI(uint32 diff) override
-    {
-        //Return since we have no target
-        if (!UpdateVictim())
-            return;
-
-        //Holy_Light
-        if (Holy_Light_Timer <= diff)
+        boss_captain_skarlocAI(Creature* creature) : ScriptedAI(creature)
         {
-            DoCast(me, SPELL_HOLY_LIGHT);
-            Holy_Light_Timer = 30000;
-        } else Holy_Light_Timer -= diff;
+            Initialize();
+            instance = creature->GetInstanceScript();
+        }
 
-        //Cleanse
-        if (Cleanse_Timer <= diff)
+        void Initialize()
         {
-            DoCast(me, SPELL_CLEANSE);
+            Holy_Light_Timer = urand(20000, 30000);
             Cleanse_Timer = 10000;
-        } else Cleanse_Timer -= diff;
-
-        //Hammer of Justice
-        if (HammerOfJustice_Timer <= diff)
-        {
-            DoCastVictim(SPELL_HAMMER_OF_JUSTICE);
-            HammerOfJustice_Timer = 60000;
-        } else HammerOfJustice_Timer -= diff;
-
-        //Holy Shield
-        if (HolyShield_Timer <= diff)
-        {
-            DoCast(me, SPELL_HOLY_SHIELD);
+            HammerOfJustice_Timer = urand(20000, 35000);
             HolyShield_Timer = 240000;
-        } else HolyShield_Timer -= diff;
+            DevotionAura_Timer = 3000;
+            Consecration_Timer = 8000;
+        }
 
-        //Devotion_Aura
-        if (DevotionAura_Timer <= diff)
-        {
-            DoCast(me, SPELL_DEVOTION_AURA);
-            DevotionAura_Timer = urand(45000, 55000);
-        } else DevotionAura_Timer -= diff;
+        InstanceScript* instance;
 
-        //Consecration
-        if (Consecration_Timer <= diff)
+        uint32 Holy_Light_Timer;
+        uint32 Cleanse_Timer;
+        uint32 HammerOfJustice_Timer;
+        uint32 HolyShield_Timer;
+        uint32 DevotionAura_Timer;
+        uint32 Consecration_Timer;
+
+        void Reset() override
         {
-            //DoCastVictim(SPELL_CONSECRATION);
-            Consecration_Timer = urand(5000, 10000);
-        } else Consecration_Timer -= diff;
-    }
+            Initialize();
+        }
+
+        void JustEngagedWith(Unit* /*who*/) override
+        {
+            //This is not correct. Should taunt Thrall before engage in combat
+            Talk(SAY_TAUNT1);
+            Talk(SAY_TAUNT2);
+        }
+
+        void KilledUnit(Unit* /*victim*/) override
+        {
+            Talk(SAY_SLAY);
+        }
+
+        void JustDied(Unit* /*killer*/) override
+        {
+            Talk(SAY_DEATH);
+
+            if (instance->GetData(TYPE_THRALL_EVENT) == IN_PROGRESS)
+                instance->SetData(TYPE_THRALL_PART1, DONE);
+        }
+
+        void UpdateAI(uint32 diff) override
+        {
+            //Return since we have no target
+            if (!UpdateVictim())
+                return;
+
+            //Holy_Light
+            if (Holy_Light_Timer <= diff)
+            {
+                DoCast(me, SPELL_HOLY_LIGHT);
+                Holy_Light_Timer = 30000;
+            } else Holy_Light_Timer -= diff;
+
+            //Cleanse
+            if (Cleanse_Timer <= diff)
+            {
+                DoCast(me, SPELL_CLEANSE);
+                Cleanse_Timer = 10000;
+            } else Cleanse_Timer -= diff;
+
+            //Hammer of Justice
+            if (HammerOfJustice_Timer <= diff)
+            {
+                DoCastVictim(SPELL_HAMMER_OF_JUSTICE);
+                HammerOfJustice_Timer = 60000;
+            } else HammerOfJustice_Timer -= diff;
+
+            //Holy Shield
+            if (HolyShield_Timer <= diff)
+            {
+                DoCast(me, SPELL_HOLY_SHIELD);
+                HolyShield_Timer = 240000;
+            } else HolyShield_Timer -= diff;
+
+            //Devotion_Aura
+            if (DevotionAura_Timer <= diff)
+            {
+                DoCast(me, SPELL_DEVOTION_AURA);
+                DevotionAura_Timer = urand(45000, 55000);
+            } else DevotionAura_Timer -= diff;
+
+            //Consecration
+            if (Consecration_Timer <= diff)
+            {
+                //DoCastVictim(SPELL_CONSECRATION);
+                Consecration_Timer = urand(5000, 10000);
+            } else Consecration_Timer -= diff;
+
+            DoMeleeAttackIfReady();
+        }
+    };
+
 };
 
 void AddSC_boss_captain_skarloc()
 {
-    RegisterOldHillsbradCreatureAI(boss_captain_skarloc);
+    new boss_captain_skarloc();
 }

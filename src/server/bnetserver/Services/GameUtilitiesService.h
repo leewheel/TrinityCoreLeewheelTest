@@ -15,8 +15,8 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GameUtilitiesService_h__
-#define GameUtilitiesService_h__
+#ifndef GameUtilitiesServiceService_h__
+#define GameUtilitiesServiceService_h__
 
 #include "Service.h"
 #include "game_utilities_service.pb.h"
@@ -40,4 +40,4 @@ namespace Battlenet
     }
 }
 
-#endif // GameUtilitiesService_h__
+#endif // GameUtilitiesServiceService_h__

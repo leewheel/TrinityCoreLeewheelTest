@@ -37,6 +37,9 @@ Corpse::Corpse(CorpseType type) : WorldObject(type != CORPSE_BONES), m_type(type
 
     m_updateFlag.Stationary = true;
 
+    m_valuesCount = UF::CORPSE_END;
+    m_dynamicValuesCount = UF::CORPSE_DYNAMIC_END;
+
     m_time = GameTime::GetGameTime();
 
     lootRecipient = nullptr;
@@ -93,14 +96,6 @@ bool Corpse::Create(ObjectGuid::LowType guidlow, Player* owner)
     return true;
 }
 
-void Corpse::Update(uint32 diff)
-{
-    WorldObject::Update(diff);
-
-    if (m_loot)
-        m_loot->Update();
-}
-
 void Corpse::SaveToDB()
 {
     // prevent DB data inconsistence problems and duplicates
@@ -108,7 +103,7 @@ void Corpse::SaveToDB()
     DeleteFromDB(trans);
 
     std::ostringstream items;
-    for (size_t index = 0; index < m_corpseData->Items.size(); ++index)
+    for (uint16 index = 0; index < EQUIPMENT_SLOT_END; ++index)
         items << m_corpseData->Items[index] << ' ';
 
     uint16 index = 0;
@@ -194,8 +189,8 @@ bool Corpse::LoadCorpseFromDB(ObjectGuid::LowType guid, Field* fields)
     SetObjectScale(1.0f);
     SetDisplayId(fields[5].GetUInt32());
     std::vector<std::string_view> items = Trinity::Tokenize(fields[6].GetStringView(), ' ', false);
-    if (items.size() == m_corpseData->Items.size())
-        for (size_t index = 0; index < m_corpseData->Items.size(); ++index)
+    if (items.size() == EQUIPMENT_SLOT_END)
+        for (uint32 index = 0; index < EQUIPMENT_SLOT_END; ++index)
             SetItem(index, Trinity::StringTo<uint32>(items[index]).value_or(0));
 
     SetRace(fields[7].GetUInt8());
@@ -218,7 +213,7 @@ bool Corpse::LoadCorpseFromDB(ObjectGuid::LowType guid, Field* fields)
     if (!IsPositionValid())
     {
         TC_LOG_ERROR("entities.player", "Corpse ({}, owner: {}) is not created, given coordinates are not valid (X: {}, Y: {}, Z: {})",
-            GetGUID().ToString(), GetOwnerGUID().ToString(), posX, posY, posZ);
+            GetGUID().ToString().c_str(), GetOwnerGUID().ToString().c_str(), posX, posY, posZ);
         return false;
     }
 
@@ -238,14 +233,25 @@ bool Corpse::IsExpired(time_t t) const
         return m_time < t - 3 * DAY;
 }
 
-void Corpse::BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Corpse::BuildValuesCreate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
+    *data << uint8(flags);
     m_objectData->WriteCreate(*data, flags, this, target);
     m_corpseData->WriteCreate(*data, flags, this, target);
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
 }
 
-void Corpse::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
+void Corpse::BuildValuesUpdate(ByteBuffer* data, Player const* target) const
 {
+    /*
+    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
+    std::size_t sizePos = data->wpos();
+    *data << uint32(0); // placeholder for data size.
     *data << uint32(m_values.GetChangedObjectTypeMask());
 
     if (m_values.HasChanged(TYPEID_OBJECT))
@@ -253,11 +259,43 @@ void Corpse::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Play
 
     if (m_values.HasChanged(TYPEID_CORPSE))
         m_corpseData->WriteUpdate(*data, flags, this, target);
+
+    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
+    */
+}
+
+void Corpse::BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    constexpr std::size_t bitCount = UF::ObjectData::Mask::BitCount + UF::CorpseData::Mask::BitCount;
+    constexpr std::size_t blockCount = UF::Compat::GetBlockCount(bitCount);
+
+    *data << uint8(blockCount);
+    const std::size_t maskPos = data->wpos();
+    data->resize(data->size() + (blockCount * sizeof(UF::Compat::BlockType)));
+
+    UF::Compat::UpdateMaskBuf mask{ data, maskPos };
+    UF::Compat::UpdateFlags flags{
+        .visibilityFlags = GetUpdateFieldFlagsForCompat(target, false),
+        .notifyFlags = m_fieldNotifyFlags
+    };
+
+    m_objectData->WriteUpdate(updatetype, *data, mask, flags, this, target);
+    mask.Offset(UF::ObjectData::Mask::BitCount);
+
+    m_corpseData->WriteUpdate(updatetype, *data, mask, flags, this, target);
+    mask.Offset(UF::CorpseData::Mask::BitCount);
+
+    assert(mask.GetOffset() == bitCount);
+}
+void Corpse::BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
+{
+    *data << uint8(0);
 }
 
 void Corpse::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::Mask const& requestedObjectMask,
     UF::CorpseData::Mask const& requestedCorpseMask, Player const* target) const
 {
+    /*
     UpdateMask<NUM_CLIENT_OBJECT_TYPES> valuesMask;
     if (requestedObjectMask.IsAnySet())
         valuesMask.Set(TYPEID_OBJECT);
@@ -265,9 +303,9 @@ void Corpse::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData
     if (requestedCorpseMask.IsAnySet())
         valuesMask.Set(TYPEID_CORPSE);
 
-    ByteBuffer& buffer = PrepareValuesUpdateBuffer(data);
+    ByteBuffer buffer = PrepareValuesUpdateBuffer();
     std::size_t sizePos = buffer.wpos();
-    buffer << uint32(0);
+    buffer << uint32(0); // placeholder for data size.
     buffer << uint32(valuesMask.GetBlock(0));
 
     if (valuesMask[TYPEID_OBJECT])
@@ -278,7 +316,8 @@ void Corpse::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData
 
     buffer.put<uint32>(sizePos, buffer.wpos() - sizePos - 4);
 
-    data->AddUpdateBlock();
+    data->AddUpdateBlock(buffer);
+    */
 }
 
 void Corpse::ValuesUpdateForPlayerWithMaskSender::operator()(Player const* player) const

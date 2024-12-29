@@ -21,7 +21,6 @@
 #include "Define.h"
 #include "Optional.h"
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace Trinity
@@ -31,7 +30,7 @@ namespace Encoding
 struct TC_COMMON_API Base32
 {
     static std::string Encode(std::vector<uint8> const& data);
-    static Optional<std::vector<uint8>> Decode(std::string_view data);
+    static Optional<std::vector<uint8>> Decode(std::string const& data);
 };
 }
 }

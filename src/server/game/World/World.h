@@ -27,7 +27,6 @@
 #include "DatabaseEnvFwd.h"
 #include "LockedQueue.h"
 #include "ObjectGuid.h"
-#include "Optional.h"
 #include "SharedDefines.h"
 #include "Timer.h"
 
@@ -42,6 +41,7 @@ class Player;
 class WorldPacket;
 class WorldSession;
 class WorldSocket;
+struct Realm;
 
 // ServerMessages.dbc
 enum ServerMessageType
@@ -195,9 +195,7 @@ enum WorldBoolConfigs
     CONFIG_REGEN_HP_CANNOT_REACH_TARGET_IN_RAID,
     CONFIG_ALLOW_LOGGING_IP_ADDRESSES_IN_DATABASE,
     CONFIG_CHARACTER_CREATING_DISABLE_ALLIED_RACE_ACHIEVEMENT_REQUIREMENT,
-    CONFIG_BATTLEGROUNDMAP_LOAD_GRIDS,
     CONFIG_ENABLE_AE_LOOT,
-    CONFIG_LOAD_LOCALES,
     BOOL_CONFIG_VALUE_COUNT
 };
 
@@ -252,11 +250,14 @@ enum WorldIntConfigs
     CONFIG_CHARACTER_CREATING_DISABLED_CLASSMASK,
     CONFIG_CHARACTERS_PER_ACCOUNT,
     CONFIG_CHARACTERS_PER_REALM,
+    CONFIG_CHARACTER_CREATING_MIN_LEVEL_FOR_DEMON_HUNTER,
     CONFIG_SKIP_CINEMATICS,
     CONFIG_MAX_PLAYER_LEVEL,
     CONFIG_MIN_DUALSPEC_LEVEL,
     CONFIG_START_PLAYER_LEVEL,
     CONFIG_START_DEATH_KNIGHT_PLAYER_LEVEL,
+    CONFIG_START_DEMON_HUNTER_PLAYER_LEVEL,
+    CONFIG_START_ALLIED_RACE_LEVEL,
     CONFIG_START_PLAYER_MONEY,
     CONFIG_CURRENCY_START_APEXIS_CRYSTALS,
     CONFIG_CURRENCY_MAX_APEXIS_CRYSTALS,
@@ -267,8 +268,7 @@ enum WorldIntConfigs
     CONFIG_CURRENCY_RESET_INTERVAL,
     CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL,
     CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE,
-    CONFIG_RESET_SCHEDULE_WEEK_DAY,
-    CONFIG_RESET_SCHEDULE_HOUR,
+    CONFIG_INSTANCE_RESET_TIME_HOUR,
     CONFIG_INSTANCE_UNLOAD_DELAY,
     CONFIG_DAILY_QUEST_RESET_TIME_HOUR,
     CONFIG_WEEKLY_QUEST_RESET_TIME_WDAY,
@@ -297,7 +297,9 @@ enum WorldIntConfigs
     CONFIG_SKILL_CHANCE_MINING_STEPS,
     CONFIG_SKILL_CHANCE_SKINNING_STEPS,
     CONFIG_SKILL_GAIN_CRAFTING,
+    CONFIG_SKILL_GAIN_DEFENSE,
     CONFIG_SKILL_GAIN_GATHERING,
+    CONFIG_SKILL_GAIN_WEAPON,
     CONFIG_MAX_OVERSPEED_PINGS,
     CONFIG_EXPANSION,
     CONFIG_CHATFLOOD_MESSAGE_COUNT,
@@ -322,12 +324,10 @@ enum WorldIntConfigs
     CONFIG_AUCTION_LEVEL_REQ,
     CONFIG_MAIL_LEVEL_REQ,
     CONFIG_CORPSE_DECAY_NORMAL,
+    CONFIG_CORPSE_DECAY_RARE,
     CONFIG_CORPSE_DECAY_ELITE,
     CONFIG_CORPSE_DECAY_RAREELITE,
-    CONFIG_CORPSE_DECAY_OBSOLETE,
-    CONFIG_CORPSE_DECAY_RARE,
-    CONFIG_CORPSE_DECAY_TRIVIAL,
-    CONFIG_CORPSE_DECAY_MINUSMOB,
+    CONFIG_CORPSE_DECAY_WORLDBOSS,
     CONFIG_DEATH_SICKNESS_LEVEL,
     CONFIG_INSTANT_LOGOUT,
     CONFIG_DISABLE_BREATHING,
@@ -364,6 +364,7 @@ enum WorldIntConfigs
     CONFIG_CHARDELETE_METHOD,
     CONFIG_CHARDELETE_MIN_LEVEL,
     CONFIG_CHARDELETE_DEATH_KNIGHT_MIN_LEVEL,
+    CONFIG_CHARDELETE_DEMON_HUNTER_MIN_LEVEL,
     CONFIG_AUTOBROADCAST_CENTER,
     CONFIG_AUTOBROADCAST_INTERVAL,
     CONFIG_MAX_RESULTS_LOOKUP_COMMANDS,
@@ -405,7 +406,6 @@ enum WorldIntConfigs
     CONFIG_BG_REWARD_LOSER_HONOR_LAST,
     CONFIG_BG_REWARD_WINNER_CONQUEST_FIRST,
     CONFIG_BG_REWARD_WINNER_CONQUEST_LAST,
-    CONFIG_BG_RATED_REWARD_WINNER_CONQUEST,
     CONFIG_CREATURE_PICKPOCKET_REFILL,
     CONFIG_CREATURE_STOP_FOR_PLAYER,
     CONFIG_AHBOT_UPDATE_INTERVAL,
@@ -462,7 +462,6 @@ enum Rates
     RATE_POWER_ARCANE_CHARGES,
     RATE_POWER_FURY,
     RATE_POWER_PAIN,
-    RATE_POWER_ESSENCE,
     RATE_SKILL_DISCOVERY,
     RATE_DROP_ITEM_POOR,
     RATE_DROP_ITEM_NORMAL,
@@ -484,27 +483,21 @@ enum Rates
     RATE_REPUTATION_LOWLEVEL_KILL,
     RATE_REPUTATION_LOWLEVEL_QUEST,
     RATE_REPUTATION_RECRUIT_A_FRIEND_BONUS,
-    RATE_CREATURE_HP_NORMAL,
-    RATE_CREATURE_HP_ELITE,
-    RATE_CREATURE_HP_RAREELITE,
-    RATE_CREATURE_HP_OBSOLETE,
-    RATE_CREATURE_HP_RARE,
-    RATE_CREATURE_HP_TRIVIAL,
-    RATE_CREATURE_HP_MINUSMOB,
-    RATE_CREATURE_DAMAGE_NORMAL,
-    RATE_CREATURE_DAMAGE_ELITE,
-    RATE_CREATURE_DAMAGE_RAREELITE,
-    RATE_CREATURE_DAMAGE_OBSOLETE,
-    RATE_CREATURE_DAMAGE_RARE,
-    RATE_CREATURE_DAMAGE_TRIVIAL,
-    RATE_CREATURE_DAMAGE_MINUSMOB,
-    RATE_CREATURE_SPELLDAMAGE_NORMAL,
-    RATE_CREATURE_SPELLDAMAGE_ELITE,
-    RATE_CREATURE_SPELLDAMAGE_RAREELITE,
-    RATE_CREATURE_SPELLDAMAGE_OBSOLETE,
-    RATE_CREATURE_SPELLDAMAGE_RARE,
-    RATE_CREATURE_SPELLDAMAGE_TRIVIAL,
-    RATE_CREATURE_SPELLDAMAGE_MINUSMOB,
+    RATE_CREATURE_NORMAL_HP,
+    RATE_CREATURE_ELITE_ELITE_HP,
+    RATE_CREATURE_ELITE_RAREELITE_HP,
+    RATE_CREATURE_ELITE_WORLDBOSS_HP,
+    RATE_CREATURE_ELITE_RARE_HP,
+    RATE_CREATURE_NORMAL_DAMAGE,
+    RATE_CREATURE_ELITE_ELITE_DAMAGE,
+    RATE_CREATURE_ELITE_RAREELITE_DAMAGE,
+    RATE_CREATURE_ELITE_WORLDBOSS_DAMAGE,
+    RATE_CREATURE_ELITE_RARE_DAMAGE,
+    RATE_CREATURE_NORMAL_SPELLDAMAGE,
+    RATE_CREATURE_ELITE_ELITE_SPELLDAMAGE,
+    RATE_CREATURE_ELITE_RAREELITE_SPELLDAMAGE,
+    RATE_CREATURE_ELITE_WORLDBOSS_SPELLDAMAGE,
+    RATE_CREATURE_ELITE_RARE_SPELLDAMAGE,
     RATE_CREATURE_AGGRO,
     RATE_REST_INGAME,
     RATE_REST_OFFLINE_IN_TAVERN_OR_CITY,
@@ -527,6 +520,48 @@ enum Rates
     RATE_MONEY_QUEST,
     RATE_MONEY_MAX_LEVEL_QUEST,
     MAX_RATES
+};
+
+enum RealmZone
+{
+    REALM_ZONE_UNKNOWN       = 0,                           // any language
+    REALM_ZONE_DEVELOPMENT   = 1,                           // any language
+    REALM_ZONE_UNITED_STATES = 2,                           // extended-Latin
+    REALM_ZONE_OCEANIC       = 3,                           // extended-Latin
+    REALM_ZONE_LATIN_AMERICA = 4,                           // extended-Latin
+    REALM_ZONE_TOURNAMENT_5  = 5,                           // basic-Latin at create, any at login
+    REALM_ZONE_KOREA         = 6,                           // East-Asian
+    REALM_ZONE_TOURNAMENT_7  = 7,                           // basic-Latin at create, any at login
+    REALM_ZONE_ENGLISH       = 8,                           // extended-Latin
+    REALM_ZONE_GERMAN        = 9,                           // extended-Latin
+    REALM_ZONE_FRENCH        = 10,                          // extended-Latin
+    REALM_ZONE_SPANISH       = 11,                          // extended-Latin
+    REALM_ZONE_RUSSIAN       = 12,                          // Cyrillic
+    REALM_ZONE_TOURNAMENT_13 = 13,                          // basic-Latin at create, any at login
+    REALM_ZONE_TAIWAN        = 14,                          // East-Asian
+    REALM_ZONE_TOURNAMENT_15 = 15,                          // basic-Latin at create, any at login
+    REALM_ZONE_CHINA         = 16,                          // East-Asian
+    REALM_ZONE_CN1           = 17,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN2           = 18,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN3           = 19,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN4           = 20,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN5           = 21,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN6           = 22,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN7           = 23,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN8           = 24,                          // basic-Latin at create, any at login
+    REALM_ZONE_TOURNAMENT_25 = 25,                          // basic-Latin at create, any at login
+    REALM_ZONE_TEST_SERVER   = 26,                          // any language
+    REALM_ZONE_TOURNAMENT_27 = 27,                          // basic-Latin at create, any at login
+    REALM_ZONE_QA_SERVER     = 28,                          // any language
+    REALM_ZONE_CN9           = 29,                          // basic-Latin at create, any at login
+    REALM_ZONE_TEST_SERVER_2 = 30,                          // any language
+    REALM_ZONE_CN10          = 31,                          // basic-Latin at create, any at login
+    REALM_ZONE_CTC           = 32,
+    REALM_ZONE_CNC           = 33,
+    REALM_ZONE_CN1_4         = 34,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN2_6_9       = 35,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN3_7         = 36,                          // basic-Latin at create, any at login
+    REALM_ZONE_CN5_8         = 37                           // basic-Latin at create, any at login
 };
 
 struct PersistentWorldVariable;
@@ -642,17 +677,17 @@ class TC_GAME_API World
             return lvl > 60 ? 300 + ((lvl - 60) * 75) / 10 : lvl * 5;
         }
 
-        bool SetInitialWorldSettings();
+        void SetInitialWorldSettings();
         void LoadConfigSettings(bool reload = false);
 
         void SendWorldText(uint32 string_id, ...);
         void SendGlobalText(char const* text, WorldSession* self);
         void SendGMText(uint32 string_id, ...);
-        void SendServerMessage(ServerMessageType messageID, std::string_view stringParam = {}, Player const* player = nullptr);
-        void SendGlobalMessage(WorldPacket const* packet, WorldSession* self = nullptr, Optional<Team> team = { });
-        void SendGlobalGMMessage(WorldPacket const* packet, WorldSession* self = nullptr, Optional<Team> team = { });
-        bool SendZoneMessage(uint32 zone, WorldPacket const* packet, WorldSession* self = nullptr, Optional<Team> team = { });
-        void SendZoneText(uint32 zone, const char *text, WorldSession* self = nullptr, Optional<Team> team = { });
+        void SendServerMessage(ServerMessageType messageID, std::string stringParam = "", Player* player = nullptr);
+        void SendGlobalMessage(WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
+        void SendGlobalGMMessage(WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
+        bool SendZoneMessage(uint32 zone, WorldPacket const* packet, WorldSession* self = nullptr, uint32 team = 0);
+        void SendZoneText(uint32 zone, const char *text, WorldSession* self = nullptr, uint32 team = 0);
 
         /// Are we in the middle of a shutdown?
         bool IsShuttingDown() const { return m_ShutdownTimer > 0; }
@@ -758,7 +793,7 @@ class TC_GAME_API World
 
         void ForceGameEventUpdate();
 
-        void UpdateRealmCharCount(uint32 accountId);
+        void UpdateRealmCharCount(uint32 accid);
 
         LocaleConstant GetAvailableDbcLocale(LocaleConstant locale) const { if (m_availableDbcLocaleMask & (1 << locale)) return locale; else return m_defaultDbcLocale; }
 
@@ -917,6 +952,8 @@ class TC_GAME_API World
 
     friend class debug_commandscript;
 };
+
+TC_GAME_API extern Realm realm;
 
 TC_GAME_API uint32 GetVirtualRealmAddress();
 

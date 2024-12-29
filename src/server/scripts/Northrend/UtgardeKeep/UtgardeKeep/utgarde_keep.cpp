@@ -78,6 +78,8 @@ struct npc_dragonflayer_forge_master : public ScriptedAI
 
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -112,6 +114,8 @@ enum Fixate
 // 40414 - Fixate
 class spell_fixate : public SpellScript
 {
+    PrepareSpellScript(spell_fixate);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FIXATE_TRIGGER });
@@ -136,6 +140,8 @@ enum SecondWind
 // 42770 - Second Wind
 class spell_uk_second_wind : public AuraScript
 {
+    PrepareAuraScript(spell_uk_second_wind);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SECOND_WIND_TRIGGER });
@@ -169,7 +175,7 @@ enum EnslavedProtoDrake
     TYPE_PROTODRAKE_AT      = 28,
     DATA_PROTODRAKE_MOVE    = 6,
 
-    PATH_PROTODRAKE         = 1007568,
+    PATH_PROTODRAKE         = 125946,
 
     EVENT_REND              = 1,
     EVENT_FLAME_BREATH      = 2,
@@ -247,6 +253,8 @@ struct npc_enslaved_proto_drake : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

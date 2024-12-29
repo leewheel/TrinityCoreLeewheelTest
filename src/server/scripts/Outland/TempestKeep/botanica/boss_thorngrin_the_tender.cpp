@@ -147,6 +147,8 @@ class boss_thorngrin_the_tender : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
 
         private:

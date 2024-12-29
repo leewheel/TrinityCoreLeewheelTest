@@ -72,15 +72,15 @@ uint32 rand32()
     return GetRng()->RandomUInt32();
 }
 
-float rand_norm()
+double rand_norm()
 {
-    std::uniform_real_distribution<float> urd;
+    std::uniform_real_distribution<double> urd;
     return urd(engine);
 }
 
-float rand_chance()
+double rand_chance()
 {
-    std::uniform_real_distribution<float> urd(0.0f, 100.0f);
+    std::uniform_real_distribution<double> urd(0.0, 100.0);
     return urd(engine);
 }
 

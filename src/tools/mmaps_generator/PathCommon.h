@@ -18,8 +18,7 @@
 #ifndef _MMAP_COMMON_H
 #define _MMAP_COMMON_H
 
-#include "Define.h"
-#include <memory>
+#include "Common.h"
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -85,12 +84,12 @@ namespace MMAP
     {
     #ifdef WIN32
         HANDLE hFind;
-        WIN32_FIND_DATAA findFileInfo;
+        WIN32_FIND_DATA findFileInfo;
         std::string directory;
 
         directory = dirpath + "/" + filter;
 
-        hFind = FindFirstFileA(directory.c_str(), &findFileInfo);
+        hFind = FindFirstFile(directory.c_str(), &findFileInfo);
 
         if (hFind == INVALID_HANDLE_VALUE)
             return LISTFILE_DIRECTORY_NOT_FOUND;
@@ -99,7 +98,7 @@ namespace MMAP
             if (strcmp(findFileInfo.cFileName, ".") != 0 && strcmp(findFileInfo.cFileName, "..") != 0)
                 fileList.push_back(std::string(findFileInfo.cFileName));
         }
-        while (FindNextFileA(hFind, &findFileInfo));
+        while (FindNextFile(hFind, &findFileInfo));
 
         FindClose(hFind);
 

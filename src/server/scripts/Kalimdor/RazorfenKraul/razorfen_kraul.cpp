@@ -40,9 +40,7 @@ enum Willix
     SAY_END                     = 10,
 
     QUEST_WILLIX_THE_IMPORTER   = 1144,
-    ENTRY_BOAR                  = 4514,
-
-    PATH_ESCORT_WILLIX          = 36066
+    ENTRY_BOAR                  = 4514
 };
 
 class npc_willix : public CreatureScript
@@ -58,8 +56,7 @@ public:
         {
             if (quest->GetQuestId() == QUEST_WILLIX_THE_IMPORTER)
             {
-                LoadPath(PATH_ESCORT_WILLIX);
-                Start(true, player->GetGUID());
+                Start(true, false, player->GetGUID());
                 Talk(SAY_READY, player);
                 me->SetFaction(FACTION_ESCORTEE_N_NEUTRAL_PASSIVE);
             }
@@ -240,6 +237,8 @@ class spell_snufflenose_command : public SpellScriptLoader
 
         class spell_snufflenose_commandSpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_snufflenose_commandSpellScript);
+
             void HandleEffect(SpellEffIndex /*effIndex*/)
             {
                 if (Creature* target = GetHitCreature())

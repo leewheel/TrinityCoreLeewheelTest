@@ -89,6 +89,8 @@ class boss_halazzi : public CreatureScript
                     }
                 }
                 */
+
+                DoMeleeAttackIfReady();
             }
         };
 

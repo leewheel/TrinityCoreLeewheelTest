@@ -18,9 +18,7 @@
 #include "ScenarioPackets.h"
 #include "ScenarioMgr.h"
 
-namespace WorldPackets::Scenario
-{
-ByteBuffer& operator<<(ByteBuffer& data, BonusObjectiveData const& bonusObjective)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Scenario::BonusObjectiveData const& bonusObjective)
 {
     data << int32(bonusObjective.BonusObjectiveID);
     data.WriteBit(bonusObjective.ObjectiveComplete);
@@ -28,7 +26,7 @@ ByteBuffer& operator<<(ByteBuffer& data, BonusObjectiveData const& bonusObjectiv
     return data;
 }
 
-ByteBuffer& operator<<(ByteBuffer& data, ScenarioSpellUpdate const& spell)
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Scenario::ScenarioSpellUpdate const& spell)
 {
     data << uint32(spell.SpellID);
     data.WriteBit(spell.Usable);
@@ -36,9 +34,8 @@ ByteBuffer& operator<<(ByteBuffer& data, ScenarioSpellUpdate const& spell)
     return data;
 }
 
-WorldPacket const* ScenarioState::Write()
+WorldPacket const* WorldPackets::Scenario::ScenarioState::Write()
 {
-    _worldPacket << ScenarioGUID;
     _worldPacket << int32(ScenarioID);
     _worldPacket << int32(CurrentStep);
     _worldPacket << uint32(DifficultyID);
@@ -51,41 +48,40 @@ WorldPacket const* ScenarioState::Write()
     _worldPacket << uint32(Spells.size());
     _worldPacket << PlayerGUID;
 
-    if (!PickedSteps.empty())
-        _worldPacket.append(PickedSteps.data(), PickedSteps.size());
+    for (uint32 i = 0; i < PickedSteps.size(); ++i)
+        _worldPacket << uint32(PickedSteps[i]);
 
     _worldPacket.WriteBit(ScenarioComplete);
     _worldPacket.FlushBits();
 
-    for (Achievement::CriteriaProgress const& progress : CriteriaProgress)
-        _worldPacket << progress;
+   for (WorldPackets::Achievement::CriteriaProgress const& progress : CriteriaProgress)
+       _worldPacket << progress;
 
-    for (BonusObjectiveData const& bonusObjective : BonusObjectives)
-        _worldPacket << bonusObjective;
+   for (WorldPackets::Scenario::BonusObjectiveData const& bonusObjective : BonusObjectives)
+       _worldPacket << bonusObjective;
 
-    for (ScenarioSpellUpdate const& spell : Spells)
-        _worldPacket << spell;
+   for (WorldPackets::Scenario::ScenarioSpellUpdate const& spell : Spells)
+       _worldPacket << spell;
 
     return &_worldPacket;
 }
 
-WorldPacket const* ScenarioProgressUpdate::Write()
+WorldPacket const* WorldPackets::Scenario::ScenarioProgressUpdate::Write()
 {
     _worldPacket << CriteriaProgress;
 
     return &_worldPacket;
 }
 
-WorldPacket const* ScenarioCompleted::Write()
+WorldPacket const* WorldPackets::Scenario::ScenarioCompleted::Write()
 {
     _worldPacket << uint32(ScenarioID);
 
     return &_worldPacket;
 }
 
-WorldPacket const* ScenarioVacate::Write()
+WorldPacket const* WorldPackets::Scenario::ScenarioVacate::Write()
 {
-    _worldPacket << ScenarioGUID;
     _worldPacket << int32(ScenarioID);
     _worldPacket << int32(Unk1);
     _worldPacket.WriteBits(Unk2, 2);
@@ -94,7 +90,14 @@ WorldPacket const* ScenarioVacate::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* ScenarioPOIs::Write()
+void WorldPackets::Scenario::QueryScenarioPOI::Read()
+{
+    MissingScenarioPOIs.resize(_worldPacket.read<uint32>());
+    for (int32& scenarioPOI : MissingScenarioPOIs)
+        _worldPacket >> scenarioPOI;
+}
+
+WorldPacket const* WorldPackets::Scenario::ScenarioPOIs::Write()
 {
     _worldPacket << uint32(ScenarioPOIDataStats.size());
 
@@ -125,5 +128,4 @@ WorldPacket const* ScenarioPOIs::Write()
     }
 
     return &_worldPacket;
-}
 }

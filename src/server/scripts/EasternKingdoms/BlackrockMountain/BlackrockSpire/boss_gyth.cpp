@@ -36,7 +36,7 @@ enum Misc
 {
     NEFARIUS_PATH_2                 = 1379671,
     NEFARIUS_PATH_3                 = 1379672,
-    GYTH_PATH_1                     = 11037448,
+    GYTH_PATH_1                     = 1379681,
 };
 
 enum Events
@@ -168,6 +168,7 @@ struct boss_gyth : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+        DoMeleeAttackIfReady();
     }
 };
 

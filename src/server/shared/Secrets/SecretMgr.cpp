@@ -17,7 +17,7 @@
 
 #include "SecretMgr.h"
 #include "AES.h"
-#include "Argon2Hash.h"
+#include "Argon2.h"
 #include "Config.h"
 #include "CryptoGenerics.h"
 #include "DatabaseEnv.h"
@@ -151,7 +151,7 @@ void SecretMgr::AttemptLoad(Secrets i, LogLevel errorLevel, std::unique_lock<std
         Optional<std::string> error = AttemptTransition(Secrets(i), currentValue, oldSecret, !!oldDigest);
         if (error)
         {
-            TC_LOG_MESSAGE_BODY("server.loading", errorLevel, "Your value of '{}' changed, but we cannot transition your database to the new value:\n{}", info.configKey, error->c_str());
+            TC_LOG_MESSAGE_BODY("server.loading", errorLevel, "Your value of '{}' changed, but we cannot transition your database to the new value:\n{}", info.configKey, *error);
             _secrets[i].state = Secret::LOAD_FAILED;
             return;
         }

@@ -47,13 +47,12 @@
 #include "QueryHolder.h"
 #include "Random.h"
 #include "RBAC.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "WardenWin.h"
 #include "World.h"
 #include "WorldSocket.h"
-#include <boost/circular_buffer.hpp>
 
 namespace {
 
@@ -106,7 +105,7 @@ bool WorldSessionFilter::Process(WorldPacket* packet)
 
 /// WorldSession constructor
 WorldSession::WorldSession(uint32 id, std::string&& name, uint32 battlenetAccountId, std::shared_ptr<WorldSocket> sock, AccountTypes sec, uint8 expansion, time_t mute_time,
-    std::string os, Minutes timezoneOffset, uint32 build, ClientBuild::VariantId clientBuildVariant, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
+    std::string os, LocaleConstant locale, uint32 recruiter, bool isARecruiter):
     m_muteTime(mute_time),
     m_timeOutTime(0),
     AntiDOS(this),
@@ -118,9 +117,7 @@ WorldSession::WorldSession(uint32 id, std::string&& name, uint32 battlenetAccoun
     _battlenetAccountId(battlenetAccountId),
     m_accountExpansion(expansion),
     m_expansion(std::min<uint8>(expansion, sWorld->getIntConfig(CONFIG_EXPANSION))),
-    _os(std::move(os)),
-    _clientBuild(build),
-    _clientBuildVariant(clientBuildVariant),
+    _os(os),
     _battlenetRequestToken(0),
     _logoutTime(0),
     m_inQueue(false),
@@ -129,7 +126,6 @@ WorldSession::WorldSession(uint32 id, std::string&& name, uint32 battlenetAccoun
     m_playerSave(false),
     m_sessionDbcLocale(sWorld->GetAvailableDbcLocale(locale)),
     m_sessionDbLocaleIndex(locale),
-    _timezoneOffset(timezoneOffset),
     m_latency(0),
     _tutorialsChanged(TUTORIALS_FLAG_NONE),
     _filterAddonMessages(false),
@@ -138,7 +134,8 @@ WorldSession::WorldSession(uint32 id, std::string&& name, uint32 battlenetAccoun
     _RBACData(nullptr),
     expireTime(60000), // 1 min after socket loss, session is deleted
     forceExit(false),
-    _timeSyncClockDeltaQueue(std::make_unique<boost::circular_buffer<std::pair<int64, uint32>>>(6)),
+    m_currentBankerGUID(),
+    _timeSyncClockDeltaQueue(6),
     _timeSyncClockDelta(0),
     _pendingTimeSyncRequests(),
     _timeSyncNextCounter(0),
@@ -156,7 +153,7 @@ WorldSession::WorldSession(uint32 id, std::string&& name, uint32 battlenetAccoun
         LoginDatabase.PExecute("UPDATE account SET online = 1 WHERE id = {};", GetAccountId());     // One-time query
     }
 
-    m_Socket[CONNECTION_TYPE_REALM] = std::move(sock);
+    m_Socket[CONNECTION_TYPE_REALM] = sock;
     _instanceConnectKey.Raw = UI64LIT(0);
 }
 
@@ -200,26 +197,35 @@ std::string const & WorldSession::GetPlayerName() const
 
 std::string WorldSession::GetPlayerInfo() const
 {
-    if (_player)
-        return Trinity::StringFormat("[Player: {} {}, Account: {}]", _player->GetName(), _player->GetGUID(), GetAccountId());
+    std::ostringstream ss;
 
+    ss << "[Player: ";
     if (!m_playerLoading.IsEmpty())
-        return Trinity::StringFormat("[Player: Logging in: {}, Account: {}]", m_playerLoading, GetAccountId());
+        ss << "Logging in: " << m_playerLoading.ToString() << ", ";
+    else if (_player)
+        ss << _player->GetName() << ' ' << _player->GetGUID().ToString() << ", ";
 
-    return Trinity::StringFormat("[Player: Account: {}]", GetAccountId());
+    ss << "Account: " << GetAccountId() << "]";
+
+    return ss.str();
 }
 
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet, bool forced /*= false*/)
 {
-    if (packet->GetOpcode() < MIN_SMSG_OPCODE_NUMBER || packet->GetOpcode() > MAX_SMSG_OPCODE_NUMBER)
+    if (packet->GetOpcode() == NULL_OPCODE)
     {
-        char const* specialName = packet->GetOpcode() == UNKNOWN_OPCODE ? "UNKNOWN_OPCODE" : "INVALID_OPCODE";
-        TC_LOG_ERROR("network.opcode", "Prevented sending of {} (0x{:04X}) to {}", specialName, packet->GetOpcode(), GetPlayerInfo());
+        TC_LOG_ERROR("network.opcode", "Prevented sending of NULL_OPCODE to {}", GetPlayerInfo());
+        return;
+    }
+    else if (packet->GetOpcode() == UNKNOWN_OPCODE)
+    {
+        TC_LOG_ERROR("network.opcode", "Prevented sending of UNKNOWN_OPCODE to {}", GetPlayerInfo());
         return;
     }
 
     ServerOpcodeHandler const* handler = opcodeTable[static_cast<OpcodeServer>(packet->GetOpcode())];
+
     if (!handler)
     {
         TC_LOG_ERROR("network.opcode", "Prevented sending of opcode {} with non existing handler to {}", packet->GetOpcode(), GetPlayerInfo());
@@ -306,7 +312,7 @@ void WorldSession::QueuePacket(WorldPacket* new_packet)
 void WorldSession::LogUnexpectedOpcode(WorldPacket* packet, char const* status, const char *reason)
 {
     TC_LOG_ERROR("network.opcode", "Received unexpected opcode {} Status: {} Reason: {} from {}",
-        GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())), status, reason, GetPlayerInfo());
+        GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())).c_str(), status, reason, GetPlayerInfo().c_str());
 }
 
 /// Logging helper for unexpected opcodes
@@ -316,7 +322,7 @@ void WorldSession::LogUnprocessedTail(WorldPacket const* packet)
         return;
 
     TC_LOG_TRACE("network.opcode", "Unprocessed tail data (read stop at {} from {}) Opcode {} from {}",
-        uint32(packet->rpos()), uint32(packet->wpos()), GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())), GetPlayerInfo());
+        uint32(packet->rpos()), uint32(packet->wpos()), GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())).c_str(), GetPlayerInfo().c_str());
     packet->print_storage();
 }
 
@@ -361,7 +367,7 @@ bool WorldSession::Update(uint32 diff, PacketFilter& updater)
                             requeuePackets.push_back(packet);
                             deletePacket = false;
                             TC_LOG_DEBUG("network", "Re-enqueueing packet with opcode {} with with status STATUS_LOGGEDIN. "
-                                "Player is currently not in world yet.", GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())));
+                                "Player is currently not in world yet.", GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet->GetOpcode())).c_str());
                         }
                     }
                     else if (_player->IsInWorld())
@@ -609,8 +615,6 @@ void WorldSession::LogoutPlayer(bool save)
         ///- Clear whisper whitelist
         _player->ClearWhisperWhiteList();
 
-        _player->FailQuestsWithFlag(QUEST_FLAGS_FAIL_ON_LOGOUT);
-
         ///- empty buyback items and save the player in the database
         // some save parts only correctly work in case player present in map/player_lists (pets, etc)
         if (save)
@@ -636,6 +640,7 @@ void WorldSession::LogoutPlayer(bool save)
         if (Group* group = _player->GetGroup())
         {
             group->SendUpdate();
+            group->ResetMaxEnchantingLevel();
             if (group->GetLeaderGUID() == _player->GetGUID())
                 group->StartLeaderOfflineTimer();
         }
@@ -656,7 +661,7 @@ void WorldSession::LogoutPlayer(bool save)
         _player->SetDestroyedObject(true);
         _player->CleanupsBeforeDelete();
         TC_LOG_INFO("entities.player.character", "Account: {} (IP: {}) Logout Character:[{}] {} Level: {}, XP: {}/{} ({} left)",
-            GetAccountId(), GetRemoteAddress(), _player->GetName(), _player->GetGUID().ToString(), _player->GetLevel(),
+            GetAccountId(), GetRemoteAddress().c_str(), _player->GetName().c_str(), _player->GetGUID().ToString().c_str(), _player->GetLevel(),
             _player->GetXP(), _player->GetXPForNextLevel(), std::max(0, (int32)_player->GetXPForNextLevel() - (int32)_player->GetXP()));
 
         if (Map* _map = _player->FindMap())
@@ -690,8 +695,8 @@ void WorldSession::LogoutPlayer(bool save)
 /// Kick a player out of the World
 void WorldSession::KickPlayer(std::string const& reason)
 {
-    TC_LOG_INFO("network.kick", "Account: {} Character: '{}' {} kicked with reason: {}", GetAccountId(), _player ? _player->GetName() : "<none>",
-        _player ? _player->GetGUID().ToString() : "", reason);
+    TC_LOG_INFO("network.kick", "Account: {} Character: '{}' {} kicked with reason: {}", GetAccountId(), _player ? _player->GetName().c_str() : "<none>",
+        _player ? _player->GetGUID().ToString().c_str() : "", reason.c_str());
 
     for (uint8 i = 0; i < 2; ++i)
     {
@@ -793,15 +798,13 @@ void WorldSession::Handle_NULL(WorldPackets::Null& null)
 void WorldSession::Handle_EarlyProccess(WorldPackets::Null& null)
 {
     TC_LOG_ERROR("network.opcode", "Received opcode {} that must be processed in WorldSocket::ReadDataHandler from {}"
-        , GetOpcodeNameForLogging(null.GetOpcode()), GetPlayerInfo());
+        , GetOpcodeNameForLogging(null.GetOpcode()).c_str(), GetPlayerInfo().c_str());
 }
 
 void WorldSession::SendConnectToInstance(WorldPackets::Auth::ConnectToSerial serial)
 {
     boost::system::error_code ignored_error;
-    boost::asio::ip::address instanceAddress;
-    if (std::shared_ptr<Realm const> currentRealm = sRealmList->GetCurrentRealm())
-        instanceAddress = currentRealm->GetAddressForClient(Trinity::Net::make_address(GetRemoteAddress(), ignored_error));
+    boost::asio::ip::address instanceAddress = realm.GetAddressForClient(Trinity::Net::make_address(GetRemoteAddress(), ignored_error));
 
     _instanceConnectKey.Fields.AccountId = GetAccountId();
     _instanceConnectKey.Fields.ConnectionType = CONNECTION_TYPE_INSTANCE;
@@ -818,23 +821,8 @@ void WorldSession::SendConnectToInstance(WorldPackets::Auth::ConnectToSerial ser
     }
     else
     {
-        // client always uses v4 address for loopback and v4 mapped addresses
-        boost::asio::ip::address_v6 v6 = instanceAddress.to_v6();
-        if (v6.is_loopback())
-        {
-            memcpy(connectTo.Payload.Where.Address.V4.data(), boost::asio::ip::address_v4::loopback().to_bytes().data(), 4);
-            connectTo.Payload.Where.Type = WorldPackets::Auth::ConnectTo::IPv4;
-        }
-        else if (v6.is_v4_mapped())
-        {
-            memcpy(connectTo.Payload.Where.Address.V4.data(), Trinity::Net::make_address_v4(Trinity::Net::v4_mapped, v6).to_bytes().data(), 4);
-            connectTo.Payload.Where.Type = WorldPackets::Auth::ConnectTo::IPv4;
-        }
-        else
-        {
-            memcpy(connectTo.Payload.Where.Address.V6.data(), v6.to_bytes().data(), 16);
-            connectTo.Payload.Where.Type = WorldPackets::Auth::ConnectTo::IPv6;
-        }
+        memcpy(connectTo.Payload.Where.Address.V6.data(), instanceAddress.to_v6().to_bytes().data(), 16);
+        connectTo.Payload.Where.Type = WorldPackets::Auth::ConnectTo::IPv6;
     }
     connectTo.Con = CONNECTION_TYPE_INSTANCE;
 
@@ -1039,9 +1027,9 @@ void WorldSession::LoadPermissions()
     uint8 secLevel = GetSecurity();
 
     TC_LOG_DEBUG("rbac", "WorldSession::LoadPermissions [AccountId: {}, Name: {}, realmId: {}, secLevel: {}]",
-        id, _accountName, sRealmList->GetCurrentRealmId().Realm, secLevel);
+        id, _accountName.c_str(), realm.Id.Realm, secLevel);
 
-    _RBACData = new rbac::RBACData(id, _accountName, sRealmList->GetCurrentRealmId().Realm, secLevel);
+    _RBACData = new rbac::RBACData(id, _accountName, realm.Id.Realm, secLevel);
     _RBACData->LoadFromDB();
 }
 
@@ -1051,9 +1039,9 @@ QueryCallback WorldSession::LoadPermissionsAsync()
     uint8 secLevel = GetSecurity();
 
     TC_LOG_DEBUG("rbac", "WorldSession::LoadPermissions [AccountId: {}, Name: {}, realmId: {}, secLevel: {}]",
-        id, _accountName, sRealmList->GetCurrentRealmId().Realm, secLevel);
+        id, _accountName.c_str(), realm.Id.Realm, secLevel);
 
-    _RBACData = new rbac::RBACData(id, _accountName, sRealmList->GetCurrentRealmId().Realm, secLevel);
+    _RBACData = new rbac::RBACData(id, _accountName, realm.Id.Realm, secLevel);
     return _RBACData->LoadFromDBAsync();
 }
 
@@ -1116,7 +1104,7 @@ public:
 
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_BATTLE_PETS);
         stmt->setUInt32(0, battlenetAccountId);
-        stmt->setInt32(1, sRealmList->GetCurrentRealmId().Realm);
+        stmt->setInt32(1, realm.Id.Realm);
         ok = SetPreparedQuery(BATTLE_PETS, stmt) && ok;
 
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_BATTLE_PET_SLOTS);
@@ -1198,7 +1186,6 @@ void WorldSession::InitializeSessionCallback(LoginDatabaseQueryHolder const& hol
     _collectionMgr->LoadAccountHeirlooms(holder.GetPreparedResult(AccountInfoQueryHolder::GLOBAL_ACCOUNT_HEIRLOOMS));
     _collectionMgr->LoadAccountMounts(holder.GetPreparedResult(AccountInfoQueryHolder::MOUNTS));
     _collectionMgr->LoadAccountItemAppearances(holder.GetPreparedResult(AccountInfoQueryHolder::ITEM_APPEARANCES), holder.GetPreparedResult(AccountInfoQueryHolder::ITEM_FAVORITE_APPEARANCES));
-    _collectionMgr->LoadAccountTransmogIllusions(holder.GetPreparedResult(AccountInfoQueryHolder::TRANSMOG_ILLUSIONS));
 
     if (!m_inQueue)
         SendAuthResponse(ERROR_OK, false);
@@ -1245,7 +1232,7 @@ bool WorldSession::HasPermission(uint32 permission)
 
     bool hasPermission = _RBACData->HasPermission(permission);
     TC_LOG_DEBUG("rbac", "WorldSession::HasPermission [AccountId: {}, Name: {}, realmId: {}]",
-                   _RBACData->GetId(), _RBACData->GetName(), sRealmList->GetCurrentRealmId().Realm);
+                   _RBACData->GetId(), _RBACData->GetName().c_str(), realm.Id.Realm);
 
     return hasPermission;
 }
@@ -1253,7 +1240,7 @@ bool WorldSession::HasPermission(uint32 permission)
 void WorldSession::InvalidateRBACData()
 {
     TC_LOG_DEBUG("rbac", "WorldSession::Invalidaterbac::RBACData [AccountId: {}, Name: {}, realmId: {}]",
-                   _RBACData->GetId(), _RBACData->GetName(), sRealmList->GetCurrentRealmId().Realm);
+                   _RBACData->GetId(), _RBACData->GetName().c_str(), realm.Id.Realm);
     delete _RBACData;
     _RBACData = nullptr;
 }
@@ -1278,7 +1265,7 @@ bool WorldSession::DosProtection::EvaluateOpcode(WorldPacket& p, time_t time) co
         return true;
 
     TC_LOG_WARN("network", "AntiDOS: Account {}, IP: {}, Ping: {}, Character: {}, flooding packet (opc: {} (0x{:X}), count: {})",
-        Session->GetAccountId(), Session->GetRemoteAddress(), Session->GetLatency(), Session->GetPlayerName(),
+        Session->GetAccountId(), Session->GetRemoteAddress().c_str(), Session->GetLatency(), Session->GetPlayerName().c_str(),
         opcodeTable[static_cast<OpcodeClient>(p.GetOpcode())]->Name, p.GetOpcode(), packetCounter.amountCounter);
 
     switch (_policy)
@@ -1320,6 +1307,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         // CPU usage sending 2000 packets/second on a 3.70 GHz 4 cores on Win x64
         //                                              [% CPU mysqld]   [%CPU worldserver RelWithDebInfo]
         case CMSG_PLAYER_LOGIN:                         //   0               0.5
+        case CMSG_QUERY_PLAYER_NAME:                    //   0
         case CMSG_QUERY_PLAYER_NAMES:                   //   0               1
         case CMSG_QUERY_PET_NAME:                       //   0               1
         case CMSG_QUERY_NPC_TEXT:                       //   0               1
@@ -1351,7 +1339,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_GUILD_BANK_TEXT_QUERY:                //   0               1.5
         case CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT:    //   0               1.5
         case CMSG_MOVE_SET_FACING:                      //   0               1.5
-        case CMSG_MOVE_SET_FACING_HEARTBEAT:            //   0               1.5
+        //TODOFROST case CMSG_MOVE_SET_FACING_HEARTBEAT:            //   0               1.5
         case CMSG_MOVE_SET_PITCH:                       //   0               1.5
         case CMSG_REQUEST_PARTY_MEMBER_STATS:           //   0               1.5
         case CMSG_QUEST_GIVER_COMPLETE_QUEST:           //   0               1.5
@@ -1378,7 +1366,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_LOGOUT_CANCEL:                        //   0               2
         case CMSG_ALTER_APPEARANCE:                     //   0               2
         case CMSG_QUEST_CONFIRM_ACCEPT:                 //   0               2
-        case CMSG_GUILD_EVENT_LOG_QUERY:                //   0               2.5
+        //TODOFROST case CMSG_GUILD_EVENT_LOG_QUERY:                //   0               2.5
         case CMSG_QUEST_GIVER_STATUS_MULTIPLE_QUERY:    //   0               2.5
         case CMSG_BEGIN_TRADE:                          //   0               2.5
         case CMSG_INITIATE_TRADE:                       //   0               3
@@ -1420,7 +1408,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_QUEST_GIVER_ACCEPT_QUEST:             //   0               4
         case CMSG_QUEST_LOG_REMOVE_QUEST:               //   0               4
         case CMSG_QUEST_GIVER_CHOOSE_REWARD:            //   0               4
-        case CMSG_SEND_CONTACT_LIST:                    //   0               5
+        case CMSG_SEND_CONTACT_LIST:                         //   0               5
         case CMSG_AUTOBANK_ITEM:                        //   0               6
         case CMSG_AUTOSTORE_BANK_ITEM:                  //   0               6
         case CMSG_WHO:                                  //   0               7
@@ -1459,7 +1447,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
 
         case CMSG_SIGN_PETITION:                        //   9               4         2 sync 1 async db queries
         case CMSG_TURN_IN_PETITION:                     //   8               5.5       2 sync db query
-        case CMSG_CHANGE_SUB_GROUP:                     //   6               5         1 sync 1 async db queries
+        //TODOFROST case CMSG_CHANGE_SUB_GROUP:                     //   6               5         1 sync 1 async db queries
         case CMSG_QUERY_PETITION:                       //   4               3.5       1 sync db query
         case CMSG_CHAR_CUSTOMIZE:                       //   5               5         1 sync db query
         case CMSG_CHAR_RACE_OR_FACTION_CHANGE:          //   5               5         1 sync db query
@@ -1518,7 +1506,7 @@ uint32 WorldSession::DosProtection::GetMaxPacketCounterAllowed(uint16 opcode) co
         case CMSG_GUILD_BANK_BUY_TAB:                   // not profiled
         case CMSG_GUILD_BANK_UPDATE_TAB:                // not profiled
         case CMSG_GUILD_BANK_SET_TAB_TEXT:              // not profiled
-        //case CMSG_SAVE_GUILD_EMBLEM:                    // not profiled
+        case CMSG_SAVE_GUILD_EMBLEM:                    // not profiled
         case CMSG_PETITION_RENAME_GUILD:                // not profiled
         case CMSG_CONFIRM_RESPEC_WIPE:                  // not profiled
         case CMSG_SET_DUNGEON_DIFFICULTY:               // not profiled

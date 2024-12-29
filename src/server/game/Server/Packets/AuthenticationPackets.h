@@ -102,9 +102,7 @@ namespace WorldPackets
         {
             uint32 WaitCount = 0; ///< position of the account in the login queue
             uint32 WaitTime = 0; ///< Wait time in login queue in minutes, if sent queued and this value is 0 client displays "unknown time"
-            int32 AllowedFactionGroupForCharacterCreate = 0;
             bool HasFCM = false; ///< true if the account has a forced character migration pending. @todo implement
-            bool CanCreateOnlyIfExisting = false; ///< Can create characters on realm only if player has other existing characters there
         };
 
         struct VirtualRealmNameInfo
@@ -142,12 +140,6 @@ namespace WorldPackets
                     bool InGameRoom = false;
                 };
 
-                struct NewBuild
-                {
-                    std::array<uint8, 16> NewBuildKey = { };
-                    std::array<uint8, 16> SomeKey = { };
-                };
-
                 AuthSuccessInfo() { } // work around clang bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101227
 
                 uint8 ActiveExpansionLevel = 0; ///< the current server expansion, the possible values are in @ref Expansions
@@ -170,8 +162,7 @@ namespace WorldPackets
                 bool ForceCharacterTemplate = false; ///< forces the client to always use a character template when creating a new character. @see Templates. @todo implement
                 Optional<uint16> NumPlayersHorde; ///< number of horde players in this realm. @todo implement
                 Optional<uint16> NumPlayersAlliance; ///< number of alliance players in this realm. @todo implement
-                Optional<Timestamp<>> ExpansionTrialExpiration; ///< expansion trial expiration unix timestamp
-                Optional<NewBuild> NewBuildKeys;
+                Optional<int32> ExpansionTrialExpiration; ///< expansion trial expiration unix timestamp
             };
 
             AuthResponse() : ServerPacket(SMSG_AUTH_RESPONSE, 132) { }

@@ -186,6 +186,8 @@ public:
                         EnragedHard = true;
                     } else EnrageHard_Timer -= diff;
                 }
+
+                DoMeleeAttackIfReady();
             }
         }
     };
@@ -306,6 +308,8 @@ public:
                     AggroReset_Timer = urand(30000, 40000);
                 } else AggroResetEnd_Timer -= diff;
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 

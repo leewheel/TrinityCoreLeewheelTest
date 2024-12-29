@@ -18,8 +18,6 @@
 #include "Config.h"
 #include "Log.h"
 #include "StringConvert.h"
-#include <boost/filesystem/directory.hpp>
-#include <boost/filesystem/operations.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <algorithm>
 #include <cstdlib>
@@ -27,7 +25,6 @@
 #include <mutex>
 
 namespace bpt = boost::property_tree;
-namespace fs  = boost::filesystem;
 
 namespace
 {
@@ -161,8 +158,6 @@ bool ConfigMgr::LoadAdditionalFile(std::string file, bool keepOnReload, std::str
     if (!LoadFile(file, fullTree, error))
         return false;
 
-    std::lock_guard<std::mutex> lock(_configLock);
-
     for (bpt::ptree::value_type const& child : fullTree.begin()->second)
         _config.put_child(bpt::ptree::path_type(child.first, '/'), child.second);
 
@@ -170,32 +165,6 @@ bool ConfigMgr::LoadAdditionalFile(std::string file, bool keepOnReload, std::str
         _additonalFiles.emplace_back(std::move(file));
 
     return true;
-}
-
-bool ConfigMgr::LoadAdditionalDir(std::string const& dir, bool keepOnReload, std::vector<std::string>& loadedFiles, std::vector<std::string>& errors)
-{
-    fs::path dirPath = dir;
-    if (!fs::exists(dirPath) || !fs::is_directory(dirPath))
-        return true;
-
-    for (fs::directory_entry const& f : fs::recursive_directory_iterator(dirPath))
-    {
-        if (!fs::is_regular_file(f))
-            continue;
-
-        fs::path configFile = fs::absolute(f);
-        if (configFile.extension() != ".conf")
-            continue;
-
-        std::string fileName = configFile.generic_string();
-        std::string error;
-        if (LoadAdditionalFile(fileName, keepOnReload, error))
-            loadedFiles.push_back(std::move(fileName));
-        else
-            errors.push_back(std::move(error));
-    }
-
-    return errors.empty();
 }
 
 std::vector<std::string> ConfigMgr::OverrideWithEnvVariablesIfAny()
@@ -269,13 +238,13 @@ T ConfigMgr::GetValueDefault(std::string const& name, T def, bool quiet) const
         else if (!quiet)
         {
             TC_LOG_WARN("server.loading", "Missing name {} in config file {}, add \"{} = {}\" to this file",
-                name, _filename, name, def);
+                name.c_str(), _filename.c_str(), name.c_str(), std::to_string(def).c_str());
         }
     }
     catch (bpt::ptree_bad_data const&)
     {
         TC_LOG_ERROR("server.loading", "Bad value defined for name {} in config file {}, going to use {} instead",
-            name, _filename, def);
+            name.c_str(), _filename.c_str(), std::to_string(def).c_str());
     }
 
     return def;
@@ -301,13 +270,13 @@ std::string ConfigMgr::GetValueDefault<std::string>(std::string const& name, std
         else if (!quiet)
         {
             TC_LOG_WARN("server.loading", "Missing name {} in config file {}, add \"{} = {}\" to this file",
-                name, _filename, name, def);
+                name.c_str(), _filename.c_str(), name.c_str(), def.c_str());
         }
     }
     catch (bpt::ptree_bad_data const&)
     {
         TC_LOG_ERROR("server.loading", "Bad value defined for name {} in config file {}, going to use {} instead",
-            name, _filename, def);
+            name.c_str(), _filename.c_str(), def.c_str());
     }
 
     return def;
@@ -330,7 +299,7 @@ bool ConfigMgr::GetBoolDefault(std::string const& name, bool def, bool quiet) co
     else
     {
         TC_LOG_ERROR("server.loading", "Bad value defined for name {} in config file {}, going to use '{}' instead",
-            name, _filename, def ? "true" : "false");
+            name.c_str(), _filename.c_str(), def ? "true" : "false");
         return def;
     }
 }

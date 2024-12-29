@@ -20,7 +20,6 @@
 #include "MySQLConnection.h"
 #include "QueryResult.h"
 #include "StringFormat.h"
-#include <fmt/chrono.h>
 
 PreparedStatementBase::PreparedStatementBase(uint32 index, uint8 capacity) :
     m_index(index), statement_data(capacity) { }
@@ -28,124 +27,134 @@ PreparedStatementBase::PreparedStatementBase(uint32 index, uint8 capacity) :
 PreparedStatementBase::~PreparedStatementBase() { }
 
 //- Bind to buffer
-void PreparedStatementBase::setBool(uint8 index, bool value)
+void PreparedStatementBase::setBool(const uint8 index, const bool value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setUInt8(uint8 index, uint8 value)
+void PreparedStatementBase::setUInt8(const uint8 index, const uint8 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setUInt16(uint8 index, uint16 value)
+void PreparedStatementBase::setUInt16(const uint8 index, const uint16 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setUInt32(uint8 index, uint32 value)
+void PreparedStatementBase::setUInt32(const uint8 index, const uint32 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setUInt64(uint8 index, uint64 value)
+void PreparedStatementBase::setUInt64(const uint8 index, const uint64 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setInt8(uint8 index, int8 value)
+void PreparedStatementBase::setInt8(const uint8 index, const int8 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setInt16(uint8 index, int16 value)
+void PreparedStatementBase::setInt16(const uint8 index, const int16 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setInt32(uint8 index, int32 value)
+void PreparedStatementBase::setInt32(const uint8 index, const int32 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setInt64(uint8 index, int64 value)
+void PreparedStatementBase::setInt64(const uint8 index, const int64 value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setFloat(uint8 index, float value)
+void PreparedStatementBase::setFloat(const uint8 index, const float value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setDouble(uint8 index, double value)
+void PreparedStatementBase::setDouble(const uint8 index, const double value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setDate(uint8 index, SystemTimePoint value)
+void PreparedStatementBase::setString(const uint8 index, const std::string& value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setString(uint8 index, std::string const& value)
-{
-    ASSERT(index < statement_data.size());
-    statement_data[index].data = value;
-}
-
-void PreparedStatementBase::setStringView(uint8 index, std::string_view value)
+void PreparedStatementBase::setStringView(const uint8 index, const std::string_view value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data.emplace<std::string>(value);
 }
 
-void PreparedStatementBase::setBinary(uint8 index, std::vector<uint8> const& value)
+void PreparedStatementBase::setBinary(const uint8 index, const std::vector<uint8>& value)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = value;
 }
 
-void PreparedStatementBase::setNull(uint8 index)
+void PreparedStatementBase::setNull(const uint8 index)
 {
     ASSERT(index < statement_data.size());
     statement_data[index].data = nullptr;
 }
 
 //- Execution
-PreparedQueryResult PreparedStatementTask::Query(MySQLConnection* conn, PreparedStatementBase* stmt)
+PreparedStatementTask::PreparedStatementTask(PreparedStatementBase* stmt, bool async) :
+m_stmt(stmt), m_result(nullptr)
 {
-    PreparedResultSet* result = conn->Query(stmt);
-    if (!result || !result->GetRowCount())
-    {
-        delete result;
-        result = nullptr;
-    }
-
-    return PreparedQueryResult(result);
+    m_has_result = async; // If it's async, then there's a result
+    if (async)
+        m_result = new PreparedQueryResultPromise();
 }
 
-bool PreparedStatementTask::Execute(MySQLConnection* conn, PreparedStatementBase* stmt)
+PreparedStatementTask::~PreparedStatementTask()
 {
-    return conn->Execute(stmt);
+    delete m_stmt;
+    if (m_has_result && m_result != nullptr)
+        delete m_result;
+}
+
+bool PreparedStatementTask::Execute()
+{
+    if (m_has_result)
+    {
+        PreparedResultSet* result = m_conn->Query(m_stmt);
+        if (!result || !result->GetRowCount())
+        {
+            delete result;
+            m_result->set_value(PreparedQueryResult(nullptr));
+            return false;
+        }
+        m_result->set_value(PreparedQueryResult(result));
+        return true;
+    }
+
+    return m_conn->Execute(m_stmt);
 }
 
 template<typename T>
 std::string PreparedStatementData::ToString(T value)
 {
-    return Trinity::StringFormat("{}", value);
+    return fmt::format("{}", value);
 }
 
 std::string PreparedStatementData::ToString(bool value)
@@ -175,17 +184,12 @@ template std::string PreparedStatementData::ToString<double>(double);
 
 std::string PreparedStatementData::ToString(std::string const& value)
 {
-    return Trinity::StringFormat("'{}'", value);
+    return fmt::format("'{}'", value);
 }
 
 std::string PreparedStatementData::ToString(std::vector<uint8> const& /*value*/)
 {
     return "BINARY";
-}
-
-std::string PreparedStatementData::ToString(SystemTimePoint value)
-{
-    return Trinity::StringFormat("{:%F %T}", value);
 }
 
 std::string PreparedStatementData::ToString(std::nullptr_t)

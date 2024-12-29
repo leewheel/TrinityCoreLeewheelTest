@@ -24,6 +24,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <memory>
 
+using boost::asio::ip::tcp;
+
 template<class SocketType>
 class SocketMgr
 {
@@ -93,7 +95,7 @@ public:
                 _threads[i].Wait();
     }
 
-    virtual void OnSocketOpen(boost::asio::ip::tcp::socket&& sock, uint32 threadIndex)
+    virtual void OnSocketOpen(tcp::socket&& sock, uint32 threadIndex)
     {
         try
         {
@@ -121,7 +123,7 @@ public:
         return min;
     }
 
-    std::pair<boost::asio::ip::tcp::socket*, uint32> GetSocketForAccept()
+    std::pair<tcp::socket*, uint32> GetSocketForAccept()
     {
         uint32 threadIndex = SelectThreadWithMinConnections();
         return std::make_pair(_threads[threadIndex].GetSocketForAccept(), threadIndex);

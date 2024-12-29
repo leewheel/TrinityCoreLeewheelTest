@@ -108,6 +108,27 @@ void WorldPackets::BattlePet::BattlePetSetBattleSlot::Read()
     _worldPacket >> Slot;
 }
 
+void WorldPackets::BattlePet::BattlePetModifyName::Read()
+{
+    _worldPacket >> PetGuid;
+    uint32 nameLength = _worldPacket.ReadBits(7);
+    bool hasDeclinedNames = _worldPacket.ReadBit();
+
+    if (hasDeclinedNames)
+    {
+        DeclinedNames = std::make_unique<DeclinedName>();
+        uint8 declinedNameLengths[MAX_DECLINED_NAME_CASES];
+
+        for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+            declinedNameLengths[i] = _worldPacket.ReadBits(7);
+
+        for (uint8 i = 0; i < MAX_DECLINED_NAME_CASES; ++i)
+            DeclinedNames->name[i] = _worldPacket.ReadString(declinedNameLengths[i]);
+    }
+
+    Name = _worldPacket.ReadString(nameLength);
+}
+
 void WorldPackets::BattlePet::QueryBattlePetName::Read()
 {
     _worldPacket >> BattlePetID;
@@ -141,6 +162,11 @@ WorldPacket const* WorldPackets::BattlePet::QueryBattlePetNameResponse::Write()
     return &_worldPacket;
 }
 
+void WorldPackets::BattlePet::BattlePetDeletePet::Read()
+{
+    _worldPacket >> PetGuid;
+}
+
 void WorldPackets::BattlePet::BattlePetSetFlags::Read()
 {
     _worldPacket >> PetGuid;
@@ -149,6 +175,11 @@ void WorldPackets::BattlePet::BattlePetSetFlags::Read()
 }
 
 void WorldPackets::BattlePet::BattlePetClearFanfare::Read()
+{
+    _worldPacket >> PetGuid;
+}
+
+void WorldPackets::BattlePet::CageBattlePet::Read()
 {
     _worldPacket >> PetGuid;
 }

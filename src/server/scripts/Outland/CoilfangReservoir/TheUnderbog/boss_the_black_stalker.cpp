@@ -35,7 +35,7 @@ like lack of delays between packets makes it work differently too.
 Of course as was said above player can be pulled towards 2 times in a row but that looks like a rare case.
 */
 
-enum BlackStalkerSpells
+enum Spells
 {
     SPELL_LEVITATE                      = 31704,
     SPELL_CHAIN_LIGHTNING               = 31717,
@@ -52,7 +52,7 @@ enum BlackStalkerSpells
     SPELL_SUMMON_SPORE_STRIDER          = 38755
 };
 
-enum BlackStalkerEvents
+enum Events
 {
     EVENT_LEASH_CHECK                   = 1,
     EVENT_LEVITATE,
@@ -61,26 +61,37 @@ enum BlackStalkerEvents
     EVENT_SUMMON_SPORE_STRIDER
 };
 
-enum BlackStalkerPaths
+struct boss_the_black_stalker : public ScriptedAI
 {
-    PATH_BLACK_STALKER_IDLE             = 4346960,
-};
+    boss_the_black_stalker(Creature* creature) : ScriptedAI(creature), _summons(creature) { }
 
-struct boss_the_black_stalker : public BossAI
-{
-    boss_the_black_stalker(Creature* creature) : BossAI(creature, DATA_THE_BLACK_STALKER), _summons(creature) { }
-
-    void JustEngagedWith(Unit* who) override
+    void Reset() override
     {
-        BossAI::JustEngagedWith(who);
-        scheduler.CancelAll();
+        _events.Reset();
+        _summons.DespawnAll();
+    }
 
+    void JustEngagedWith(Unit* /*who*/) override
+    {
         _events.ScheduleEvent(EVENT_LEASH_CHECK, 5s);
         _events.ScheduleEvent(EVENT_LEVITATE, 8s, 18s);
         _events.ScheduleEvent(EVENT_CHAIN_LIGHTNING, 0s, 3s);
         _events.ScheduleEvent(EVENT_STATIC_CHARGE, 10s);
         if (IsHeroic())
             _events.ScheduleEvent(EVENT_SUMMON_SPORE_STRIDER, 20s, 30s);
+    }
+
+    void JustSummoned(Creature* summon) override
+    {
+        _summons.Summon(summon);
+
+        if (me->IsEngaged())
+            DoZoneInCombat(summon);
+    }
+
+    void JustDied(Unit* /*killer*/) override
+    {
+        _summons.DespawnAll();
     }
 
     void UpdateAI(uint32 diff) override
@@ -133,20 +144,8 @@ struct boss_the_black_stalker : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
-    }
 
-    void WaypointReached(uint32 waypointId, uint32 pathId) override
-    {
-        if (pathId != PATH_BLACK_STALKER_IDLE)
-            return;
-
-        if (waypointId == 2 || waypointId == 4 || waypointId == 6)
-        {
-            scheduler.Schedule(2s, [this](TaskContext /*task*/)
-            {
-                me->HandleEmoteCommand(EMOTE_ONESHOT_EAT);
-            });
-        }
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -157,6 +156,8 @@ private:
 // 31704 - Levitate
 class spell_the_black_stalker_levitate : public SpellScript
 {
+    PrepareSpellScript(spell_the_black_stalker_levitate);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_LEVITATION_PULSE });
@@ -176,6 +177,8 @@ class spell_the_black_stalker_levitate : public SpellScript
 // 31701 - Levitation Pulse
 class spell_the_black_stalker_levitation_pulse : public SpellScript
 {
+    PrepareSpellScript(spell_the_black_stalker_levitation_pulse);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SOMEONE_GRAB_ME });
@@ -195,6 +198,8 @@ class spell_the_black_stalker_levitation_pulse : public SpellScript
 // 31702 - Someone Grab Me
 class spell_the_black_stalker_someone_grab_me : public SpellScript
 {
+    PrepareSpellScript(spell_the_black_stalker_someone_grab_me);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_MAGNETIC_PULL, SPELL_SUSPENSION });
@@ -215,6 +220,8 @@ class spell_the_black_stalker_someone_grab_me : public SpellScript
 // 31703 - Magnetic Pull
 class spell_the_black_stalker_magnetic_pull : public SpellScript
 {
+    PrepareSpellScript(spell_the_black_stalker_magnetic_pull);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SUSPENSION_PRIMER });
@@ -234,6 +241,8 @@ class spell_the_black_stalker_magnetic_pull : public SpellScript
 // 38756 - Summon Spore Strider
 class spell_the_black_stalker_summon_spore_strider : public SpellScript
 {
+    PrepareSpellScript(spell_the_black_stalker_summon_spore_strider);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SUMMON_SPORE_STRIDER });

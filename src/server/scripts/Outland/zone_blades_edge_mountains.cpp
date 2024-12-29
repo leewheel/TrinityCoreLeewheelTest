@@ -184,7 +184,7 @@ public:
                             ++NihilSpeech_Phase;
                             break;
                         case 4:
-                            me->SetUninteractible(true);
+                            me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                             //take off to location above
                             me->GetMotionMaster()->MovePoint(0, me->GetPositionX()+50.0f, me->GetPositionY(), me->GetPositionZ()+50.0f);
                             ++NihilSpeech_Phase;
@@ -219,6 +219,8 @@ public:
                 DoCastVictim(SPELL_ARCANE_BLAST);
                 ArcaneBlast_Timer = 2500 + rand32() % 5000;
             } else ArcaneBlast_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -952,7 +954,7 @@ public:
 
         void IsSummonedBy(WorldObject* summoner) override
         {
-            if (summoner->IsPlayer())
+            if (summoner->isType(TYPEMASK_PLAYER))
                 playerGuid = summoner->GetGUID();
         }
 
@@ -988,6 +990,8 @@ class spell_oscillating_field : public SpellScriptLoader
 
         class spell_oscillating_field_SpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_oscillating_field_SpellScript);
+
             void HandleEffect(SpellEffIndex /*effIndex*/)
             {
                 if (Player* player = GetHitPlayer())

@@ -90,6 +90,8 @@ class boss_jindo_the_godbreaker : public CreatureScript
                     }
                 }
                 */
+
+                DoMeleeAttackIfReady();
             }
         };
 

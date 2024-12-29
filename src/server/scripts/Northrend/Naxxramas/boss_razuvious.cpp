@@ -150,6 +150,8 @@ struct boss_razuvious : public BossAI
                     return;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
     void Reset() override
@@ -193,6 +195,8 @@ struct npc_dk_understudy : public ScriptedAI
             else
                 DoCastVictim(SPELL_UNDERSTUDY_BLOOD_STRIKE);
         }
+
+        DoMeleeAttackIfReady();
     }
 
     void OnCharmed(bool isNew) override

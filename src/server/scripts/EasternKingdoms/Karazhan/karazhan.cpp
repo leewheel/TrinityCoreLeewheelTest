@@ -122,8 +122,6 @@ float Spawns[6][2]=
 #define SPAWN_Y             -1758
 #define SPAWN_O             4.738f
 
-static constexpr uint32 PATH_ESCORT_BARNES = 134498;
-
 class npc_barnes : public CreatureScript
 {
 public:
@@ -177,8 +175,7 @@ public:
             if (m_uiEventId == EVENT_OZ)
                 instance->SetData(DATA_OPERA_OZ_DEATHCOUNT, IN_PROGRESS);
 
-            LoadPath(PATH_ESCORT_BARNES);
-            Start(false);
+            Start(false, false);
         }
 
         void JustEngagedWith(Unit* /*who*/) override { }
@@ -199,7 +196,7 @@ public:
                         me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0.0f,
                         TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 1min))
                     {
-                        spotlight->SetUninteractible(true);
+                        spotlight->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                         spotlight->CastSpell(spotlight, SPELL_SPOTLIGHT, false);
                         m_uiSpotlightGUID = spotlight->GetGUID();
                     }
@@ -325,7 +322,7 @@ public:
 
                         if (RaidWiped)
                         {
-                            EnterEvadeMode(EvadeReason::Other);
+                            EnterEvadeMode();
                             return;
                         }
 
@@ -343,7 +340,6 @@ public:
             switch (action)
             {
                 case GOSSIP_ACTION_INFO_DEF + 1:
-                    InitGossipMenuFor(player, OZ_GOSSIP2_MID);
                     AddGossipItemFor(player, OZ_GOSSIP2_MID, OZ_GOSSIP2_OID, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
                     SendGossipMenuFor(player, 8971, me->GetGUID());
                     break;
@@ -355,17 +351,17 @@ public:
                 case GOSSIP_ACTION_INFO_DEF + 3:
                     CloseGossipMenuFor(player);
                     m_uiEventId = EVENT_OZ;
-                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_OZ", player->GetGUID().ToString());
+                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_OZ", player->GetGUID().ToString().c_str());
                     break;
                 case GOSSIP_ACTION_INFO_DEF + 4:
                     CloseGossipMenuFor(player);
                     m_uiEventId = EVENT_HOOD;
-                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_HOOD", player->GetGUID().ToString());
+                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_HOOD", player->GetGUID().ToString().c_str());
                     break;
                 case GOSSIP_ACTION_INFO_DEF + 5:
                     CloseGossipMenuFor(player);
                     m_uiEventId = EVENT_RAJ;
-                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_RAJ", player->GetGUID().ToString());
+                    TC_LOG_DEBUG("scripts", "player ({}) manually set Opera event to EVENT_RAJ", player->GetGUID().ToString().c_str());
                     break;
             }
 
@@ -374,7 +370,6 @@ public:
 
         bool OnGossipHello(Player* player) override
         {
-            InitGossipMenuFor(player, OZ_GOSSIP1_MID);
             // Check for death of Moroes and if opera event is not done already
             if (instance->GetBossState(DATA_MOROES) == DONE && instance->GetBossState(DATA_OPERA_PERFORMANCE) != DONE)
             {

@@ -60,9 +60,7 @@ enum MagharCaptive
     NPC_MURK_RAIDER             = 18203,
     NPC_MURK_BRUTE              = 18211,
     NPC_MURK_SCAVENGER          = 18207,
-    NPC_MURK_PUTRIFIER          = 18202,
-
-    PATH_ESCORT_MAGHAR_CAPTIVE  = 145682,
+    NPC_MURK_PUTRIFIER          = 18202
 };
 
 static float m_afAmbushA[]= {-1568.805786f, 8533.873047f, 1.958f};
@@ -132,6 +130,8 @@ public:
 
                     if (Player* player = GetPlayerForEscort())
                         player->GroupEventHappens(QUEST_TOTEM_KARDASH_H, me);
+
+                    SetRun();
                     break;
             }
         }
@@ -197,6 +197,8 @@ public:
             }
             else
                 FrostShockTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
 
         void OnQuestAccept(Player* player, Quest const* quest) override
@@ -205,8 +207,7 @@ public:
             {
                 me->SetStandState(UNIT_STAND_STATE_STAND);
                 me->SetFaction(FACTION_ESCORTEE_H_NEUTRAL_ACTIVE);
-                LoadPath(PATH_ESCORT_MAGHAR_CAPTIVE);
-                Start(true, player->GetGUID(), quest);
+                Start(true, false, player->GetGUID(), quest);
                 Talk(SAY_MAG_START);
 
                 me->SummonCreature(NPC_MURK_RAIDER, m_afAmbushA[0] + 2.5f, m_afAmbushA[1] - 2.5f, m_afAmbushA[2], 0.0f, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 25s);
@@ -248,8 +249,6 @@ enum KurenaiCaptive
     NPC_KUR_MURK_BRUTE              = 18211,
     NPC_KUR_MURK_SCAVENGER          = 18207,
     NPC_KUR_MURK_PUTRIFIER          = 18202,
-
-    PATH_ESCORT_KURENAI_CAPTIVE     = 145674,
 };
 
 static float kurenaiAmbushA[]= {-1568.805786f, 8533.873047f, 1.958f};
@@ -322,6 +321,8 @@ public:
 
                     if (Player* player = GetPlayerForEscort())
                         player->GroupEventHappens(QUEST_TOTEM_KARDASH_A, me);
+
+                    SetRun();
                     break;
                 }
             }
@@ -390,6 +391,8 @@ public:
                 DoCastVictim(SPELL_KUR_FROST_SHOCK);
                 FrostShockTimer = urand(7500, 15000);
             } else FrostShockTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
 
         void OnQuestAccept(Player* player, Quest const* quest) override
@@ -398,8 +401,7 @@ public:
             {
                 me->SetStandState(UNIT_STAND_STATE_STAND);
                 me->SetFaction(FACTION_ESCORTEE_A_NEUTRAL_ACTIVE);
-                LoadPath(PATH_ESCORT_KURENAI_CAPTIVE);
-                Start(true, player->GetGUID(), quest);
+                Start(true, false, player->GetGUID(), quest);
                 Talk(SAY_KUR_START);
 
                 me->SummonCreature(NPC_KUR_MURK_RAIDER, kurenaiAmbushA[0] + 2.5f, kurenaiAmbushA[1] - 2.5f, kurenaiAmbushA[2], 0.0f, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 25s);
@@ -425,9 +427,7 @@ enum PlantBannerQuests
     NPC_KIL_SORROW_DEATHSWORN        = 17148,
     NPC_GISELDA_THE_CRONE            = 18391,
     NPC_WARMAUL_REAVER               = 17138,
-    NPC_WARMAUL_SHAMAN               = 18064,
-
-    PATH_NAGRAND_BANNER              = 4816480,
+    NPC_WARMAUL_SHAMAN               = 18064
 };
 
 class npc_nagrand_banner : public CreatureScript
@@ -461,27 +461,15 @@ public:
             if (!UpdateVictim())
                 return;
 
-            scheduler.Update(diff);
+            scheduler.Update(diff, [this]
+            {
+                DoMeleeAttackIfReady();
+            });
         }
 
         bool IsBannered()
         {
             return bannered;
-        }
-
-        void WaypointReached(uint32 waypointId, uint32 pathId) override
-        {
-            if (pathId != PATH_NAGRAND_BANNER)
-                return;
-
-            if (waypointId == 11)
-                me->HandleEmoteCommand(EMOTE_ONESHOT_APPLAUD);
-            else if (waypointId == 4 || waypointId == 8)
-                me->HandleEmoteCommand(EMOTE_ONESHOT_TALK);
-            else if (waypointId == 10)
-                me->HandleEmoteCommand(EMOTE_ONESHOT_POINT);
-            else if (waypointId == 3 || waypointId == 7)
-                me->HandleEmoteCommand(EMOTE_STATE_USE_STANDING);
         }
 
     protected:
@@ -537,7 +525,10 @@ public:
                 interrupt_cooldown = 0;
             }
 
-            scheduler.Update(diff);
+            scheduler.Update(diff, [this]
+            {
+                DoMeleeAttackIfReady();
+            });
         }
 
         void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
@@ -702,8 +693,8 @@ public:
 
     bool OnConditionCheck(Condition const* condition, ConditionSourceInfo& sourceInfo) override
     {
-        WorldObject const* target = sourceInfo.mConditionTargets[condition->ConditionTarget];
-        if (Creature const* creature = target->ToCreature())
+        WorldObject* target = sourceInfo.mConditionTargets[condition->ConditionTarget];
+        if (Creature* creature = target->ToCreature())
         {
             if (npc_nagrand_banner::npc_nagrand_bannerAI *ai = CAST_AI(npc_nagrand_banner::npc_nagrand_bannerAI, creature->AI()))
                 return !ai->IsBannered();
@@ -723,6 +714,8 @@ enum FireBomb
 // 31959 - Fire Bomb Target Summon Trigger
 class spell_nagrand_fire_bomb_target_summon_trigger : public SpellScript
 {
+    PrepareSpellScript(spell_nagrand_fire_bomb_target_summon_trigger);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FIRE_BOMB_TARGET_SUMMON_EFFECT });
@@ -744,6 +737,8 @@ class spell_nagrand_fire_bomb_target_summon_trigger : public SpellScript
 // 31960 - Fire Bomb Target Summon Effect
 class spell_nagrand_fire_bomb_target_summon_effect : public SpellScript
 {
+    PrepareSpellScript(spell_nagrand_fire_bomb_target_summon_effect);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FIRE_BOMB_DAMAGE_MISSILE });
@@ -763,6 +758,8 @@ class spell_nagrand_fire_bomb_target_summon_effect : public SpellScript
 // 31961 - Fire Bomb
 class spell_nagrand_fire_bomb_damage_missile : public SpellScript
 {
+    PrepareSpellScript(spell_nagrand_fire_bomb_damage_missile);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FIRE_BOMB_SUMMON_CATAPULT_BLAZE, SPELL_FIRE_BOMB_FLAMES });

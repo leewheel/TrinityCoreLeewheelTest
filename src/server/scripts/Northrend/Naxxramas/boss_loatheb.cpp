@@ -131,6 +131,8 @@ struct boss_loatheb : public BossAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -152,6 +154,8 @@ class achievement_spore_loser : public AchievementCriteriaScript
 // 29865, 55053 - Deathbloom
 class spell_loatheb_deathbloom : public AuraScript
 {
+    PrepareAuraScript(spell_loatheb_deathbloom);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_DEATHBLOOM_FINAL_DAMAGE });

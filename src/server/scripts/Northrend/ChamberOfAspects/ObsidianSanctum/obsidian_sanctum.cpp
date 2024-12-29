@@ -323,7 +323,7 @@ struct dummy_dragonAI : public ScriptedAI
     void JustDied(Unit* /*killer*/) override
     {
         if (!_canLoot)
-            me->SetTappedBy(nullptr);
+            me->SetLootRecipient(nullptr);
 
         uint32 spellId = 0;
 
@@ -451,6 +451,8 @@ struct npc_tenebron : public dummy_dragonAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -517,6 +519,8 @@ struct npc_shadron : public dummy_dragonAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -570,6 +574,8 @@ struct npc_vesperon : public dummy_dragonAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -631,6 +637,14 @@ struct npc_acolyte_of_shadron : public ScriptedAI
                 debuffTarget->RemoveAurasDueToSpell(SPELL_GIFT_OF_TWILIGTH_SHA);
     }
 
+    void UpdateAI(uint32 /*diff*/) override
+    {
+        if (!UpdateVictim())
+            return;
+
+        DoMeleeAttackIfReady();
+    }
+
 private:
     InstanceScript* instance;
 };
@@ -685,6 +699,14 @@ struct npc_acolyte_of_vesperon : public ScriptedAI
         instance->DoRemoveAurasDueToSpellOnPlayers(SPELL_TWILIGHT_TORMENT_VESP_ACO, true, true);
         instance->DoRemoveAurasDueToSpellOnPlayers(57935, true, true);
         instance->DoRemoveAurasDueToSpellOnPlayers(58835, true, true); // Components of spell Twilight Torment
+    }
+
+    void UpdateAI(uint32 /*diff*/) override
+    {
+        if (!UpdateVictim())
+            return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -772,8 +794,7 @@ struct npc_flame_tsunami : public ScriptedAI
         me->SetReactState(REACT_PASSIVE);
         events.ScheduleEvent(EVENT_TSUNAMI_TIMER, 100ms);
         events.ScheduleEvent(EVENT_TSUNAMI_BUFF, 1s);
-        me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
-        me->SetUninteractible(true);
+        me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
     }
 
     void UpdateAI(uint32 diff) override
@@ -819,8 +840,7 @@ struct npc_twilight_fissure : public ScriptedAI
 
     void Reset() override
     {
-        me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
-        me->SetUninteractible(true);
+        me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
         me->AddAura(46265, me); // Wrong, can't find proper visual
         me->AddAura(69422, me);
         events.ScheduleEvent(EVENT_VOID_BLAST, 5s);
@@ -880,6 +900,8 @@ struct npc_twilight_whelp : public ScriptedAI
             DoCastVictim(SPELL_FADE_ARMOR);
             events.ScheduleEvent(EVENT_FADE_ARMOR, 5s, 10s);
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

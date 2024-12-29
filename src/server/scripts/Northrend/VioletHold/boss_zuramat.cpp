@@ -116,7 +116,8 @@ struct boss_zuramat : public BossAI
         if (!UpdateVictim())
             return;
 
-        scheduler.Update(diff);
+        scheduler.Update(diff,
+            std::bind(&BossAI::DoMeleeAttackIfReady, this));
     }
 
     void ScheduleTasks() override

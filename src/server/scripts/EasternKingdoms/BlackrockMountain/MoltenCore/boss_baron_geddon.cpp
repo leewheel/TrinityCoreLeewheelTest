@@ -107,12 +107,16 @@ struct boss_baron_geddon : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
 // 19695 - Inferno
 class spell_baron_geddon_inferno : public AuraScript
 {
+    PrepareAuraScript(spell_baron_geddon_inferno);
+
     void OnPeriodic(AuraEffect const* aurEff)
     {
         PreventDefaultAction();

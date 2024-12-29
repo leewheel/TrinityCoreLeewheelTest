@@ -24,7 +24,6 @@
 #include <array>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <openssl/evp.h>
 
 class BigNumber;
@@ -140,7 +139,6 @@ namespace Trinity::Crypto
     using MD5 = Trinity::Impl::GenericHash<EVP_md5, Constants::MD5_DIGEST_LENGTH_BYTES>;
     using SHA1 = Trinity::Impl::GenericHash<EVP_sha1, Constants::SHA1_DIGEST_LENGTH_BYTES>;
     using SHA256 = Trinity::Impl::GenericHash<EVP_sha256, Constants::SHA256_DIGEST_LENGTH_BYTES>;
-    using SHA512 = Trinity::Impl::GenericHash<EVP_sha512, Constants::SHA512_DIGEST_LENGTH_BYTES>;
 }
 
 #endif

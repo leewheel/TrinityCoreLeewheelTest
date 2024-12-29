@@ -29,9 +29,9 @@
 
 DoorData const doorData[] =
 {
-    { GO_ARCANE_DOOR_LEFT,  DATA_KAELTHAS, EncounterDoorBehavior::OpenWhenNotInProgress/*, BOUNDARY_SW  */ },
-    { GO_ARCANE_DOOR_RIGHT, DATA_KAELTHAS, EncounterDoorBehavior::OpenWhenNotInProgress/*, BOUNDARY_SE  */ },
-    {                    0,             0, EncounterDoorBehavior::OpenWhenNotInProgress } // END
+    { GO_ARCANE_DOOR_LEFT,  DATA_KAELTHAS, DOOR_TYPE_ROOM/*, BOUNDARY_SW  */ },
+    { GO_ARCANE_DOOR_RIGHT, DATA_KAELTHAS, DOOR_TYPE_ROOM/*, BOUNDARY_SE  */ },
+    {                    0,             0, DOOR_TYPE_ROOM } // END
 };
 
 ObjectData const creatureData[] =
@@ -55,14 +55,6 @@ ObjectData const gameObjectData[] =
     {                         0, 0                          } // END
 };
 
-DungeonEncounterData const encounters[] =
-{
-    { DATA_KAELTHAS, {{ 733 }} },
-    { DATA_ALAR, {{ 730 }} },
-    { DATA_SOLARIAN, {{ 732 }} },
-    { DATA_VOID_REAVER, {{ 731 }} }
-};
-
 class instance_the_eye : public InstanceMapScript
 {
     public:
@@ -76,7 +68,6 @@ class instance_the_eye : public InstanceMapScript
                 SetBossNumber(EncounterCount);
                 LoadDoorData(doorData);
                 LoadObjectData(creatureData, gameObjectData);
-                LoadDungeonEncounterData(encounters);
             }
         };
 

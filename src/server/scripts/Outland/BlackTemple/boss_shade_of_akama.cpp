@@ -216,7 +216,7 @@ struct boss_shade_of_akama : public BossAI
         _Reset();
         Initialize();
         me->SetImmuneToPC(true);
-        me->SetUninteractible(true);
+        me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
         me->SetEmoteState(EMOTE_STATE_STUN);
         me->SetWalk(true);
         events.ScheduleEvent(EVENT_INITIALIZE_SPAWNERS, 1s);
@@ -255,7 +255,7 @@ struct boss_shade_of_akama : public BossAI
         if (_isInPhaseOne && motionType == CHASE_MOTION_TYPE)
         {
             _isInPhaseOne = false;
-            me->SetUninteractible(false);
+            me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
             me->SetImmuneToPC(false);
             me->SetWalk(false);
             events.ScheduleEvent(EVENT_ADD_THREAT, Milliseconds(100));
@@ -290,7 +290,7 @@ struct boss_shade_of_akama : public BossAI
                 if (player->IsAlive() && !player->IsGameMaster() && IsInBoundary(player))
                     return;
 
-        EnterEvadeMode(EvadeReason::NoHostiles);
+        EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
     }
 
     void UpdateAI(uint32 diff) override
@@ -317,7 +317,7 @@ struct boss_shade_of_akama : public BossAI
                 {
                     for (ObjectGuid summonGuid : summons)
                         if (Creature* channeler = ObjectAccessor::GetCreature(*me, summonGuid))
-                            channeler->SetUninteractible(false);
+                            channeler->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
 
                     for (ObjectGuid spawnerGuid : _spawners)
                         if (Creature* spawner = ObjectAccessor::GetCreature(*me, spawnerGuid))
@@ -337,6 +337,8 @@ struct boss_shade_of_akama : public BossAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -516,6 +518,8 @@ struct npc_akama_shade : public ScriptedAI
         {
             if (!UpdateVictim())
                 return;
+
+            DoMeleeAttackIfReady();
         }
     }
 
@@ -525,7 +529,7 @@ struct npc_akama_shade : public ScriptedAI
         Talk(SAY_DEAD);
         if (Creature* shade = _instance->GetCreature(DATA_SHADE_OF_AKAMA))
             if (shade->IsAlive())
-                shade->AI()->EnterEvadeMode(EvadeReason::Other);
+                shade->AI()->EnterEvadeMode(EVADE_REASON_OTHER);
     }
 
     bool OnGossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId) override
@@ -561,7 +565,7 @@ struct npc_ashtongue_channeler : public PassiveAI
         {
             if (Creature* shade = _instance->GetCreature(DATA_SHADE_OF_AKAMA))
             {
-                if (shade->IsUninteractible())
+                if (shade->HasUnitFlag(UNIT_FLAG_UNINTERACTIBLE))
                     DoCastSelf(SPELL_SHADE_SOUL_CHANNEL);
 
                 else
@@ -570,7 +574,7 @@ struct npc_ashtongue_channeler : public PassiveAI
 
             channel.Repeat(Seconds(2));
         });
-        me->SetUninteractible(true);
+        me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
     }
 
     void UpdateAI(uint32 diff) override
@@ -688,7 +692,7 @@ struct npc_ashtongue_sorcerer : public ScriptedAI
     {
         if (Creature* shade = _instance->GetCreature(DATA_SHADE_OF_AKAMA))
         {
-            if (shade->IsUninteractible())
+            if (shade->HasUnitFlag(UNIT_FLAG_UNINTERACTIBLE))
                 me->GetMotionMaster()->MovePoint(0, shade->GetPosition());
 
             else if (Creature* akama = _instance->GetCreature(DATA_AKAMA_SHADE))
@@ -726,7 +730,7 @@ struct npc_ashtongue_sorcerer : public ScriptedAI
             {
                 if (Creature* shade = _instance->GetCreature(DATA_SHADE_OF_AKAMA))
                 {
-                    if (shade->IsUninteractible())
+                    if (shade->HasUnitFlag(UNIT_FLAG_UNINTERACTIBLE))
                     {
                         me->SetFacingToObject(shade);
                         DoCastSelf(SPELL_SHADE_SOUL_CHANNEL);
@@ -753,6 +757,8 @@ struct npc_ashtongue_sorcerer : public ScriptedAI
 
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -819,6 +825,8 @@ struct npc_ashtongue_defender : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -875,6 +883,8 @@ struct npc_ashtongue_rogue : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -931,6 +941,8 @@ struct npc_ashtongue_elementalist : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -1017,6 +1029,8 @@ struct npc_ashtongue_spiritbinder : public ScriptedAI
 
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -1068,6 +1082,8 @@ private:
 // 40401 - Shade Soul Channel (serverside spell)
 class spell_shade_soul_channel_serverside : public AuraScript
 {
+    PrepareAuraScript(spell_shade_soul_channel_serverside);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_SHADE_SOUL_CHANNEL_2 });
@@ -1087,6 +1103,8 @@ class spell_shade_soul_channel_serverside : public AuraScript
 // 40520 - Shade Soul Channel
 class spell_shade_soul_channel : public AuraScript
 {
+    PrepareAuraScript(spell_shade_soul_channel);
+
     void OnApply(AuraEffect const* aurEff, AuraEffectHandleModes /*mode*/)
     {
         int32 const maxSlowEff = -99;

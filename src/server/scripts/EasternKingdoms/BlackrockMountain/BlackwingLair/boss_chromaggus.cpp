@@ -171,7 +171,9 @@ struct boss_chromaggus : public BossAI
                 Breath1_Spell = SPELL_FROSTBURN;
                 Breath2_Spell = SPELL_IGNITEFLESH;
                 break;
-        }
+        };
+
+        EnterEvadeMode();
     }
 
     void Initialize()
@@ -273,6 +275,8 @@ struct boss_chromaggus : public BossAI
             DoCast(me, SPELL_ENRAGE);
             Enraged = true;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

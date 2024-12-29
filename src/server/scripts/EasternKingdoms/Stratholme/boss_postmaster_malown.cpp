@@ -59,7 +59,7 @@ class boss_postmaster_malown : public CreatureScript
 
         struct boss_postmaster_malownAI : public BossAI
         {
-            boss_postmaster_malownAI(Creature* creature) : BossAI(creature, BOSS_POSTMASTER_MALOWN) { }
+            boss_postmaster_malownAI(Creature* creature) : BossAI(creature, TYPE_MALOWN) { }
 
             void Reset() override { }
 
@@ -123,6 +123,8 @@ class boss_postmaster_malown : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
         };
 

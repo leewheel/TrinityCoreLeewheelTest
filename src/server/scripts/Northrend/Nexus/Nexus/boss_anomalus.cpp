@@ -179,6 +179,8 @@ struct boss_anomalus : public ScriptedAI
         }
         else
             uiSparkTimer -= diff;
+
+        DoMeleeAttackIfReady();
     }
 };
 

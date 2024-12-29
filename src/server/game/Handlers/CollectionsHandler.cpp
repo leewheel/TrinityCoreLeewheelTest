@@ -28,7 +28,8 @@ void WorldSession::HandleCollectionItemSetFavorite(WorldPackets::Collections::Co
             break;
         case WorldPackets::Collections::APPEARANCE:
         {
-            auto [hasAppearance, isTemporary] = GetCollectionMgr()->HasItemAppearance(collectionItemSetFavorite.ID);
+            bool hasAppearance, isTemporary;
+            std::tie(hasAppearance, isTemporary) = GetCollectionMgr()->HasItemAppearance(collectionItemSetFavorite.ID);
             if (!hasAppearance || isTemporary)
                 return;
 

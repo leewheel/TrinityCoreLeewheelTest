@@ -70,6 +70,19 @@ class TC_PROTO_API EntityId : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   EntityId* New() const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const EntityId& from);
+  void MergeFrom(const EntityId& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -82,14 +95,14 @@ class TC_PROTO_API EntityId : public ::google::protobuf::Message {
 
   // accessors -------------------------------------------------------
 
-  // optional fixed64 high = 1;
+  // required fixed64 high = 1;
   inline bool has_high() const;
   inline void clear_high();
   static const int kHighFieldNumber = 1;
   inline ::google::protobuf::uint64 high() const;
   inline void set_high(::google::protobuf::uint64 value);
 
-  // optional fixed64 low = 2;
+  // required fixed64 low = 2;
   inline bool has_low() const;
   inline void clear_low();
   static const int kLowFieldNumber = 2;
@@ -146,6 +159,19 @@ class TC_PROTO_API Identity : public ::google::protobuf::Message {
   // implements Message ----------------------------------------------
 
   Identity* New() const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const Identity& from);
+  void MergeFrom(const Identity& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  int ByteSize() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const;
   int GetCachedSize() const { return _cached_size_; }
   private:
   void SharedCtor();
@@ -204,7 +230,7 @@ class TC_PROTO_API Identity : public ::google::protobuf::Message {
 
 // EntityId
 
-// optional fixed64 high = 1;
+// required fixed64 high = 1;
 inline bool EntityId::has_high() const {
   return (_has_bits_[0] & 0x00000001u) != 0;
 }
@@ -228,7 +254,7 @@ inline void EntityId::set_high(::google::protobuf::uint64 value) {
   // @@protoc_insertion_point(field_set:bgs.protocol.EntityId.high)
 }
 
-// optional fixed64 low = 2;
+// required fixed64 low = 2;
 inline bool EntityId::has_low() const {
   return (_has_bits_[0] & 0x00000002u) != 0;
 }

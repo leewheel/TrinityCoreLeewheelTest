@@ -20,10 +20,7 @@
 
 #include "BattlegroundPackets.h"
 #include "ObjectGuid.h"
-#include <map>
 #include <string>
-
-struct BattlegroundPlayerScoreTemplate;
 
 enum ScoreType
 {
@@ -33,53 +30,67 @@ enum ScoreType
     SCORE_HONORABLE_KILLS       = 3,
     SCORE_BONUS_HONOR           = 4,
     SCORE_DAMAGE_DONE           = 5,
-    SCORE_HEALING_DONE          = 6
+    SCORE_HEALING_DONE          = 6,
+
+    // WS, EY and TP
+    SCORE_FLAG_CAPTURES         = 7,
+    SCORE_FLAG_RETURNS          = 8,
+
+    // AB and IC
+    SCORE_BASES_ASSAULTED       = 9,
+    SCORE_BASES_DEFENDED        = 10,
+
+    // AV
+    SCORE_GRAVEYARDS_ASSAULTED  = 11,
+    SCORE_GRAVEYARDS_DEFENDED   = 12,
+    SCORE_TOWERS_ASSAULTED      = 13,
+    SCORE_TOWERS_DEFENDED       = 14,
+    SCORE_MINES_CAPTURED        = 15,
+
+    // SOTA
+    SCORE_DESTROYED_DEMOLISHER  = 16,
+    SCORE_DESTROYED_WALL        = 17
 };
 
 struct BattlegroundScore
 {
-    BattlegroundScore(ObjectGuid playerGuid, uint32 team, std::unordered_set<uint32> const* pvpStatIds);
-    virtual ~BattlegroundScore();
+    friend class Arena;
+    friend class Battleground;
 
-    void UpdateScore(uint32 type, uint32 value);
-    void UpdatePvpStat(uint32 pvpStatID, uint32 value);
+    protected:
+        BattlegroundScore(ObjectGuid playerGuid, uint32 team);
+        virtual ~BattlegroundScore();
 
-    // For Logging purpose
-    std::string ToString() const;
+        virtual void UpdateScore(uint32 type, uint32 value);
 
-    uint32 GetKillingBlows() const { return KillingBlows; }
-    uint32 GetDeaths() const { return Deaths; }
-    uint32 GetHonorableKills() const { return HonorableKills; }
-    uint32 GetBonusHonor() const { return BonusHonor; }
-    uint32 GetDamageDone() const { return DamageDone; }
-    uint32 GetHealingDone() const { return HealingDone; }
+        virtual void BuildPvPLogPlayerDataPacket(WorldPackets::Battleground::PVPMatchStatistics::PVPMatchPlayerStatistics& playerData) const;
 
-    uint32 GetAttr(uint8 index) const;
+        // For Logging purpose
+        virtual std::string ToString() const { return ""; }
 
-    void BuildPvPLogPlayerDataPacket(WorldPackets::Battleground::PVPMatchStatistics::PVPMatchPlayerStatistics& playerData) const;
+        uint32 GetKillingBlows() const    { return KillingBlows; }
+        uint32 GetDeaths() const          { return Deaths; }
+        uint32 GetHonorableKills() const  { return HonorableKills; }
+        uint32 GetBonusHonor() const      { return BonusHonor; }
+        uint32 GetDamageDone() const      { return DamageDone; }
+        uint32 GetHealingDone() const     { return HealingDone; }
 
-protected:
+        virtual uint32 GetAttr1() const { return 0; }
+        virtual uint32 GetAttr2() const { return 0; }
+        virtual uint32 GetAttr3() const { return 0; }
+        virtual uint32 GetAttr4() const { return 0; }
+        virtual uint32 GetAttr5() const { return 0; }
 
-    ObjectGuid PlayerGuid;
-    uint8 TeamId; // PvPTeamId
+        ObjectGuid PlayerGuid;
+        uint8 TeamId; // PvPTeamId
 
-    // Default score, present in every type
-    uint32 KillingBlows;
-    uint32 Deaths;
-    uint32 HonorableKills;
-    uint32 BonusHonor;
-    uint32 DamageDone;
-    uint32 HealingDone;
-
-    uint32 PreMatchRating;
-    uint32 PreMatchMMR;
-    uint32 PostMatchRating;
-    uint32 PostMatchMMR;
-
-    std::map<uint32 /*pvpStatID*/, uint32 /*value*/> PvpStats;
-
-private:
-    std::unordered_set<uint32> const* _validPvpStatIds;
+        // Default score, present in every type
+        uint32 KillingBlows;
+        uint32 Deaths;
+        uint32 HonorableKills;
+        uint32 BonusHonor;
+        uint32 DamageDone;
+        uint32 HealingDone;
 };
 
 #endif // TRINITY_BATTLEGROUND_SCORE_H

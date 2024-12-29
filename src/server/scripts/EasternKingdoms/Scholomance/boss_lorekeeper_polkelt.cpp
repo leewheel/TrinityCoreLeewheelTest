@@ -96,6 +96,8 @@ class boss_lorekeeper_polkelt : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
         };
 

@@ -43,9 +43,9 @@ public:
         return GetMaraudonAI<celebras_the_cursedAI>(creature);
     }
 
-    struct celebras_the_cursedAI : public BossAI
+    struct celebras_the_cursedAI : public ScriptedAI
     {
-        celebras_the_cursedAI(Creature* creature) : BossAI(creature, BOSS_CELEBRAS_THE_CURSED)
+        celebras_the_cursedAI(Creature* creature) : ScriptedAI(creature)
         {
             Initialize();
         }
@@ -63,15 +63,13 @@ public:
 
         void Reset() override
         {
-            BossAI::Reset();
-
             Initialize();
         }
 
-        void JustDied(Unit* killer) override
-        {
-            BossAI::JustDied(killer);
+        void JustEngagedWith(Unit* /*who*/) override { }
 
+        void JustDied(Unit* /*killer*/) override
+        {
             me->SummonCreature(13716, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0, TEMPSUMMON_TIMED_DESPAWN, 10min);
         }
 
@@ -105,6 +103,8 @@ public:
                 CorruptForcesTimer = 20000;
             }
             else CorruptForcesTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };

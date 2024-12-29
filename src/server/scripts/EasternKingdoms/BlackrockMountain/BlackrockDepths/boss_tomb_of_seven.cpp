@@ -225,6 +225,8 @@ class boss_doomrel : public CreatureScript
                             break;
                     }
                 }
+
+                DoMeleeAttackIfReady();
             }
 
             bool OnGossipSelect(Player* player, uint32 /*menuId*/, uint32 gossipListId) override
@@ -235,7 +237,6 @@ class boss_doomrel : public CreatureScript
                 switch (action)
                 {
                     case GOSSIP_ACTION_INFO_DEF + 1:
-                        InitGossipMenuFor(player, GOSSIP_SELECT_DOOMREL);
                         AddGossipItemFor(player, GOSSIP_SELECT_DOOMREL, GOSSIP_MENU_ID_CONTINUE, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
                         SendGossipMenuFor(player, 2605, me->GetGUID());
                         break;
@@ -254,7 +255,6 @@ class boss_doomrel : public CreatureScript
 
             bool OnGossipHello(Player* player) override
             {
-                InitGossipMenuFor(player, GOSSIP_MENU_CHALLENGE);
                 AddGossipItemFor(player, GOSSIP_MENU_CHALLENGE, GOSSIP_MENU_ID_CHALLENGE, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
                 SendGossipMenuFor(player, 2601, me->GetGUID());
 

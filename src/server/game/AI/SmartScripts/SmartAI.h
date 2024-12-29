@@ -25,8 +25,6 @@
 #include "SmartScript.h"
 #include "WaypointDefines.h"
 
-enum class MovementStopReason : uint8;
-
 enum SmartEscortState : uint8
 {
     SMART_ESCORT_NONE       = 0x00, // nothing in progress
@@ -51,9 +49,8 @@ class TC_GAME_API SmartAI : public CreatureAI
         bool IsAIControlled() const;
 
         // Start moving to the desired MovePoint
-        void StartPath(uint32 pathId = 0, bool repeat = false, Unit* invoker = nullptr, uint32 nodeId = 0,
-            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {});
-        WaypointPath const* LoadPath(uint32 entry);
+        void StartPath(bool run = false, uint32 pathId = 0, bool repeat = false, Unit* invoker = nullptr, uint32 nodeId = 1);
+        bool LoadPath(uint32 entry);
         void PausePath(uint32 delay, bool forced = false);
         bool CanResumePath();
         void StopPath(uint32 DespawnTime = 0, uint32 quest = 0, bool fail = false);
@@ -71,8 +68,12 @@ class TC_GAME_API SmartAI : public CreatureAI
         {
             _escortState &= ~escortState;
         }
+        void SetAutoAttack(bool on)
+        {
+            _canAutoAttack = on;
+        }
         void SetCombatMove(bool on, bool stopMoving = false);
-        bool CanCombatMove() const
+        bool CanCombatMove()
         {
             return _canCombatMove;
         }
@@ -96,7 +97,7 @@ class TC_GAME_API SmartAI : public CreatureAI
         void JustEngagedWith(Unit* enemy) override;
 
         // Called for reaction at stopping attack at no attackers or targets
-        void EnterEvadeMode(EvadeReason why) override;
+        void EnterEvadeMode(EvadeReason why = EVADE_REASON_OTHER) override;
 
         // Called when the creature is killed
         void JustDied(Unit* killer) override;
@@ -192,6 +193,8 @@ class TC_GAME_API SmartAI : public CreatureAI
         // Makes the creature run/walk
         void SetRun(bool run = true);
 
+        void SetDisableGravity(bool disable = true);
+
         void SetEvadeDisabled(bool disable = true);
 
         void SetInvincibilityHpLevel(uint32 level)
@@ -254,7 +257,8 @@ class TC_GAME_API SmartAI : public CreatureAI
         uint32 _escortState;
         uint32 _escortNPCFlags;
         uint32 _escortInvokerCheckTimer;
-        uint32 _currentWaypointNodeId;
+        WaypointPath _path;
+        uint32 _currentWaypointNode;
         bool _waypointReached;
         uint32 _waypointPauseTimer;
         bool _waypointPauseForced;
@@ -264,6 +268,7 @@ class TC_GAME_API SmartAI : public CreatureAI
 
         bool _run;
         bool _evadeDisabled;
+        bool _canAutoAttack;
         bool _canCombatMove;
         uint32 _invincibilityHPLevel;
 
@@ -341,7 +346,6 @@ public:
     void OnInitialize() override;
     void OnUpdate(uint32 diff) override;
     void OnUnitEnter(Unit* unit) override;
-    void OnUnitExit(Unit* unit) override;
 
     SmartScript* GetScript() { return &mScript; }
     void SetTimedActionList(SmartScriptHolder& e, uint32 entry, Unit* invoker);

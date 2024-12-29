@@ -15,10 +15,9 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "MotionMaster.h"
 #include "ScriptMgr.h"
+#include "MotionMaster.h"
 #include "ScriptedCreature.h"
-#include "WaypointDefines.h"
 
 /*######
 ## npc_eagle_spirit
@@ -30,21 +29,17 @@ enum EagleSpirit
     SPELL_SPIRIT_FORM          = 69324
 };
 
-WaypointPath const EagleSpiritflightPath =
+Position const EagleSpiritflightPath[] =
 {
-    0,
-    {
-        { 0, -2884.155f, -71.08681f, 242.0678f },
-        { 1, -2720.592f, -111.0035f, 242.5955f },
-        { 2, -2683.951f, -382.9010f, 231.1792f },
-        { 3, -2619.148f, -484.9288f, 231.1792f },
-        { 4, -2543.868f, -525.3333f, 231.1792f },
-        { 5, -2465.321f, -502.4896f, 190.7347f },
-        { 6, -2343.872f, -401.8281f, -8.320873f }
-    },
-    WaypointMoveType::Run,
-    WaypointPathFlags::FlyingPath
+    { -2884.155f, -71.08681f, 242.0678f },
+    { -2720.592f, -111.0035f, 242.5955f },
+    { -2683.951f, -382.9010f, 231.1792f },
+    { -2619.148f, -484.9288f, 231.1792f },
+    { -2543.868f, -525.3333f, 231.1792f },
+    { -2465.321f, -502.4896f, 190.7347f },
+    { -2343.872f, -401.8281f, -8.320873f }
 };
+size_t const EagleSpiritflightPathSize = std::extent<decltype(EagleSpiritflightPath)>::value;
 
 class npc_eagle_spirit : public CreatureScript
 {
@@ -60,13 +55,16 @@ public:
             if (!apply)
                 return;
 
-            me->GetMotionMaster()->MovePath(EagleSpiritflightPath, false);
+            me->GetMotionMaster()->MoveSmoothPath(uint32(EagleSpiritflightPathSize), EagleSpiritflightPath, EagleSpiritflightPathSize, false, true);
             me->CastSpell(me, SPELL_SPIRIT_FORM);
         }
 
-        void WaypointPathEnded(uint32 /*pointId*/, uint32 /*pathId*/) override
+        void MovementInform(uint32 type, uint32 pointId) override
         {
-            DoCast(SPELL_EJECT_ALL_PASSENGERS);
+            if (type == EFFECT_MOTION_TYPE && pointId == EagleSpiritflightPathSize)
+            {
+                DoCast(SPELL_EJECT_ALL_PASSENGERS);
+            }
         }
     };
 

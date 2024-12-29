@@ -107,9 +107,8 @@ struct boss_ingvar_the_plunderer : public BossAI
     {
         if (me->GetEntry() != NPC_INGVAR)
             me->UpdateEntry(NPC_INGVAR);
-        me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+        me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
         me->SetImmuneToPC(false);
-        me->SetUninteractible(false);
 
         _Reset();
     }
@@ -125,9 +124,8 @@ struct boss_ingvar_the_plunderer : public BossAI
             me->StopMoving();
             DoCast(me, SPELL_INGVAR_FEIGN_DEATH, true);
 
-            me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+            me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
             me->SetImmuneToPC(true, true);
-            me->SetUninteractible(true);
 
             Talk(SAY_DEATH);
         }
@@ -224,9 +222,8 @@ struct boss_ingvar_the_plunderer : public BossAI
                     events.ScheduleEvent(EVENT_SMASH, 12s, 16s, 0, PHASE_HUMAN);
                     break;
                 case EVENT_JUST_TRANSFORMED:
-                    me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+                    me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE | UNIT_FLAG_UNINTERACTIBLE);
                     me->SetImmuneToPC(false);
-                    me->SetUninteractible(false);
                     ScheduleSecondPhase();
                     Talk(SAY_AGGRO);
                     DoZoneInCombat();
@@ -259,6 +256,9 @@ struct boss_ingvar_the_plunderer : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        if (!events.IsInPhase(PHASE_EVENT))
+            DoMeleeAttackIfReady();
     }
 };
 
@@ -376,6 +376,8 @@ struct npc_ingvar_throw_dummy : public ScriptedAI
 // 42912 - Summon Banshee
 class spell_ingvar_summon_banshee : public SpellScript
 {
+    PrepareSpellScript(spell_ingvar_summon_banshee);
+
     void SetDest(SpellDestination& dest)
     {
         dest.RelocateOffset({ 0.0f, 0.0f, 30.0f, 0.0f });
@@ -390,6 +392,8 @@ class spell_ingvar_summon_banshee : public SpellScript
 // 42730, 59735 - Woe Strike
 class spell_ingvar_woe_strike : public AuraScript
 {
+    PrepareAuraScript(spell_ingvar_woe_strike);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_WOE_STRIKE_EFFECT });

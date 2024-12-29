@@ -263,6 +263,7 @@ struct boss_harbinger_skyriss : public BossAI
             else
                 ManaBurn_Timer -=diff;
         }
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -273,8 +274,7 @@ struct boss_harbinger_skyriss_illusion : public ScriptedAI
     void Reset() override
     {
         me->SetImmuneToPC(false);
-        me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
-        me->SetUninteractible(false);
+        me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE | UNIT_FLAG_NON_ATTACKABLE);
     }
 
     void JustEngagedWith(Unit* /*who*/) override { }

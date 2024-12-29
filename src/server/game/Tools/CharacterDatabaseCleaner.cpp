@@ -140,7 +140,7 @@ bool CharacterDatabaseCleaner::TalentCheck(uint32 talent_id)
     if (!talentInfo)
         return false;
 
-    return sTalentTabStore.LookupEntry(talentInfo->TabID) != nullptr;
+    return sChrSpecializationStore.LookupEntry(talentInfo->SpecID) != nullptr;
 }
 
 void CharacterDatabaseCleaner::CleanCharacterTalent()

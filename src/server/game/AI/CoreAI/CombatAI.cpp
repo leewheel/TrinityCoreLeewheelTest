@@ -43,7 +43,10 @@ int32 AggressorAI::Permissible(Creature const* creature)
 
 void AggressorAI::UpdateAI(uint32 /*diff*/)
 {
-    UpdateVictim();
+    if (!UpdateVictim())
+        return;
+
+    DoMeleeAttackIfReady();
 }
 
 /////////////////
@@ -104,6 +107,8 @@ void CombatAI::UpdateAI(uint32 diff)
         if (AISpellInfoType const* info = GetAISpellInfo(spellId, me->GetMap()->GetDifficultyID()))
             _events.ScheduleEvent(spellId, info->cooldown, info->cooldown * 2);
     }
+    else
+        DoMeleeAttackIfReady();
 }
 
 void CombatAI::SpellInterrupted(uint32 spellId, uint32 unTimeMs)
@@ -185,6 +190,55 @@ void CasterAI::UpdateAI(uint32 diff)
 }
 
 //////////////
+// ArcherAI
+//////////////
+
+ArcherAI::ArcherAI(Creature* creature, uint32 scriptId) : CreatureAI(creature, scriptId)
+{
+    if (!creature->m_spells[0])
+        TC_LOG_ERROR("scripts.ai", "ArcherAI set for creature with spell1 = 0. AI will do nothing ({})", creature->GetGUID().ToString());
+
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(creature->m_spells[0], creature->GetMap()->GetDifficultyID());
+    _minimumRange = spellInfo ? spellInfo->GetMinRange(false) : 0;
+
+    if (!_minimumRange)
+        _minimumRange = MELEE_RANGE;
+    creature->m_CombatDistance = spellInfo ? spellInfo->GetMaxRange(false) : 0;
+    creature->m_SightDistance = creature->m_CombatDistance;
+}
+
+void ArcherAI::AttackStart(Unit* who)
+{
+    if (!who)
+        return;
+
+    if (me->IsWithinCombatRange(who, _minimumRange))
+    {
+        if (me->Attack(who, true) && !who->IsFlying())
+            me->GetMotionMaster()->MoveChase(who);
+    }
+    else
+    {
+        if (me->Attack(who, false) && !who->IsFlying())
+            me->GetMotionMaster()->MoveChase(who, me->m_CombatDistance);
+    }
+
+    if (who->IsFlying())
+        me->GetMotionMaster()->MoveIdle();
+}
+
+void ArcherAI::UpdateAI(uint32 /*diff*/)
+{
+    if (!UpdateVictim())
+        return;
+
+    if (!me->IsWithinCombatRange(me->GetVictim(), _minimumRange))
+        DoSpellAttackIfReady(me->m_spells[0]);
+    else
+        DoMeleeAttackIfReady();
+}
+
+//////////////
 // TurretAI
 //////////////
 
@@ -197,7 +251,6 @@ TurretAI::TurretAI(Creature* creature, uint32 scriptId) : CreatureAI(creature, s
     _minimumRange = spellInfo ? spellInfo->GetMinRange(false) : 0;
     creature->m_CombatDistance = spellInfo ? spellInfo->GetMaxRange(false) : 0;
     creature->m_SightDistance = creature->m_CombatDistance;
-    creature->SetCanMelee(false);
 }
 
 bool TurretAI::CanAIAttack(Unit const* who) const
@@ -231,7 +284,6 @@ VehicleAI::VehicleAI(Creature* creature, uint32 scriptId) : CreatureAI(creature,
     LoadConditions();
     _dismiss = false;
     _dismissTimer = VEHICLE_DISMISS_TIME;
-    me->SetCanMelee(false);
 }
 
 // NOTE: VehicleAI::UpdateAI runs even while the vehicle is mounted

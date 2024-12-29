@@ -187,6 +187,8 @@ struct boss_teron_gorefiend : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -270,7 +272,10 @@ struct npc_shadowy_construct : public ScriptedAI
         if (me->HasUnitState(UNIT_STATE_CASTING))
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
     void SelectNewTarget()
@@ -301,6 +306,8 @@ private:
 // 40251 - Shadow of Death
 class spell_teron_gorefiend_shadow_of_death : public AuraScript
 {
+    PrepareAuraScript(spell_teron_gorefiend_shadow_of_death);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -345,6 +352,8 @@ class spell_teron_gorefiend_shadow_of_death : public AuraScript
 // 40268 - Spiritual Vengeance
 class spell_teron_gorefiend_spiritual_vengeance : public AuraScript
 {
+    PrepareAuraScript(spell_teron_gorefiend_spiritual_vengeance);
+
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         GetTarget()->KillSelf();
@@ -359,6 +368,8 @@ class spell_teron_gorefiend_spiritual_vengeance : public AuraScript
 // 41999 - Shadow of Death Remove
 class spell_teron_gorefiend_shadow_of_death_remove : public SpellScript
 {
+    PrepareSpellScript(spell_teron_gorefiend_shadow_of_death_remove);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(

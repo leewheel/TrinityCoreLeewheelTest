@@ -178,6 +178,8 @@ struct boss_dalliah_the_doomsayer : public BossAI
                 soccothrates->AI()->Talk(SAY_DALLIAH_25_PERCENT);
             soccothratesTaunt = true;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

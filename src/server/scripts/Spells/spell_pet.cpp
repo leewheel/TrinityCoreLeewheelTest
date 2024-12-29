@@ -93,6 +93,8 @@ class spell_gen_pet_calculate : public SpellScriptLoader
 
         class spell_gen_pet_calculate_AuraScript : public AuraScript
         {
+            PrepareAuraScript(spell_gen_pet_calculate_AuraScript);
+
             bool Load() override
             {
                 if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -221,6 +223,8 @@ public:
 
     class spell_warl_pet_scaling_01_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_scaling_01_AuraScript);
+
     public:
         spell_warl_pet_scaling_01_AuraScript()
         {
@@ -362,6 +366,8 @@ public:
 
     class spell_warl_pet_scaling_02_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_scaling_02_AuraScript);
+
     public:
         spell_warl_pet_scaling_02_AuraScript()
         {
@@ -475,6 +481,8 @@ public:
 
     class spell_warl_pet_scaling_03_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_scaling_03_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -536,6 +544,8 @@ public:
 
     class spell_warl_pet_scaling_04_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_scaling_04_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -573,6 +583,8 @@ public:
 
     class spell_warl_pet_scaling_05_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_scaling_05_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -646,6 +658,8 @@ public:
 
     class spell_warl_pet_passive_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_passive_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -713,6 +727,8 @@ public:
 
     class spell_warl_pet_passive_damage_done_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_passive_damage_done_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -762,6 +778,8 @@ public:
 
     class spell_warl_pet_passive_voidwalker_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_warl_pet_passive_voidwalker_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -797,6 +815,8 @@ public:
 
     class spell_sha_pet_scaling_04_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_sha_pet_scaling_04_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -854,6 +874,8 @@ public:
 
     class spell_hun_pet_scaling_01_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_scaling_01_AuraScript);
+
     public:
         spell_hun_pet_scaling_01_AuraScript()
         {
@@ -983,6 +1005,8 @@ public:
 
     class spell_hun_pet_scaling_02_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_scaling_02_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1059,6 +1083,8 @@ public:
 
     class spell_hun_pet_scaling_03_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_scaling_03_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1135,6 +1161,8 @@ public:
 
     class spell_hun_pet_scaling_04_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_scaling_04_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1214,6 +1242,8 @@ public:
 
     class spell_hun_pet_passive_crit_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_passive_crit_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1279,6 +1309,8 @@ public:
 
     class spell_hun_pet_passive_damage_done_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_pet_passive_damage_done_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1317,6 +1349,8 @@ public:
 
     class spell_hun_animal_handler_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_hun_animal_handler_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1356,6 +1390,8 @@ public:
 
     class spell_dk_avoidance_passive_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_dk_avoidance_passive_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1398,6 +1434,8 @@ public:
 
     class spell_dk_pet_scaling_01_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_dk_pet_scaling_01_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1473,6 +1511,8 @@ public:
 
     class spell_dk_pet_scaling_02_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_dk_pet_scaling_02_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1514,6 +1554,8 @@ public:
 
     class spell_dk_pet_scaling_03_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_dk_pet_scaling_03_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)
@@ -1575,6 +1617,8 @@ public:
 
     class spell_dk_rune_weapon_scaling_02_AuraScript : public AuraScript
     {
+        PrepareAuraScript(spell_dk_rune_weapon_scaling_02_AuraScript);
+
         bool Load() override
         {
             if (!GetCaster() || !GetCaster()->GetOwner() || GetCaster()->GetOwner()->GetTypeId() != TYPEID_PLAYER)

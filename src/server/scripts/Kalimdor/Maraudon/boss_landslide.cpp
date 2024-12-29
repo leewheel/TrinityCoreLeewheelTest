@@ -43,9 +43,9 @@ public:
         return GetMaraudonAI<boss_landslideAI>(creature);
     }
 
-    struct boss_landslideAI : public BossAI
+    struct boss_landslideAI : public ScriptedAI
     {
-        boss_landslideAI(Creature* creature) : BossAI(creature, BOSS_LANDSLIDE)
+        boss_landslideAI(Creature* creature) : ScriptedAI(creature)
         {
             Initialize();
         }
@@ -63,9 +63,11 @@ public:
 
         void Reset() override
         {
-            BossAI::Reset();
-
             Initialize();
+        }
+
+        void JustEngagedWith(Unit* /*who*/) override
+        {
         }
 
         void UpdateAI(uint32 diff) override
@@ -100,6 +102,8 @@ public:
                 }
                 else LandslideTimer -= diff;
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 };

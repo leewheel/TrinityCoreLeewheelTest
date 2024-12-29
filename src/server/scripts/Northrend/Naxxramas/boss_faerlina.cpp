@@ -180,6 +180,8 @@ struct boss_faerlina : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -222,6 +224,7 @@ struct npc_faerlina_add : public ScriptedAI
             return;
 
         DoCastVictim(SPELL_ADD_FIREBALL);
+        DoMeleeAttackIfReady(); // this will only happen if the fireball cast fails for some reason
     }
 
 private:

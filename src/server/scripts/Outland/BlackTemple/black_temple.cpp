@@ -167,6 +167,7 @@ struct npc_wrathbone_flayer : public ScriptedAI
                     break;
             }
         }
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -224,6 +225,8 @@ struct npc_angered_soul_fragment : public ScriptedAI
 
         if (me->HasUnitState(UNIT_STATE_CASTING))
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -233,6 +236,8 @@ private:
 // 41986 - Anger
 class spell_soul_fragment_anger : public SpellScript
 {
+    PrepareSpellScript(spell_soul_fragment_anger);
+
     void HandleKill()
     {
         if (Creature* caster = GetCaster()->ToCreature())
@@ -248,6 +253,8 @@ class spell_soul_fragment_anger : public SpellScript
 // 39645 - Shadow Inferno
 class spell_illidari_nightlord_shadow_inferno : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_nightlord_shadow_inferno);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SHADOW_INFERNO_DAMAGE });

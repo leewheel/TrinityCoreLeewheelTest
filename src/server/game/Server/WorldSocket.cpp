@@ -27,10 +27,8 @@
 #include "HMAC.h"
 #include "IPLocation.h"
 #include "PacketLog.h"
-#include "ProtobufJSON.h"
 #include "RealmList.h"
 #include "RBAC.h"
-#include "RealmList.pb.h"
 #include "ScriptMgr.h"
 #include "SessionKeyGenerator.h"
 #include "World.h"
@@ -49,6 +47,8 @@ struct CompressedWorldPacket
 
 #pragma pack(pop)
 
+using boost::asio::ip::tcp;
+
 std::string const WorldSocket::ServerConnectionInitialize("WORLD OF WARCRAFT CONNECTION - SERVER TO CLIENT - V2");
 std::string const WorldSocket::ClientConnectionInitialize("WORLD OF WARCRAFT CONNECTION - CLIENT TO SERVER - V2");
 uint32 const WorldSocket::MinSizeForCompression = 0x400;
@@ -58,7 +58,7 @@ uint8 const WorldSocket::SessionKeySeed[16] = { 0x58, 0xCB, 0xCF, 0x40, 0xFE, 0x
 uint8 const WorldSocket::ContinuedSessionSeed[16] = { 0x16, 0xAD, 0x0C, 0xD4, 0x46, 0xF9, 0x4F, 0xB2, 0xEF, 0x7D, 0xEA, 0x2A, 0x17, 0x66, 0x4D, 0x2F };
 uint8 const WorldSocket::EncryptionKeySeed[16] = { 0xE9, 0x75, 0x3C, 0x50, 0x90, 0x93, 0x61, 0xDA, 0x3B, 0x07, 0xEE, 0xFA, 0xFF, 0x9D, 0x41, 0xB8 };
 
-WorldSocket::WorldSocket(boost::asio::ip::tcp::socket&& socket) : Socket(std::move(socket)),
+WorldSocket::WorldSocket(tcp::socket&& socket) : Socket(std::move(socket)),
     _type(CONNECTION_TYPE_REALM), _key(0), _OverSpeedPings(0),
     _worldSession(nullptr), _authed(false), _canRequestHotfixes(true), _sendBufferSize(4096), _compressionStream(nullptr)
 {
@@ -83,10 +83,7 @@ void WorldSocket::Start()
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_IP_INFO);
     stmt->setString(0, ip_address);
 
-    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback([self = shared_from_this()](PreparedQueryResult result)
-    {
-        self->CheckIpCallback(std::move(result));
-    }));
+    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::CheckIpCallback, this, std::placeholders::_1)));
 }
 
 void WorldSocket::CheckIpCallback(PreparedQueryResult result)
@@ -122,7 +119,7 @@ void WorldSocket::CheckIpCallback(PreparedQueryResult result)
     QueuePacket(std::move(initializer));
 }
 
-void WorldSocket::InitializeHandler(boost::system::error_code const& error, std::size_t transferedBytes)
+void WorldSocket::InitializeHandler(boost::system::error_code error, std::size_t transferedBytes)
 {
     if (error)
     {
@@ -153,7 +150,7 @@ void WorldSocket::InitializeHandler(boost::system::error_code const& error, std:
             try
             {
                 ByteBuffer buffer(std::move(_packetBuffer));
-                std::string initializer(buffer.ReadString(ClientConnectionInitialize.length()));
+                std::string initializer = buffer.ReadString(ClientConnectionInitialize.length());
                 if (initializer != ClientConnectionInitialize)
                 {
                     CloseSocket();
@@ -171,7 +168,7 @@ void WorldSocket::InitializeHandler(boost::system::error_code const& error, std:
             catch (ByteBufferException const& ex)
             {
                 TC_LOG_ERROR("network", "WorldSocket::InitializeHandler ByteBufferException {} occured while parsing initial packet from {}",
-                    ex.what(), GetRemoteIpAddress().to_string());
+                    ex.what(), GetRemoteIpAddress().to_string().c_str());
                 CloseSocket();
                 return;
             }
@@ -206,11 +203,10 @@ bool WorldSocket::Update()
     MessageBuffer buffer(_sendBufferSize);
     while (_bufferQueue.Dequeue(queued))
     {
-        uint32 packetSize = queued->size() + 2 /*opcode*/;
+        uint32 packetSize = queued->size();
         if (packetSize > MinSizeForCompression && queued->NeedsEncryption())
-            packetSize = deflateBound(_compressionStream, packetSize) + sizeof(CompressedWorldPacket);
+            packetSize = compressBound(packetSize) + sizeof(CompressedWorldPacket);
 
-        // Flush current buffer if too small for next packet
         if (buffer.GetRemainingSpace() < packetSize + sizeof(PacketHeader))
         {
             QueuePacket(std::move(buffer));
@@ -219,7 +215,7 @@ bool WorldSocket::Update()
 
         if (buffer.GetRemainingSpace() >= packetSize + sizeof(PacketHeader))
             WritePacketToBuffer(*queued, buffer);
-        else    // single packet larger than _sendBufferSize
+        else    // single packet larger than 4096 bytes
         {
             MessageBuffer packetBuffer(packetSize + sizeof(PacketHeader));
             WritePacketToBuffer(*queued, packetBuffer);
@@ -341,7 +337,7 @@ bool WorldSocket::ReadHeaderHandler()
         if (header->EncryptedOpcode != CMSG_HOTFIX_REQUEST || header->Size > 0x100000 || !_canRequestHotfixes)
         {
             TC_LOG_ERROR("network", "WorldSocket::ReadHeaderHandler(): client {} sent malformed packet (size: {}, opcode {})",
-                GetRemoteIpAddress().to_string(), header->Size, uint32(header->EncryptedOpcode));
+                GetRemoteIpAddress().to_string().c_str(), header->Size, uint32(header->EncryptedOpcode));
             return false;
         }
     }
@@ -358,16 +354,16 @@ WorldSocket::ReadDataHandlerResult WorldSocket::ReadDataHandler()
     if (!_authCrypt.DecryptRecv(_packetBuffer.GetReadPointer(), header->Size, header->Tag))
     {
         TC_LOG_ERROR("network", "WorldSocket::ReadHeaderHandler(): client {} failed to decrypt packet (size: {})",
-            GetRemoteIpAddress().to_string(), header->Size);
+            GetRemoteIpAddress().to_string().c_str(), header->Size);
         return ReadDataHandlerResult::Error;
     }
 
     WorldPacket packet(std::move(_packetBuffer), GetConnectionType());
     OpcodeClient opcode = packet.read<OpcodeClient>();
-    if (opcode < MIN_CMSG_OPCODE_NUMBER || opcode > MAX_CMSG_OPCODE_NUMBER)
+    if (uint32(opcode) >= uint32(NUM_OPCODE_HANDLERS))
     {
         TC_LOG_ERROR("network", "WorldSocket::ReadHeaderHandler(): client {} sent wrong opcode (opcode: {})",
-            GetRemoteIpAddress().to_string(), uint32(opcode));
+            GetRemoteIpAddress().to_string().c_str(), uint32(opcode));
         return ReadDataHandlerResult::Error;
     }
 
@@ -445,7 +441,7 @@ WorldSocket::ReadDataHandlerResult WorldSocket::ReadDataHandler()
             return ReadDataHandlerResult::Error;
         case CMSG_LOG_DISCONNECT:
             LogOpcodeText(opcode, sessionGuard);
-            TC_LOG_DEBUG("network", "WorldSocket::ReadDataHandler: client {} sent CMSG_LOG_DISCONNECT reason {}", GetRemoteIpAddress().to_string(), packet.read<uint32>());
+            packet.rfinish();   // contains uint32 disconnectReason;
             break;
         case CMSG_ENABLE_NAGLE:
             LogOpcodeText(opcode, sessionGuard);
@@ -487,7 +483,7 @@ WorldSocket::ReadDataHandlerResult WorldSocket::ReadDataHandler()
                 return ReadDataHandlerResult::Error;
             }
 
-            ClientOpcodeHandler const* handler = opcodeTable[opcode];
+            OpcodeHandler const* handler = opcodeTable[opcode];
             if (!handler)
             {
                 TC_LOG_ERROR("network.opcode", "No defined handler for opcode {} sent by {}", GetOpcodeNameForLogging(static_cast<OpcodeClient>(packet.GetOpcode())), _worldSession->GetPlayerInfo());
@@ -618,7 +614,9 @@ struct AccountInfo
         bool IsLockedToIP;
         std::string LastIP;
         std::string LockCountry;
+        LocaleConstant Locale;
         bool IsBanned;
+
     } BattleNet;
 
     struct
@@ -627,11 +625,8 @@ struct AccountInfo
         std::array<uint8, 64> KeyData;
         uint8 Expansion;
         int64 MuteTime;
-        uint32 Build;
-        LocaleConstant Locale;
         uint32 Recruiter;
         std::string OS;
-        Minutes TimezoneOffset;
         bool IsRectuiter;
         AccountTypes Security;
         bool IsBanned;
@@ -639,11 +634,11 @@ struct AccountInfo
 
     bool IsBanned() const { return BattleNet.IsBanned || Game.IsBanned; }
 
-    explicit AccountInfo(Field const* fields)
+    explicit AccountInfo(Field* fields)
     {
-        //           0              1           2          3                4            5           6               7         8            9    10                 11     12                13
-        // SELECT a.id, a.session_key, ba.last_ip, ba.locked, ba.lock_country, a.expansion, a.mutetime, a.client_build, a.locale, a.recruiter, a.os, a.timezone_offset, ba.id, aa.SecurityLevel,
-        //                                                              14                                                            15    16
+        //           0              1           2          3                4            5           6          7            8     9     10                11
+        // SELECT a.id, a.session_key, ba.last_ip, ba.locked, ba.lock_country, a.expansion, a.mutetime, ba.locale, a.recruiter, a.os, ba.id, aa.SecurityLevel,
+        //                                                              12                                                            13    14
         // bab.unbandate > UNIX_TIMESTAMP() OR bab.unbandate = bab.bandate, ab.unbandate > UNIX_TIMESTAMP() OR ab.unbandate = ab.bandate, r.id
         // FROM account a LEFT JOIN battlenet_accounts ba ON a.battlenet_account = ba.id LEFT JOIN account_access aa ON a.id = aa.AccountID AND aa.RealmID IN (-1, ?)
         // LEFT JOIN battlenet_account_bans bab ON ba.id = bab.id LEFT JOIN account_banned ab ON a.id = ab.id LEFT JOIN account r ON a.id = r.recruiter
@@ -655,45 +650,31 @@ struct AccountInfo
         BattleNet.LockCountry = fields[4].GetString();
         Game.Expansion = fields[5].GetUInt8();
         Game.MuteTime = fields[6].GetInt64();
-        Game.Build = fields[7].GetUInt32();
-        Game.Locale = LocaleConstant(fields[8].GetUInt8());
-        Game.Recruiter = fields[9].GetUInt32();
-        Game.OS = fields[10].GetString();
-        Game.TimezoneOffset = Minutes(fields[11].GetInt16());
-        BattleNet.Id = fields[12].GetUInt32();
-        Game.Security = AccountTypes(fields[13].GetUInt8());
-        BattleNet.IsBanned = fields[14].GetUInt32() != 0;
-        Game.IsBanned = fields[15].GetUInt32() != 0;
-        Game.IsRectuiter = fields[16].GetUInt32() != 0;
+        BattleNet.Locale = LocaleConstant(fields[7].GetUInt8());
+        Game.Recruiter = fields[8].GetUInt32();
+        Game.OS = fields[9].GetString();
+        BattleNet.Id = fields[10].GetUInt32();
+        Game.Security = AccountTypes(fields[11].GetUInt8());
+        BattleNet.IsBanned = fields[12].GetUInt32() != 0;
+        Game.IsBanned = fields[13].GetUInt32() != 0;
+        Game.IsRectuiter = fields[14].GetUInt32() != 0;
 
-        if (Game.Locale >= TOTAL_LOCALES)
-            Game.Locale = LOCALE_enUS;
+        if (BattleNet.Locale >= TOTAL_LOCALES)
+            BattleNet.Locale = LOCALE_enUS;
     }
 };
 
 void WorldSocket::HandleAuthSession(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession)
 {
-    std::shared_ptr<JSON::RealmList::RealmJoinTicket> joinTicket = std::make_shared<JSON::RealmList::RealmJoinTicket>();
-    if (!JSON::Deserialize(authSession->RealmJoinTicket, joinTicket.get()))
-    {
-        SendAuthResponseError(ERROR_WOW_SERVICES_INVALID_JOIN_TICKET);
-        DelayedCloseSocket();
-        return;
-    }
-
     // Get the account information from the auth database
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_ACCOUNT_INFO_BY_NAME);
-    stmt->setInt32(0, int32(sRealmList->GetCurrentRealmId().Realm));
-    stmt->setString(1, joinTicket->gameaccount());
+    stmt->setInt32(0, int32(realm.Id.Realm));
+    stmt->setString(1, authSession->RealmJoinTicket);
 
-    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback([this, authSession = std::move(authSession), joinTicket = std::move(joinTicket)](PreparedQueryResult result) mutable
-    {
-        HandleAuthSessionCallback(std::move(authSession), std::move(joinTicket), std::move(result));
-    }));
+    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::HandleAuthSessionCallback, this, authSession, std::placeholders::_1)));
 }
 
-void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession,
-    std::shared_ptr<JSON::RealmList::RealmJoinTicket> joinTicket, PreparedQueryResult result)
+void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession, PreparedQueryResult result)
 {
     // Stop if the account is not found
     if (!result)
@@ -704,35 +685,27 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
         return;
     }
 
-    AccountInfo account(result->Fetch());
-
-    ClientBuild::Info const* buildInfo = ClientBuild::GetBuildInfo(account.Game.Build);
+    RealmBuildInfo const* buildInfo = sRealmList->GetBuildInfo(realm.Build);
     if (!buildInfo)
     {
         SendAuthResponseError(ERROR_BAD_VERSION);
-        TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Missing client build info for build {} ({}).", account.Game.Build, GetRemoteIpAddress().to_string());
+        TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Missing auth seed for realm build {} ({}).", realm.Build, GetRemoteIpAddress().to_string());
         DelayedCloseSocket();
         return;
     }
 
-    ClientBuild::VariantId buildVariant = { .Platform = joinTicket->platform(), .Arch = joinTicket->clientarch(), .Type = joinTicket->type() };
-    auto clientBuildAuthKey = std::ranges::find(buildInfo->AuthKeys, buildVariant, &ClientBuild::AuthKey::Variant);
-    if (clientBuildAuthKey == buildInfo->AuthKeys.end())
-    {
-        SendAuthResponseError(ERROR_BAD_VERSION);
-        TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Missing client build auth key for build {} variant {}-{}-{} ({}).", account.Game.Build,
-            ClientBuild::ToCharArray(buildVariant.Platform).data(), ClientBuild::ToCharArray(buildVariant.Arch).data(),
-            ClientBuild::ToCharArray(buildVariant.Type).data(), GetRemoteIpAddress().to_string());
-        DelayedCloseSocket();
-        return;
-    }
+    AccountInfo account(result->Fetch());
 
     // For hook purposes, we get Remoteaddress at this point.
     std::string address = GetRemoteIpAddress().to_string();
 
     Trinity::Crypto::SHA256 digestKeyHash;
     digestKeyHash.UpdateData(account.Game.KeyData.data(), account.Game.KeyData.size());
-    digestKeyHash.UpdateData(clientBuildAuthKey->Key.data(), clientBuildAuthKey->Key.size());
+    if (account.Game.OS == "Wn64")
+        digestKeyHash.UpdateData(buildInfo->Win64AuthSeed.data(), buildInfo->Win64AuthSeed.size());
+    else if (account.Game.OS == "Mc64")
+        digestKeyHash.UpdateData(buildInfo->Mac64AuthSeed.data(), buildInfo->Mac64AuthSeed.size());
+
     digestKeyHash.Finalize();
 
     Trinity::Crypto::HMAC_SHA256 hmac(digestKeyHash.GetDigest());
@@ -744,8 +717,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
     // Check that Key and account name are the same on client and server
     if (memcmp(hmac.GetDigest().data(), authSession->Digest.data(), authSession->Digest.size()) != 0)
     {
-        SendAuthResponseError(ERROR_DENIED);
-        TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Authentication failed for account: {} ('{}') address: {}", account.Game.Id, joinTicket->gameaccount(), address);
+        TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Authentication failed for account: {} ('{}') address: {}", account.Game.Id, authSession->RealmJoinTicket, address);
         DelayedCloseSocket();
         return;
     }
@@ -779,7 +751,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
         // As we don't know if attempted login process by ip works, we update last_attempt_ip right away
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_ATTEMPT_IP);
         stmt->setString(0, address);
-        stmt->setString(1, joinTicket->gameaccount());
+        stmt->setString(1, authSession->RealmJoinTicket);
         LoginDatabase.Execute(stmt);
         // This also allows to check for possible "hack" attempts on account
     }
@@ -798,18 +770,18 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
         return;
     }
 
-    if (authSession->RealmID != sRealmList->GetCurrentRealmId().Realm)
+    if (authSession->RealmID != realm.Id.Realm)
     {
         SendAuthResponseError(ERROR_DENIED);
         TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} requested connecting with realm id {} but this realm has id {} set in config.",
-            GetRemoteIpAddress().to_string(), authSession->RealmID, sRealmList->GetCurrentRealmId().Realm);
+            GetRemoteIpAddress().to_string().c_str(), authSession->RealmID, realm.Id.Realm);
         DelayedCloseSocket();
         return;
     }
 
     // Must be done before WorldSession is created
     bool wardenActive = sWorld->getBoolConfig(CONFIG_WARDEN_ENABLED);
-    if (wardenActive && !ClientBuild::Platform::IsValid(account.Game.OS))
+    if (wardenActive && account.Game.OS != "Win" && account.Game.OS != "Wn64" && account.Game.OS != "Mc64")
     {
         SendAuthResponseError(ERROR_DENIED);
         TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} attempted to log in using invalid client OS ({}).", address, account.Game.OS);
@@ -850,7 +822,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
     //! Negative mutetime indicates amount of seconds to be muted effective on next login - which is now.
     if (mutetime < 0)
     {
-        mutetime = GameTime::GetGameTime() + std::llabs(mutetime);
+        mutetime = GameTime::GetGameTime() + llabs(mutetime);
 
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME_LOGIN);
         stmt->setInt64(0, mutetime);
@@ -879,7 +851,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
         return;
     }
 
-    TC_LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", joinTicket->gameaccount(), address);
+    TC_LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", authSession->RealmJoinTicket, address);
 
     if (sWorld->getBoolConfig(CONFIG_ALLOW_LOGGING_IP_ADDRESSES_IN_DATABASE))
     {
@@ -887,7 +859,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_IP);
 
         stmt->setString(0, address);
-        stmt->setString(1, joinTicket->gameaccount());
+        stmt->setString(1, authSession->RealmJoinTicket);
 
         LoginDatabase.Execute(stmt);
     }
@@ -896,18 +868,14 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
     sScriptMgr->OnAccountLogin(account.Game.Id);
 
     _authed = true;
-    _worldSession = new WorldSession(account.Game.Id, std::move(*joinTicket->mutable_gameaccount()), account.BattleNet.Id, shared_from_this(), account.Game.Security,
-        account.Game.Expansion, mutetime, account.Game.OS, account.Game.TimezoneOffset, account.Game.Build, buildVariant, account.Game.Locale,
-        account.Game.Recruiter, account.Game.IsRectuiter);
+    _worldSession = new WorldSession(account.Game.Id, std::move(authSession->RealmJoinTicket), account.BattleNet.Id, shared_from_this(), account.Game.Security,
+        account.Game.Expansion, mutetime, account.Game.OS, account.BattleNet.Locale, account.Game.Recruiter, account.Game.IsRectuiter);
 
     // Initialize Warden system only if it is enabled by config
     if (wardenActive)
         _worldSession->InitWarden(_sessionKey);
 
-    _queryProcessor.AddCallback(_worldSession->LoadPermissionsAsync().WithPreparedCallback([this](PreparedQueryResult result)
-    {
-        LoadSessionPermissionsCallback(std::move(result));
-    }));
+    _queryProcessor.AddCallback(_worldSession->LoadPermissionsAsync().WithPreparedCallback(std::bind(&WorldSocket::LoadSessionPermissionsCallback, this, std::placeholders::_1)));
     AsyncRead();
 }
 
@@ -936,10 +904,7 @@ void WorldSocket::HandleAuthContinuedSession(std::shared_ptr<WorldPackets::Auth:
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_ACCOUNT_INFO_CONTINUED_SESSION);
     stmt->setUInt32(0, accountId);
 
-    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback([this, authSession = std::move(authSession)](PreparedQueryResult result) mutable
-    {
-        HandleAuthContinuedSessionCallback(std::move(authSession), std::move(result));
-    }));
+    _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::HandleAuthContinuedSessionCallback, this, authSession, std::placeholders::_1)));
 }
 
 void WorldSocket::HandleAuthContinuedSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthContinuedSession> authSession, PreparedQueryResult result)
@@ -1069,7 +1034,7 @@ bool WorldSocket::HandlePing(WorldPackets::Auth::Ping& ping)
                 if (_worldSession && !_worldSession->HasPermission(rbac::RBAC_PERM_SKIP_CHECK_OVERSPEED_PING))
                 {
                     TC_LOG_ERROR("network", "WorldSocket::HandlePing: {} kicked for over-speed pings (address: {})",
-                        _worldSession->GetPlayerInfo(), GetRemoteIpAddress().to_string());
+                        _worldSession->GetPlayerInfo().c_str(), GetRemoteIpAddress().to_string().c_str());
 
                     return false;
                 }

@@ -16,7 +16,6 @@
  */
 
 #include "icecrown_citadel.h"
-#include "Containers.h"
 #include "Group.h"
 #include "InstanceScript.h"
 #include "MotionMaster.h"
@@ -263,7 +262,7 @@ struct boss_lady_deathwhisper : public BossAI
                     break;
                 case 5:
                     Talk(SAY_INTRO_7);
-                    break;
+                    return;
                 default:
                     break;
             }
@@ -283,12 +282,13 @@ struct boss_lady_deathwhisper : public BossAI
     {
         if (!instance->CheckRequiredBosses(DATA_LADY_DEATHWHISPER, who->ToPlayer()))
         {
-            EnterEvadeMode(EvadeReason::SequenceBreak);
+            EnterEvadeMode(EVADE_REASON_SEQUENCE_BREAK);
             instance->DoCastSpellOnPlayers(LIGHT_S_HAMMER_TELEPORT);
             return;
         }
 
         _phase = PHASE_ONE;
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         DoZoneInCombat();
         scheduler.CancelGroup(GROUP_INTRO);
@@ -335,7 +335,6 @@ struct boss_lady_deathwhisper : public BossAI
             });
 
         Talk(SAY_AGGRO);
-        me->SetCanMelee(false);
         DoStartNoMovement(who);
         me->RemoveAurasDueToSpell(SPELL_SHADOW_CHANNELING);
         DoCastSelf(SPELL_MANA_BARRIER, true);
@@ -417,7 +416,6 @@ struct boss_lady_deathwhisper : public BossAI
             damage -= me->GetPower(POWER_MANA);
             me->SetPower(POWER_MANA, 0);
             me->RemoveAurasDueToSpell(SPELL_MANA_BARRIER);
-            me->SetCanMelee(true);
             scheduler.CancelGroup(GROUP_ONE);
 
             scheduler
@@ -496,7 +494,12 @@ struct boss_lady_deathwhisper : public BossAI
         if (!UpdateVictim() && _phase != PHASE_INTRO)
             return;
 
-        scheduler.Update(diff);
+        scheduler.Update(diff, [this]
+        {
+            // We should not melee attack when barrier is up
+            if (!me->HasAura(SPELL_MANA_BARRIER))
+                DoMeleeAttackIfReady();
+        });
     }
 
     // summoning function for first phase
@@ -641,12 +644,12 @@ struct npc_cult_fanatic : public ScriptedAI
                         DoCastSelf(SPELL_PERMANENT_FEIGN_DEATH);
                         DoCastSelf(SPELL_CLEAR_ALL_DEBUFFS);
                         DoCastSelf(SPELL_FULL_HEAL, true);
-                        me->SetUninteractible(true);
+                        me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                     })
                     .Schedule(Seconds(6), [this](TaskContext /*context*/)
                     {
                         me->RemoveAurasDueToSpell(SPELL_PERMANENT_FEIGN_DEATH);
-                        me->SetUninteractible(false);
+                        me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                         me->SetReactState(REACT_AGGRESSIVE);
                         DoZoneInCombat(me);
 
@@ -664,7 +667,10 @@ struct npc_cult_fanatic : public ScriptedAI
         if (!UpdateVictim() && !me->HasAura(SPELL_PERMANENT_FEIGN_DEATH))
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
 protected:
@@ -729,12 +735,12 @@ struct npc_cult_adherent : public ScriptedAI
                         DoCastSelf(SPELL_PERMANENT_FEIGN_DEATH);
                         DoCastSelf(SPELL_CLEAR_ALL_DEBUFFS);
                         DoCastSelf(SPELL_FULL_HEAL, true);
-                        me->SetUninteractible(true);
+                        me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                     })
                     .Schedule(Seconds(6), [this](TaskContext /*context*/)
                     {
                         me->RemoveAurasDueToSpell(SPELL_PERMANENT_FEIGN_DEATH);
-                        me->SetUninteractible(false);
+                        me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                         me->SetReactState(REACT_AGGRESSIVE);
                         DoCastSelf(SPELL_SHROUD_OF_THE_OCCULT);
                         DoZoneInCombat(me);
@@ -804,7 +810,10 @@ struct npc_vengeful_shade : public ScriptedAI
 
     void UpdateAI(uint32 diff) override
     {
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
 private:
@@ -923,6 +932,8 @@ struct npc_darnavan : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -934,6 +945,8 @@ private:
 // 70842 - Mana Barrier
 class spell_deathwhisper_mana_barrier : public AuraScript
 {
+    PrepareAuraScript(spell_deathwhisper_mana_barrier);
+
     void HandlePeriodicTick(AuraEffect const* /*aurEff*/)
     {
         PreventDefaultAction();
@@ -954,6 +967,8 @@ class spell_deathwhisper_mana_barrier : public AuraScript
 // 71289 - Dominate Mind
 class spell_deathwhisper_dominated_mind : public AuraScript
 {
+    PrepareAuraScript(spell_deathwhisper_dominated_mind);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_DOMINATE_MIND_SCALE });
@@ -974,6 +989,8 @@ class spell_deathwhisper_dominated_mind : public AuraScript
 // 72478 - Summon Spirits
 class spell_deathwhisper_summon_spirits : public SpellScript
 {
+    PrepareSpellScript(spell_deathwhisper_summon_spirits);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_SUMMON_SHADE });
@@ -993,6 +1010,8 @@ class spell_deathwhisper_summon_spirits : public SpellScript
 // 70674 - Vampiric Might
 class spell_deathwhisper_vampiric_might : public AuraScript
 {
+    PrepareAuraScript(spell_deathwhisper_vampiric_might);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_VAMPIRIC_MIGHT_PROC });
@@ -1022,9 +1041,11 @@ class spell_deathwhisper_vampiric_might : public AuraScript
 // 69483 - Dark Reckoning
 class spell_deathwhisper_dark_reckoning : public AuraScript
 {
+    PrepareAuraScript(spell_deathwhisper_dark_reckoning);
+
     bool Validate(SpellInfo const* spell) override
     {
-        return ValidateSpellEffect({ { spell->Id, EFFECT_0 } })
+        return !spell->GetEffects().empty()
             && ValidateSpellInfo({ spell->GetEffect(EFFECT_0).TriggerSpell });
     }
 

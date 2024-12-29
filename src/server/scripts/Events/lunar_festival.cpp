@@ -378,6 +378,8 @@ struct npc_omen : public ScriptedAI
                 events.ScheduleEvent(EVENT_CAST_STARFALL, 14s, 16s);
                 break;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -425,6 +427,8 @@ enum EluneCandle
 // 26374 - Elune's Candle
 class spell_lunar_festival_elune_candle : public SpellScript
 {
+    PrepareSpellScript(spell_lunar_festival_elune_candle);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(

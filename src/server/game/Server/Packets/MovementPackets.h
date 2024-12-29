@@ -19,7 +19,6 @@
 #define MovementPackets_h__
 
 #include "Packet.h"
-#include "CombatLogPacketsCommon.h"
 #include "Object.h"
 #include "Optional.h"
 
@@ -126,6 +125,7 @@ namespace WorldPackets
         struct MovementMonsterSpline
         {
             uint32 ID = 0;
+            TaggedPosition<Position::XYZ> Destination;
             bool CrzTeleport = false;
             uint8 StopDistanceTolerance = 0;    // Determines how far from spline destination the mover is allowed to stop in place 0, 0, 3.0, 2.76, numeric_limits<float>::max, 1.1, float(INT_MAX); default before this field existed was distance 3.0 (index 2)
             MovementSpline Move;
@@ -270,7 +270,6 @@ namespace WorldPackets
             uint32 Reason = 0;
             TeleportLocation Loc;
             TaggedPosition<Position::XYZ> MovementOffset;    // Adjusts all pending movement events by this offset
-            int32 Counter = 0;
         };
 
         class WorldPortResponse final : public ClientPacket
@@ -657,12 +656,6 @@ namespace WorldPackets
                 float InitVertSpeed = 0.0f;
             };
 
-            struct SpeedRange
-            {
-                float Min = 0.0f;
-                float Max = 0.0f;
-            };
-
             struct MoveStateChange
             {
                 MoveStateChange(OpcodeServer messageId, uint32 sequenceIndex) : MessageID(messageId), SequenceIndex(sequenceIndex) { }
@@ -670,13 +663,12 @@ namespace WorldPackets
                 uint16 MessageID = 0;
                 uint32 SequenceIndex = 0;
                 Optional<float> Speed;
-                Optional<MoveSetCompoundState::SpeedRange> SpeedRange;
                 Optional<KnockBackInfo> KnockBack;
                 Optional<int32> VehicleRecID;
                 Optional<CollisionHeightInfo> CollisionHeight;
                 Optional<MovementForce> MovementForce_;
                 Optional<ObjectGuid> MovementForceGUID;
-                Optional<int32> MovementInertiaID;
+                Optional<ObjectGuid> MovementInertiaGUID;
                 Optional<uint32> MovementInertiaLifetimeMs;
             };
 

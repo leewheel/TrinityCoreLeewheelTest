@@ -16,13 +16,13 @@
  */
 
 #include "UpdateFetcher.h"
-#include "CryptoHash.h"
+#include "Common.h"
 #include "DBUpdater.h"
 #include "Field.h"
+#include "CryptoHash.h"
 #include "Log.h"
 #include "QueryResult.h"
 #include "Util.h"
-#include <boost/filesystem/directory.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <fstream>
 #include <sstream>
@@ -337,7 +337,7 @@ UpdateResult UpdateFetcher::Update(bool const redundancyChecks,
             CleanUp(applied);
         else
         {
-            TC_LOG_ERROR("sql.updates", "Cleanup is disabled! There were {} dirty files applied to your database, " \
+            TC_LOG_ERROR("sql.updates", "Cleanup is disabled! There were  {} dirty files applied to your database, " \
                 "but they are now missing in your source directory!", applied.size());
         }
     }
@@ -412,7 +412,7 @@ void UpdateFetcher::CleanUp(AppliedFileStorage const& storage) const
 
 void UpdateFetcher::UpdateState(std::string const& name, State const state) const
 {
-    std::string const update = Trinity::StringFormat(R"(UPDATE `updates` SET `state`='{}' WHERE `name`="{}")", AppliedFileEntry::StateConvert(state), name);
+    std::string const update = "UPDATE `updates` SET `state`=\'" + AppliedFileEntry::StateConvert(state) + "\' WHERE `name`=\"" + name + "\"";
 
     // Update database
     _apply(update);

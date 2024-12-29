@@ -16,7 +16,6 @@
  */
 
 #include "ahnkahet.h"
-#include "DB2Stores.h"
 #include "InstanceScript.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
@@ -153,7 +152,7 @@ struct boss_volazj : public BossAI
         ResetPlayersPhaseMask();
 
         // Cleanup
-        me->SetUninteractible(false);
+        me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
         me->SetControlled(false, UNIT_STATE_STUNNED);
     }
 
@@ -193,7 +192,7 @@ struct boss_volazj : public BossAI
 
     void DamageTaken(Unit* /*pAttacker*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
     {
-        if (me->IsUninteractible())
+        if (me->HasUnitFlag(UNIT_FLAG_UNINTERACTIBLE))
             damage = 0;
 
         if ((GetHealthPct(0) >= 66 && GetHealthPct(damage) < 66) || (GetHealthPct(0) >= 33 && GetHealthPct(damage) < 33))
@@ -224,7 +223,7 @@ struct boss_volazj : public BossAI
                 Talk(SAY_INSANITY);
                 DoCastSelf(SPELL_WHISPER_INSANITY, true);
                 // Unattackable
-                me->SetUninteractible(true);
+                me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 me->SetControlled(true, UNIT_STATE_STUNNED);
             }
             // phase mask
@@ -242,7 +241,7 @@ struct boss_volazj : public BossAI
                     // clone
                     player->CastSpell(summon, SPELL_CLONE_PLAYER, true);
                     summon->GetAI()->SetData(DATA_TWISTED_VISAGE_PLAYER_CLASS, player->GetClass());
-                    summon->GetAI()->SetData(DATA_TWISTED_VISAGE_PLAYER_SPEC, player->GetPrimaryTalentTree());
+                    summon->GetAI()->SetData(DATA_TWISTED_VISAGE_PLAYER_SPEC, player->GetPrimarySpecialization());
                     summon->SetReactState(REACT_AGGRESSIVE);
                     DoZoneInCombat(summon);
                     // set phase
@@ -310,7 +309,7 @@ struct boss_volazj : public BossAI
             if (Creature* visage = ObjectAccessor::GetCreature(*me, *iter))
             {
                 // Not all are dead
-                if (visage->InSamePhase(summon))
+                if (visage->IsInPhase(summon))
                     return;
                 else if (!visage->GetPhaseShift().GetPhases().empty())
                 {
@@ -349,12 +348,15 @@ struct boss_volazj : public BossAI
                 return;
 
             _insanityHandled = 0;
-            me->SetUninteractible(false);
+            me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
             me->SetControlled(false, UNIT_STATE_STUNNED);
             me->RemoveAurasDueToSpell(INSANITY_VISUAL);
         }
 
-        scheduler.Update(diff);
+        scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
     void JustDied(Unit* killer) override
@@ -422,8 +424,8 @@ struct npc_twisted_visage : public ScriptedAI
             case CLASS_SHAMAN:
                 switch (_playerSpec)
                 {
-                    case SPEC_SHAMAN_ELEMENTAL:
-                    case SPEC_SHAMAN_RESTORATION:
+                    case TALENT_SPEC_SHAMAN_ELEMENTAL:
+                    case TALENT_SPEC_SHAMAN_RESTORATION:
                         ScriptedAI::AttackStartCaster(who, 25.0f);
                         break;
                     default:
@@ -433,8 +435,8 @@ struct npc_twisted_visage : public ScriptedAI
             case CLASS_DRUID:
                 switch (_playerSpec)
                 {
-                    case SPEC_DRUID_BALANCE:
-                    case SPEC_DRUID_RESTORATION:
+                    case TALENT_SPEC_DRUID_BALANCE:
+                    case TALENT_SPEC_DRUID_RESTORATION:
                         ScriptedAI::AttackStartCaster(who, 25.0f);
                         break;
                     default:
@@ -450,6 +452,9 @@ struct npc_twisted_visage : public ScriptedAI
             case CLASS_ROGUE:
                 ScriptedAI::AttackStart(who);
                 break;
+            default:
+                ScriptedAI::AttackStart(who);
+                break;
         }
     }
 
@@ -457,7 +462,7 @@ struct npc_twisted_visage : public ScriptedAI
     {
         if (type == DATA_TWISTED_VISAGE_PLAYER_CLASS)
         {
-            if (data > CLASS_NONE && data < MAX_CLASSES)
+            if (data > CLASS_NONE && data <= CLASS_DRUID)
                 _playerClass = data;
         }
         else if (type == DATA_TWISTED_VISAGE_PLAYER_SPEC && _playerClass != CLASS_NONE)
@@ -470,7 +475,7 @@ struct npc_twisted_visage : public ScriptedAI
                 case CLASS_WARRIOR:
                     switch (data)
                     {
-                        case SPEC_WARRIOR_ARMS:
+                        case TALENT_SPEC_WARRIOR_ARMS:
                             _scheduler.Schedule(3s, [this](TaskContext mortalStrike)
                             {
                                 DoCastVictim(SPELL_TWISTED_VISAGE_MORTAL_STRIKE);
@@ -482,7 +487,7 @@ struct npc_twisted_visage : public ScriptedAI
                             });
                             break;
                         default:
-                        case SPEC_WARRIOR_FURY:
+                        case TALENT_SPEC_WARRIOR_FURY:
                             _scheduler.Schedule(2s, [this](TaskContext intercept)
                             {
                                 if (!me->IsWithinCombatRange(me->GetVictim(), 8.0f))
@@ -498,7 +503,7 @@ struct npc_twisted_visage : public ScriptedAI
                                 bloodthirst.Repeat(3s, 5s);
                             });
                             break;
-                        case SPEC_WARRIOR_PROTECTION:
+                        case TALENT_SPEC_WARRIOR_PROTECTION:
                             _scheduler.Schedule(5s, [this](TaskContext thunderClap)
                             {
                                 DoCastSelf(SPELL_TWISTED_VISAGE_THUNDER_CLAP);
@@ -514,7 +519,7 @@ struct npc_twisted_visage : public ScriptedAI
                 case CLASS_PALADIN:
                     switch (data)
                     {
-                        case SPEC_PALADIN_PROTECTION:
+                        case TALENT_SPEC_PALADIN_PROTECTION:
                             _scheduler.Schedule(5s, [this](TaskContext consecration)
                             {
                                 DoCastSelf(SPELL_TWISTED_VISAGE_CONSECRATION);
@@ -526,7 +531,7 @@ struct npc_twisted_visage : public ScriptedAI
                             });
                             break;
                         default:
-                        case SPEC_PALADIN_RETRIBUTION:
+                        case TALENT_SPEC_PALADIN_RETRIBUTION:
                             _scheduler.Schedule(5s, [this](TaskContext consecration)
                             {
                                 DoCastSelf(SPELL_TWISTED_VISAGE_CONSECRATION);
@@ -573,7 +578,7 @@ struct npc_twisted_visage : public ScriptedAI
                 case CLASS_PRIEST:
                     switch (data)
                     {
-                        case SPEC_PRIEST_SHADOW:
+                        case TALENT_SPEC_PRIEST_SHADOW:
                             _scheduler.Schedule(5s, [this](TaskContext shadowWordPain)
                             {
                                 DoCastVictim(SPELL_TWISTED_VISAGE_SHADOW_WORD_PAIN);
@@ -627,7 +632,7 @@ struct npc_twisted_visage : public ScriptedAI
                     switch (data)
                     {
                         default:
-                        case SPEC_SHAMAN_ELEMENTAL:
+                        case TALENT_SPEC_SHAMAN_ELEMENTAL:
                             _scheduler.Schedule(5s, [this](TaskContext thunderstorm)
                             {
                                 DoCastSelf(SPELL_TWISTED_VISAGE_THUNDERSTORM);
@@ -638,14 +643,14 @@ struct npc_twisted_visage : public ScriptedAI
                                 lightningBolt.Repeat(3s, 5s);
                             });
                             break;
-                        case SPEC_SHAMAN_ENHANCEMENT:
+                        case TALENT_SPEC_SHAMAN_ENHANCEMENT:
                             _scheduler.Schedule(2s, [this](TaskContext earthShock)
                             {
                                 DoCastVictim(SPELL_TWISTED_VISAGE_EARTH_SHOCK);
                                 earthShock.Repeat(3s, 5s);
                             });
                             break;
-                        case SPEC_SHAMAN_RESTORATION:
+                        case TALENT_SPEC_SHAMAN_RESTORATION:
                             _scheduler.Schedule(2s, [this](TaskContext earthShield)
                             {
                                 if (Unit* target = DoSelectLowestHpFriendly(40.f))
@@ -693,7 +698,7 @@ struct npc_twisted_visage : public ScriptedAI
                 case CLASS_DRUID:
                     switch (data)
                     {
-                        case SPEC_DRUID_BALANCE:
+                        case TALENT_SPEC_DRUID_BALANCE:
                             _scheduler.Schedule(2s, [this](TaskContext moonfire)
                             {
                                 DoCastVictim(SPELL_TWISTED_VISAGE_MOONFIRE);
@@ -704,7 +709,8 @@ struct npc_twisted_visage : public ScriptedAI
                                 wrath.Repeat(3s, 5s);
                             });
                             break;
-                        case SPEC_DRUID_FERAL:
+                        case TALENT_SPEC_DRUID_BEAR:
+                        case TALENT_SPEC_DRUID_CAT:
                             _scheduler.Schedule(1ms, [this](TaskContext /*catForm*/)
                             {
                                 DoCastSelf(SPELL_TWISTED_VISAGE_CAT_FORM);
@@ -719,7 +725,7 @@ struct npc_twisted_visage : public ScriptedAI
                             });
                             break;
                         default:
-                        case SPEC_DRUID_RESTORATION:
+                        case TALENT_SPEC_DRUID_RESTORATION:
                             _scheduler.Schedule(2s, [this](TaskContext lifebloom)
                             {
                                 if (Unit* target = DoSelectLowestHpFriendly(40.f))
@@ -758,7 +764,10 @@ struct npc_twisted_visage : public ScriptedAI
         if (!UpdateVictim())
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
 private:
@@ -776,6 +785,8 @@ private:
    60297 - Volazj Whisper: Death 02 */
 class spell_volazj_whisper : public SpellScript
 {
+    PrepareSpellScript(spell_volazj_whisper);
+
     void HandleScriptEffect(SpellEffIndex /* effIndex */)
     {
         Player* target = GetHitPlayer();

@@ -16,7 +16,6 @@
  */
 
 #include "zulgurub.h"
-#include "Containers.h"
 #include "GridNotifiers.h"
 #include "InstanceScript.h"
 #include "ObjectAccessor.h"
@@ -280,6 +279,8 @@ struct boss_mandokir : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -323,6 +324,14 @@ struct npc_ohgan : public ScriptedAI
             if (creature->GetEntry() == NPC_CHAINED_SPIRIT)
                 DoCastAOE(SPELL_OHGAN_ORDERS, true);
         }
+    }
+
+    void UpdateAI(uint32 /*diff*/) override
+    {
+        if (!UpdateVictim())
+            return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -400,6 +409,8 @@ private:
 // 96682 - Decapitate
 class spell_mandokir_decapitate : public SpellScript
 {
+    PrepareSpellScript(spell_mandokir_decapitate);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         if (targets.empty())
@@ -427,6 +438,8 @@ class spell_mandokir_decapitate : public SpellScript
 // 96776 - Bloodletting
 class spell_mandokir_bloodletting : public AuraScript
 {
+    PrepareAuraScript(spell_mandokir_bloodletting);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_BLOODLETTING_DAMAGE, SPELL_BLOODLETTING_HEAL });
@@ -456,6 +469,8 @@ class spell_mandokir_bloodletting : public AuraScript
 // 96821 - Spirit's Vengeance Cancel
 class spell_mandokir_spirit_vengeance_cancel : public SpellScript
 {
+    PrepareSpellScript(spell_mandokir_spirit_vengeance_cancel);
+
     void HandleScript(SpellEffIndex /*effIndex*/)
     {
         if (Player* target = GetHitPlayer())
@@ -492,6 +507,8 @@ class DevastatingSlamTargetSelector
 // 96761 - Devastating Slam
 class spell_mandokir_devastating_slam : public SpellScript
 {
+    PrepareSpellScript(spell_mandokir_devastating_slam);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         targets.remove_if(DevastatingSlamTargetSelector(GetCaster()->ToCreature(), GetCaster()->GetVictim()));
@@ -520,7 +537,7 @@ class spell_mandokir_devastating_slam : public SpellScript
             // HACK: Need better way for pos calculation
             for (uint8 i = 0; i <= 50; ++i)
             {
-                angle = rand_norm() * static_cast<float>(M_PI * 35.0f / 180.0f) - static_cast<float>(M_PI * 17.5f / 180.0f);
+                angle = float(rand_norm()) * static_cast<float>(M_PI * 35.0f / 180.0f) - static_cast<float>(M_PI * 17.5f / 180.0f);
                 caster->GetClosePoint(x, y, z, 4.0f, frand(-2.5f, 50.0f), angle);
 
                 caster->CastSpell(Position{ x, y, z }, SPELL_DEVASTATING_SLAM_DAMAGE, true);
@@ -538,6 +555,8 @@ class spell_mandokir_devastating_slam : public SpellScript
 // 96721 - Ohgan's Orders
 class spell_mandokir_ohgan_orders : public SpellScript
 {
+    PrepareSpellScript(spell_mandokir_ohgan_orders);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         if (targets.empty())
@@ -565,6 +584,8 @@ class spell_mandokir_ohgan_orders : public SpellScript
 // 96722 - Ohgan's Orders
 class spell_mandokir_ohgan_orders_trigger : public AuraScript
 {
+    PrepareAuraScript(spell_mandokir_ohgan_orders_trigger);
+
     void HandleEffectApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         Unit* target = GetTarget();
@@ -588,6 +609,8 @@ class spell_mandokir_ohgan_orders_trigger : public AuraScript
 // 96724 - Reanimate Ohgan
 class spell_mandokir_reanimate_ohgan : public SpellScript
 {
+    PrepareSpellScript(spell_mandokir_reanimate_ohgan);
+
     void HandleScript(SpellEffIndex /*effIndex*/)
     {
         if (Unit* target = GetHitUnit())

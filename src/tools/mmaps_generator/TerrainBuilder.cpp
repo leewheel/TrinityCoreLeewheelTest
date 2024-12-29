@@ -21,7 +21,6 @@
 #include "MapTree.h"
 #include "MMapDefines.h"
 #include "ModelInstance.h"
-#include "StringFormat.h"
 #include "Util.h"
 #include "VMapManager2.h"
 #include <map>
@@ -79,16 +78,17 @@ namespace MMAP
     /**************************************************************************/
     bool TerrainBuilder::loadMap(uint32 mapID, uint32 tileX, uint32 tileY, MeshData &meshData, Spot portion)
     {
-        std::string mapFileName = Trinity::StringFormat("maps/{:04}_{:02}_{:02}.map", mapID, tileY, tileX);
+        char mapFileName[255];
+        sprintf(mapFileName, "maps/%04u_%02u_%02u.map", mapID, tileY, tileX);
 
-        FILE* mapFile = fopen(mapFileName.c_str(), "rb");
+        FILE* mapFile = fopen(mapFileName, "rb");
         if (!mapFile)
         {
             int32 parentMapId = sMapStore[mapID].ParentMapID;
             while (!mapFile && parentMapId != -1)
             {
-                mapFileName = Trinity::StringFormat("maps/{:04}_{:02}_{:02}.map", parentMapId, tileY, tileX);
-                mapFile = fopen(mapFileName.c_str(), "rb");
+                sprintf(mapFileName, "maps/%04d_%02u_%02u.map", parentMapId, tileY, tileX);
+                mapFile = fopen(mapFileName, "rb");
                 parentMapId = sMapStore[parentMapId].ParentMapID;
             }
         }
@@ -101,7 +101,7 @@ namespace MMAP
             fheader.versionMagic != MapVersionMagic)
         {
             fclose(mapFile);
-            printf("%s is the wrong version, please extract new .map files\n", mapFileName.c_str());
+            printf("%s is the wrong version, please extract new .map files\n", mapFileName);
             return false;
         }
 
@@ -448,10 +448,6 @@ namespace MMAP
                             minTLevel = h;
                     }
 
-                    // terrain under the liquid?
-                    if (minLLevel > maxTLevel)
-                        useTerrain = false;
-
                     //liquid under the terrain?
                     if (minTLevel > maxLLevel)
                         useLiquid = false;
@@ -609,20 +605,21 @@ namespace MMAP
 
             for (uint32 i = 0; i < count; ++i)
             {
-                ModelInstance const& instance = models[i];
+                ModelInstance instance = models[i];
 
                 // model instances exist in tree even though there are instances of that model in this tile
-                WorldModel const* worldModel = instance.getWorldModel();
+                WorldModel* worldModel = instance.getWorldModel();
                 if (!worldModel)
                     continue;
 
                 // now we have a model to add to the meshdata
                 retval = true;
 
-                std::vector<GroupModel> const& groupModels = worldModel->getGroupModels();
+                std::vector<GroupModel> groupModels;
+                worldModel->getGroupModels(groupModels);
 
                 // all M2s need to have triangle indices reversed
-                bool isM2 = worldModel->IsM2();
+                bool isM2 = (instance.flags & MOD_M2) != 0;
 
                 // transform data
                 float scale = instance.iScale;
@@ -631,12 +628,14 @@ namespace MMAP
                 position.x -= 32 * GRID_SIZE;
                 position.y -= 32 * GRID_SIZE;
 
-                for (std::vector<GroupModel>::const_iterator it = groupModels.begin(); it != groupModels.end(); ++it)
+                for (std::vector<GroupModel>::iterator it = groupModels.begin(); it != groupModels.end(); ++it)
                 {
-                    std::vector<G3D::Vector3> const& tempVertices = it->GetVertices();
+                    std::vector<G3D::Vector3> tempVertices;
                     std::vector<G3D::Vector3> transformedVertices;
-                    std::vector<MeshTriangle> const& tempTriangles = it->GetTriangles();
-                    WmoLiquid const* liquid = it->GetLiquid();
+                    std::vector<MeshTriangle> tempTriangles;
+                    WmoLiquid* liquid = nullptr;
+
+                    it->getMeshData(tempVertices, tempTriangles, liquid);
 
                     // first handle collision mesh
                     transform(tempVertices, transformedVertices, scale, rotation, position);
@@ -656,8 +655,8 @@ namespace MMAP
                         liquid->getPosInfo(tilesX, tilesY, corner);
                         vertsX = tilesX + 1;
                         vertsY = tilesY + 1;
-                        uint8 const* flags = liquid->GetFlagsStorage();
-                        float const* data = liquid->GetHeightStorage();
+                        uint8* flags = liquid->GetFlagsStorage();
+                        float* data = liquid->GetHeightStorage();
                         uint8 type = NAV_AREA_EMPTY;
 
                         // convert liquid type to NavTerrain
@@ -733,13 +732,12 @@ namespace MMAP
     }
 
     /**************************************************************************/
-    void TerrainBuilder::transform(std::vector<G3D::Vector3> const& source, std::vector<G3D::Vector3>& transformedVertices, float scale, G3D::Matrix3 const& rotation, G3D::Vector3 const& position)
+    void TerrainBuilder::transform(std::vector<G3D::Vector3> &source, std::vector<G3D::Vector3> &transformedVertices, float scale, G3D::Matrix3 &rotation, G3D::Vector3 &position)
     {
-        transformedVertices.reserve(transformedVertices.size() + source.size());
-        for (G3D::Vector3 const& vertex : source)
+        for (std::vector<G3D::Vector3>::iterator it = source.begin(); it != source.end(); ++it)
         {
             // apply tranform, then mirror along the horizontal axes
-            G3D::Vector3 v(vertex * rotation * scale + position);
+            G3D::Vector3 v((*it) * rotation * scale + position);
             v.x *= -1.f;
             v.y *= -1.f;
             transformedVertices.push_back(v);
@@ -747,46 +745,43 @@ namespace MMAP
     }
 
     /**************************************************************************/
-    void TerrainBuilder::copyVertices(std::vector<G3D::Vector3> const& source, G3D::Array<float>& dest)
+    void TerrainBuilder::copyVertices(std::vector<G3D::Vector3> &source, G3D::Array<float> &dest)
     {
-        dest.reserve(dest.size() + source.size() * 3);
-        for (G3D::Vector3 const& vertex : source)
+        for (std::vector<G3D::Vector3>::iterator it = source.begin(); it != source.end(); ++it)
         {
-            dest.push_back(vertex.y);
-            dest.push_back(vertex.z);
-            dest.push_back(vertex.x);
+            dest.push_back((*it).y);
+            dest.push_back((*it).z);
+            dest.push_back((*it).x);
         }
     }
 
     /**************************************************************************/
-    void TerrainBuilder::copyIndices(std::vector<MeshTriangle> const& source, G3D::Array<int>& dest, int offset, bool flip)
+    void TerrainBuilder::copyIndices(std::vector<MeshTriangle> &source, G3D::Array<int> &dest, int offset, bool flip)
     {
-        dest.reserve(dest.size() + source.size() * 3);
         if (flip)
         {
-            for (MeshTriangle const& triangle : source)
+            for (std::vector<MeshTriangle>::iterator it = source.begin(); it != source.end(); ++it)
             {
-                dest.push_back(triangle.idx2 + offset);
-                dest.push_back(triangle.idx1 + offset);
-                dest.push_back(triangle.idx0 + offset);
+                dest.push_back((*it).idx2+offset);
+                dest.push_back((*it).idx1+offset);
+                dest.push_back((*it).idx0+offset);
             }
         }
         else
         {
-            for (MeshTriangle const& triangle : source)
+            for (std::vector<MeshTriangle>::iterator it = source.begin(); it != source.end(); ++it)
             {
-                dest.push_back(triangle.idx0 + offset);
-                dest.push_back(triangle.idx1 + offset);
-                dest.push_back(triangle.idx2 + offset);
+                dest.push_back((*it).idx0+offset);
+                dest.push_back((*it).idx1+offset);
+                dest.push_back((*it).idx2+offset);
             }
         }
     }
 
     /**************************************************************************/
-    void TerrainBuilder::copyIndices(G3D::Array<int> const& source, G3D::Array<int>& dest, int offset)
+    void TerrainBuilder::copyIndices(G3D::Array<int> &source, G3D::Array<int> &dest, int offset)
     {
-        int const* src = source.getCArray();
-        dest.reserve(dest.size() + source.size());
+        int* src = source.getCArray();
         for (int32 i = 0; i < source.size(); ++i)
             dest.append(src[i] + offset);
     }
@@ -835,26 +830,51 @@ namespace MMAP
     }
 
     /**************************************************************************/
-    void TerrainBuilder::loadOffMeshConnections(uint32 mapID, uint32 tileX, uint32 tileY, MeshData &meshData, std::vector<OffMeshData> const& offMeshConnections)
+    void TerrainBuilder::loadOffMeshConnections(uint32 mapID, uint32 tileX, uint32 tileY, MeshData &meshData, char const* offMeshFilePath)
     {
-        for (OffMeshData const& offMeshConnection : offMeshConnections)
+        // no meshfile input given?
+        if (offMeshFilePath == nullptr)
+            return;
+
+        FILE* fp = fopen(offMeshFilePath, "rb");
+        if (!fp)
         {
-            if (mapID != offMeshConnection.MapId || tileX != offMeshConnection.TileX || tileY != offMeshConnection.TileY)
+            printf(" loadOffMeshConnections:: input file %s not found!\n", offMeshFilePath);
+            return;
+        }
+
+        // pretty silly thing, as we parse entire file and load only the tile we need
+        // but we don't expect this file to be too large
+        char* buf = new char[512];
+        while(fgets(buf, 512, fp))
+        {
+            float p0[3], p1[3];
+            uint32 mid, tx, ty;
+            float size;
+            if (sscanf(buf, "%u %u,%u (%f %f %f) (%f %f %f) %f", &mid, &tx, &ty,
+                &p0[0], &p0[1], &p0[2], &p1[0], &p1[1], &p1[2], &size) != 10)
                 continue;
 
-            meshData.offMeshConnections.append(offMeshConnection.From[1]);
-            meshData.offMeshConnections.append(offMeshConnection.From[2]);
-            meshData.offMeshConnections.append(offMeshConnection.From[0]);
+            if (mapID == mid && tileX == tx && tileY == ty)
+            {
+                meshData.offMeshConnections.append(p0[1]);
+                meshData.offMeshConnections.append(p0[2]);
+                meshData.offMeshConnections.append(p0[0]);
 
-            meshData.offMeshConnections.append(offMeshConnection.To[1]);
-            meshData.offMeshConnections.append(offMeshConnection.To[2]);
-            meshData.offMeshConnections.append(offMeshConnection.To[0]);
+                meshData.offMeshConnections.append(p1[1]);
+                meshData.offMeshConnections.append(p1[2]);
+                meshData.offMeshConnections.append(p1[0]);
 
-            meshData.offMeshConnectionDirs.append(offMeshConnection.Bidirectional ? 1 : 0);
-            meshData.offMeshConnectionRads.append(offMeshConnection.Radius);    // agent size equivalent
-            // can be used same way as polygon flags
-            meshData.offMeshConnectionsAreas.append(offMeshConnection.AreaId);
-            meshData.offMeshConnectionsFlags.append(offMeshConnection.Flags);
+                meshData.offMeshConnectionDirs.append(1);          // 1 - both direction, 0 - one sided
+                meshData.offMeshConnectionRads.append(size);       // agent size equivalent
+                // can be used same way as polygon flags
+                meshData.offMeshConnectionsAreas.append((unsigned char)0xFF);
+                meshData.offMeshConnectionsFlags.append((unsigned short)0xFF);  // all movement masks can make this path
+            }
+
         }
+
+        delete [] buf;
+        fclose(fp);
     }
 }

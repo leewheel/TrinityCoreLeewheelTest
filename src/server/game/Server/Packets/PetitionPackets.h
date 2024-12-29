@@ -241,4 +241,6 @@ namespace WorldPackets
     }
 }
 
+ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Petition::PetitionInfo const& petitionInfo);
+
 #endif // PetitionPackets_h__

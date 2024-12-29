@@ -229,6 +229,8 @@ public:
                     SummonTito();
                 else SummonTitoTimer -= diff;
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -289,6 +291,8 @@ public:
                 DoCastVictim(SPELL_YIPPING);
                 YipTimer = 10000;
             } else YipTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -419,6 +423,8 @@ public:
                     DoCast(target, SPELL_BRAIN_WIPE);
                 BrainWipeTimer = 20000;
             } else BrainWipeTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -532,6 +538,8 @@ public:
                     RustTimer = 6000;
                 } else RustTimer -= diff;
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -644,6 +652,8 @@ public:
                 DoCastVictim(SPELL_FRIGHTENED_SCREAM);
                 ScreamTimer = urand(20000, 30000);
             } else ScreamTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -727,6 +737,8 @@ public:
                 DoCastVictim(SPELL_CHAIN_LIGHTNING);
                 ChainLightningTimer = 15000;
             } else ChainLightningTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -902,6 +914,8 @@ public:
             if (!UpdateVictim())
                 return;
 
+            DoMeleeAttackIfReady();
+
             if (ChaseTimer <= diff)
             {
                 if (!IsChasing)
@@ -1005,7 +1019,7 @@ void PretendToDie(Creature* creature)
     creature->InterruptNonMeleeSpells(true);
     creature->RemoveAllAuras();
     creature->SetHealth(0);
-    creature->SetUninteractible(true);
+    creature->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
     creature->GetMotionMaster()->Clear();
     creature->GetMotionMaster()->MoveIdle();
     creature->SetStandState(UNIT_STAND_STATE_DEAD);
@@ -1013,7 +1027,7 @@ void PretendToDie(Creature* creature)
 
 void Resurrect(Creature* target)
 {
-    target->SetUninteractible(false);
+    target->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
     target->SetFullHealth();
     target->SetStandState(UNIT_STAND_STATE_STAND);
     target->CastSpell(target, SPELL_RES_VISUAL, true);
@@ -1238,7 +1252,7 @@ public:
                 {
                     if (Creature* Julianne = (ObjectAccessor::GetCreature((*me), JulianneGUID)))
                     {
-                        Julianne->SetUninteractible(false);
+                        Julianne->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                         Julianne->GetMotionMaster()->Clear();
                         Julianne->setDeathState(JUST_DIED);
                         Julianne->CombatStop(true);
@@ -1344,6 +1358,8 @@ public:
                 DoCastVictim(SPELL_POISON_THRUST);
                 PoisonThrustTimer = urand(10000, 20000);
             } else PoisonThrustTimer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 };
@@ -1464,6 +1480,8 @@ void boss_julianne::boss_julianneAI::UpdateAI(uint32 diff)
 
         EternalAffectionTimer = urand(45000, 60000);
     } else EternalAffectionTimer -= diff;
+
+    DoMeleeAttackIfReady();
 }
 
 void boss_julianne::boss_julianneAI::DamageTaken(Unit* /*done_by*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/)
@@ -1503,7 +1521,7 @@ void boss_julianne::boss_julianneAI::DamageTaken(Unit* /*done_by*/, uint32& dama
         {
             if (Creature* Romulo = (ObjectAccessor::GetCreature((*me), RomuloGUID)))
             {
-                Romulo->SetUninteractible(false);
+                Romulo->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 Romulo->GetMotionMaster()->Clear();
                 Romulo->setDeathState(JUST_DIED);
                 Romulo->CombatStop(true);

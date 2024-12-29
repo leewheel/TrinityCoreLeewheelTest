@@ -64,6 +64,8 @@ struct boss_wushoolay : public BossAI
                 return;
         }
         */
+
+        DoMeleeAttackIfReady();
     }
 };
 

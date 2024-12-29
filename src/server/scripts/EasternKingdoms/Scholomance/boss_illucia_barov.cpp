@@ -97,6 +97,8 @@ class boss_illucia_barov : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
         };
 

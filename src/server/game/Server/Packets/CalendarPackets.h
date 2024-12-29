@@ -23,7 +23,6 @@
 #include "ObjectGuid.h"
 #include "Optional.h"
 #include "PacketUtilities.h"
-#include "WowTime.h"
 
 namespace WorldPackets
 {
@@ -77,7 +76,7 @@ namespace WorldPackets
             std::string Description;
             uint8 EventType = 0;
             int32 TextureID = 0;
-            WowTime Time;
+            time_t Time = time_t(0);
             uint32 Flags = 0;
             Array<CalendarAddEventInviteInfo, CALENDAR_MAX_INVITES> Invites;
         };
@@ -102,8 +101,8 @@ namespace WorldPackets
             std::string Description;
             uint8 EventType = 0;
             uint32 TextureID = 0;
-            WowTime Time;
-            uint16 Flags = 0;
+            time_t Time = time_t(0);
+            uint32 Flags = 0;
         };
 
         class CalendarUpdateEvent final : public ClientPacket
@@ -140,7 +139,7 @@ namespace WorldPackets
             uint64 ModeratorID = 0;
             uint64 EventID = 0;
             uint64 EventClubID = 0;
-            WowTime Date;
+            time_t Date = time_t(0);
         };
 
         class CalendarInviteAdded final : public ServerPacket
@@ -151,7 +150,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             uint64 InviteID = 0;
-            WowTime ResponseTime;
+            time_t ResponseTime = time_t(0);
             uint8 Level = 100;
             ObjectGuid InviteGuid;
             uint64 EventID = 0;
@@ -168,7 +167,6 @@ namespace WorldPackets
             uint8 Status = 0;
             uint8 Moderator = 0;
             uint8 InviteType = 0;
-            bool IgnoreFriendAndGuildRestriction = false;
         };
 
         struct CalendarSendCalendarRaidLockoutInfo
@@ -176,7 +174,7 @@ namespace WorldPackets
             uint64 InstanceID = 0;
             int32 MapID = 0;
             uint32 DifficultyID = 0;
-            int32 ExpireTime = 0;
+            time_t ExpireTime = time_t(0);
         };
 
         struct CalendarSendCalendarEventInfo
@@ -184,8 +182,8 @@ namespace WorldPackets
             uint64 EventID = 0;
             std::string EventName;
             uint8 EventType = 0;
-            WowTime Date;
-            uint16 Flags = 0;
+            time_t Date = time_t(0);
+            uint32 Flags = 0;
             int32 TextureID = 0;
             uint64 EventClubID = 0;
             ObjectGuid OwnerGuid;
@@ -198,7 +196,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            WowTime ServerTime;
+            time_t ServerTime = time_t(0);
             std::vector<CalendarSendCalendarInviteInfo> Invites;
             std::vector<CalendarSendCalendarRaidLockoutInfo> RaidLockouts;
             std::vector<CalendarSendCalendarEventInfo> Events;
@@ -208,7 +206,7 @@ namespace WorldPackets
         {
             ObjectGuid Guid;
             uint64 InviteID = 0;
-            WowTime ResponseTime;
+            time_t ResponseTime = time_t(0);
             uint8 Level = 1;
             uint8 Status = 0;
             uint8 Moderator = 0;
@@ -226,9 +224,9 @@ namespace WorldPackets
             ObjectGuid OwnerGuid;
             uint64 EventClubID = 0;
             uint64 EventID = 0;
-            WowTime Date;
-            WowTime LockDate;
-            uint16 Flags = 0;
+            time_t Date = time_t(0);
+            time_t LockDate = time_t(0);
+            uint32 Flags = 0;
             int32 TextureID = 0;
             uint8 GetEventType = 0;
             uint8 EventType = 0;
@@ -249,14 +247,13 @@ namespace WorldPackets
             ObjectGuid InvitedByGuid;
             uint64 InviteID = 0;
             uint64 EventID = 0;
-            uint16 Flags = 0;
-            WowTime Date;
+            uint32 Flags = 0;
+            time_t Date = time_t(0);
             int32 TextureID = 0;
             uint8 Status = 0;
             uint8 EventType = 0;
             uint8 ModeratorStatus = 0;
             std::string EventName;
-            bool Unknown_1100 = false;
         };
 
         class CalendarInvite final : public ClientPacket
@@ -297,8 +294,8 @@ namespace WorldPackets
             uint64 EventID = 0;
             uint8 Status = 0;
             bool ClearPending = false;
-            WowTime ResponseTime;
-            WowTime Date;
+            time_t ResponseTime = time_t(0);
+            time_t Date = time_t(0);
             ObjectGuid InviteGuid;
         };
 
@@ -336,7 +333,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             uint64 EventID = 0;
-            WowTime Date;
+            time_t Date = time_t(0);
             uint32 Flags = 0;
             uint8 Status = 0;
         };
@@ -358,10 +355,10 @@ namespace WorldPackets
 
             uint64 EventClubID = 0;
             uint64 EventID = 0;
-            WowTime Date;
-            uint16 Flags = 0;
-            WowTime LockDate;
-            WowTime OriginalDate;
+            time_t Date = time_t(0);
+            uint32 Flags = 0;
+            time_t LockDate = time_t(0);
+            time_t OriginalDate = time_t(0);
             int32 TextureID = 0;
             uint8 EventType = 0;
             bool ClearPending = false;
@@ -377,7 +374,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             uint64 EventID = 0;
-            WowTime Date;
+            time_t Date = time_t(0);
             bool ClearPending = false;
         };
 
@@ -439,6 +436,18 @@ namespace WorldPackets
             uint8 Status = 0;
         };
 
+        class SetSavedInstanceExtend final : public ClientPacket
+        {
+        public:
+            SetSavedInstanceExtend(WorldPacket&& packet) : ClientPacket(CMSG_SET_SAVED_INSTANCE_EXTEND, std::move(packet)) { }
+
+            void Read() override;
+
+            int32 MapID = 0;
+            bool Extend = false;
+            uint32 DifficultyID = 0;
+        };
+
         class CalendarModeratorStatusQuery final : public ClientPacket
         {
         public:
@@ -476,7 +485,7 @@ namespace WorldPackets
             uint64 InstanceID = 0;
             uint32 DifficultyID = 0;
             int32 TimeRemaining = 0;
-            WowTime ServerTime;
+            uint32 ServerTime = 0;
             int32 MapID = 0;
         };
 
@@ -499,11 +508,11 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            WowTime ServerTime;
             int32 MapID = 0;
+            int32 OldTimeRemaining = 0;
+            time_t ServerTime = 0;
             uint32 DifficultyID = 0;
             int32 NewTimeRemaining = 0;
-            int32 OldTimeRemaining = 0;
         };
 
         struct CalendarEventInitialInviteInfo
@@ -533,7 +542,7 @@ namespace WorldPackets
 
             uint64 EventID = 0;
             uint32 Flags = 0;
-            WowTime Date;
+            time_t Date = time_t(0);
             uint8 Status = 0;
         };
 

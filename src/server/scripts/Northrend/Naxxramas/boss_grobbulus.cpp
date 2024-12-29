@@ -121,6 +121,8 @@ struct boss_grobbulus : public BossAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -174,6 +176,8 @@ struct npc_fallout_slime : public ScriptedAI
 
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -184,6 +188,8 @@ private:
 // 28169 - Mutating Injection
 class spell_grobbulus_mutating_injection : public AuraScript
 {
+    PrepareAuraScript(spell_grobbulus_mutating_injection);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_MUTATING_EXPLOSION, SPELL_POISON_CLOUD });
@@ -213,9 +219,11 @@ class spell_grobbulus_mutating_injection : public AuraScript
 // 28158, 54362 - Poison
 class spell_grobbulus_poison_cloud : public AuraScript
 {
+    PrepareAuraScript(spell_grobbulus_poison_cloud);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_0 } })
+        return !spellInfo->GetEffects().empty()
             && ValidateSpellInfo({ spellInfo->GetEffect(EFFECT_0).TriggerSpell });
     }
 
@@ -226,7 +234,7 @@ class spell_grobbulus_poison_cloud : public AuraScript
             return;
 
         uint32 triggerSpell = aurEff->GetSpellEffectInfo().TriggerSpell;
-        float mod = ((float(aurEff->GetTickNumber()) / aurEff->GetTotalTicks()) * 0.9f + 0.1f) * 2 / 3;
+        int32 mod = int32(((float(aurEff->GetTickNumber()) / aurEff->GetTotalTicks()) * 0.9f + 0.1f) * 10000 * 2 / 3);
 
         CastSpellExtraArgs args(aurEff);
         args.AddSpellMod(SPELLVALUE_RADIUS_MOD, mod);

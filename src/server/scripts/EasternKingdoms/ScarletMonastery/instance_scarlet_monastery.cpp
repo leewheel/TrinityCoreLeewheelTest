@@ -51,17 +51,6 @@ ObjectData const gameObjectData[] =
     { 0,                        0                          } // END
 };
 
-static constexpr DungeonEncounterData Encounters[] =
-{
-    { DATA_INTERROGATOR_VISHAS, { { 444 } } },
-    { DATA_BLOODMAGE_THALNOS, { { 2818 } } },
-    { DATA_HOUNDMASTER_LOKSEY, { { 446 } } },
-    { DATA_ARCANIST_DOAN, { { 447 } } },
-    { DATA_HEROD, { { 448 } } },
-    { DATA_HIGH_INQUISITOR_FAIRBANKS, { { 449 } } },
-    { DATA_MOGRAINE_AND_WHITE_EVENT, { { 450 } } },
-};
-
 class instance_scarlet_monastery : public InstanceMapScript
 {
     public:
@@ -74,7 +63,6 @@ class instance_scarlet_monastery : public InstanceMapScript
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadObjectData(creatureData, gameObjectData);
-                LoadDungeonEncounterData(Encounters);
                 _horsemanState = NOT_STARTED;
             }
 

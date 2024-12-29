@@ -28,11 +28,10 @@
 #include "Player.h"
 #include "Position.h"
 #include "SharedDefines.h"
-#include "WowTime.h"
 #include <array>
 #include <map>
 
-enum class CountdownTimerType : int32;
+enum MountStatusFlags : uint8;
 enum UnitStandStateType : uint8;
 enum WeatherState : uint32;
 
@@ -64,6 +63,17 @@ namespace WorldPackets
             uint32 AreaID = 0;
         };
 
+        class BinderConfirm final : public ServerPacket
+        {
+        public:
+            BinderConfirm() : ServerPacket(SMSG_BINDER_CONFIRM, 16) { }
+            BinderConfirm(ObjectGuid unit) : ServerPacket(SMSG_BINDER_CONFIRM, 16), Unit(unit) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Unit;
+        };
+
         class InvalidatePlayer final : public ServerPacket
         {
         public:
@@ -83,8 +93,8 @@ namespace WorldPackets
 
             float NewSpeed = 0.0f;
             int32 ServerTimeHolidayOffset = 0;
-            WowTime GameTime;
-            WowTime ServerTime;
+            uint32 GameTime = 0;
+            uint32 ServerTime = 0;
             int32 GameTimeHolidayOffset = 0;
         };
 
@@ -105,19 +115,14 @@ namespace WorldPackets
 
             int32 Type = 0;
             int32 Quantity = 0;
-            CurrencyGainFlags Flags = CurrencyGainFlags(0);
-            std::vector<Item::UiEventToast> Toasts;
+            uint32 Flags = 0;
             Optional<int32> WeeklyQuantity;
             Optional<int32> TrackedQuantity;
             Optional<int32> MaxQuantity;
-            Optional<int32> TotalEarned;
+            Optional<int32> Unused901;
             Optional<int32> QuantityChange;
-            Optional<CurrencyGainSource> QuantityGainSource;
-            Optional<CurrencyDestroyReason> QuantityLostSource;
-            Optional<uint32> FirstCraftOperationID;
-            Optional<Timestamp<>> NextRechargeTime;
-            Optional<Timestamp<>> RechargeCycleStartTime;
-            Optional<int32> OverflownCurrencyID;    // what currency was originally changed but couldn't be incremented because of a cap
+            Optional<int32> QuantityGainSource;
+            Optional<int32> QuantityLostSource;
             bool SuppressChatLog = false;
         };
 
@@ -142,10 +147,8 @@ namespace WorldPackets
                 Optional<int32> MaxWeeklyQuantity;    // Weekly Currency cap.
                 Optional<int32> TrackedQuantity;
                 Optional<int32> MaxQuantity;
-                Optional<int32> TotalEarned;
-                Optional<Timestamp<>> NextRechargeTime;
-                Optional<Timestamp<>> RechargeCycleStartTime;
-                uint8 Flags = 0;
+                Optional<int32> Unused901;
+                uint8 Flags = 0;                      // 0 = none,
             };
 
             SetupCurrency() : ServerPacket(SMSG_SETUP_CURRENCY, 22) { }
@@ -242,7 +245,7 @@ namespace WorldPackets
         class TutorialSetFlag final : public ClientPacket
         {
         public:
-            TutorialSetFlag(WorldPacket&& packet) : ClientPacket(CMSG_TUTORIAL, std::move(packet)) { }
+            TutorialSetFlag(WorldPacket&& packet) : ClientPacket(CMSG_TUTORIAL_FLAG, std::move(packet)) { }
 
             void Read() override;
 
@@ -260,6 +263,8 @@ namespace WorldPackets
             uint32 DifficultyID     = 0;
             bool IsTournamentRealm  = false;
             bool XRealmPvpAlert     = false;
+            bool BlockExitingLoadingScreen = false;     // when set to true, sending SMSG_UPDATE_OBJECT with CreateObject Self bit = true will not hide loading screen
+                                                        // instead it will be done after this packet is sent again with false in this bit and SMSG_UPDATE_OBJECT Values for player
             Optional<uint32> RestrictedAccountMaxLevel;
             Optional<uint64> RestrictedAccountMaxMoney;
             Optional<uint32> InstanceGroupSize;
@@ -294,6 +299,16 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             int32 DifficultyID = 0;
+        };
+
+        class SetAllTaskProgress : public ServerPacket
+        {
+        public:
+            SetAllTaskProgress() : ServerPacket(SMSG_SET_ALL_TASK_PROGRESS, 4) {}
+
+            WorldPacket const* Write() override;
+
+            //TODOFROST - see hermes source
         };
 
         class RaidDifficultySet final : public ServerPacket
@@ -497,7 +512,7 @@ namespace WorldPackets
         class LevelUpInfo final : public ServerPacket
         {
         public:
-            LevelUpInfo() : ServerPacket(SMSG_LEVEL_UP_INFO, 76) { }
+            LevelUpInfo() : ServerPacket(SMSG_LEVEL_UP_INFO, 60) { }
 
             WorldPacket const* Write() override;
 
@@ -529,7 +544,7 @@ namespace WorldPackets
 
             int32 Min = 0;
             int32 Max = 0;
-            Optional<uint8> PartyIndex;
+            uint8 PartyIndex = 0;
         };
 
         class RandomRoll final : public ServerPacket
@@ -549,16 +564,14 @@ namespace WorldPackets
         class EnableBarberShop final : public ServerPacket
         {
         public:
-            EnableBarberShop() : ServerPacket(SMSG_ENABLE_BARBER_SHOP, 1) { }
+            EnableBarberShop() : ServerPacket(SMSG_ENABLE_BARBER_SHOP, 0) { }
 
-            WorldPacket const* Write() override;
-
-            uint8 CustomizationScope = 0;
+            WorldPacket const* Write() override { return &_worldPacket; }
         };
 
         struct PhaseShiftDataPhase
         {
-            uint32 PhaseFlags = 0;
+            uint16 PhaseFlags = 0;
             uint16 Id = 0;
         };
 
@@ -627,8 +640,6 @@ namespace WorldPackets
         {
         public:
             PlayObjectSound() : ServerPacket(SMSG_PLAY_OBJECT_SOUND, 16 + 16 + 4 + 4 * 3) { }
-            PlayObjectSound(ObjectGuid targetObjectGUID, ObjectGuid sourceObjectGUID, int32 soundKitID, TaggedPosition<::Position::XYZ> position, int32 broadcastTextID) : ServerPacket(SMSG_PLAY_OBJECT_SOUND, 16 + 16 + 4 + 4 * 3),
-                TargetObjectGUID(targetObjectGUID), SourceObjectGUID(sourceObjectGUID), SoundKitID(soundKitID), Position(position), BroadcastTextID(broadcastTextID) { }
 
             WorldPacket const* Write() override;
 
@@ -653,9 +664,10 @@ namespace WorldPackets
             int32 BroadcastTextID = 0;
         };
 
-        class PlaySpeakerbotSound final : public ServerPacket
+        class TC_GAME_API PlaySpeakerbotSound final : public ServerPacket
         {
         public:
+            PlaySpeakerbotSound() : ServerPacket(SMSG_PLAY_SPEAKERBOT_SOUND, 20) { }
             PlaySpeakerbotSound(ObjectGuid const& sourceObjectGUID, int32 soundKitID)
                 : ServerPacket(SMSG_PLAY_SPEAKERBOT_SOUND, 20), SourceObjectGUID(sourceObjectGUID), SoundKitID(soundKitID) { }
 
@@ -663,17 +675,6 @@ namespace WorldPackets
 
             ObjectGuid SourceObjectGUID;
             int32 SoundKitID = 0;
-        };
-
-        class StopSpeakerbotSound final : public ServerPacket
-        {
-        public:
-            StopSpeakerbotSound(ObjectGuid const& sourceObjectGUID)
-                : ServerPacket(SMSG_STOP_SPEAKERBOT_SOUND, 16), SourceObjectGUID(sourceObjectGUID) { }
-
-            WorldPacket const* Write() override;
-
-            ObjectGuid SourceObjectGUID;
         };
 
         class CompleteCinematic final : public ClientPacket
@@ -811,6 +812,16 @@ namespace WorldPackets
             bool EnablePVP = false;
         };
 
+        class SetWarMode final : public ClientPacket
+        {
+        public:
+            SetWarMode(WorldPacket&& packet) : ClientPacket(CMSG_SET_WAR_MODE, std::move(packet)) { }
+
+            void Read() override;
+
+            bool Enable = false;
+        };
+
         class AccountHeirloomUpdate final : public ServerPacket
         {
         public:
@@ -929,23 +940,20 @@ namespace WorldPackets
         class StartTimer final : public ServerPacket
         {
         public:
+            enum TimerType : int32
+            {
+                Pvp             = 0,
+                ChallengeMode   = 1,
+                PlayerCountdown = 2
+            };
+
             StartTimer() : ServerPacket(SMSG_START_TIMER, 12) { }
 
             WorldPacket const* Write() override;
 
             Duration<Seconds> TotalTime;
             Duration<Seconds> TimeLeft;
-            CountdownTimerType Type = {};
-        };
-
-        class QueryCountdownTimer final : public ClientPacket
-        {
-        public:
-            QueryCountdownTimer(WorldPacket&& packet) : ClientPacket(CMSG_QUERY_COUNTDOWN_TIMER, std::move(packet)) { }
-
-            void Read() override;
-
-            CountdownTimerType TimerType = {};
+            TimerType Type = Pvp;
         };
 
         class ConversationLineStarted final : public ClientPacket
@@ -957,6 +965,14 @@ namespace WorldPackets
 
             ObjectGuid ConversationGUID;
             uint32 LineID = 0;
+        };
+
+        class RequestLatestSplashScreen final : public ClientPacket
+        {
+        public:
+            RequestLatestSplashScreen(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_LATEST_SPLASH_SCREEN, std::move(packet)) { }
+
+            void Read() override { }
         };
 
         class SplashScreenShowLatest final : public ServerPacket
@@ -987,6 +1003,28 @@ namespace WorldPackets
             int32 LootSpec = 0;
             ::Gender Gender = GENDER_NONE;
             uint32 CurrencyID = 0;
+        };
+
+        class RequestConquestFormulaConstants final : public ClientPacket
+        {
+        public:
+            RequestConquestFormulaConstants(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class ConquestFormulaConstants final : public ServerPacket
+        {
+        public:
+            ConquestFormulaConstants() : ServerPacket(SMSG_CONQUEST_FORMULA_CONSTANTS, 20) { }
+
+            WorldPacket const* Write() override;
+
+            int32 PvpMinCPPerWeek;
+            int32 PvpMaxCPPerWeek;
+            float PvpCPBaseCoefficient;
+            float PvpCPExpCoefficient;
+            float PvpCPNumerator;
         };
     }
 }

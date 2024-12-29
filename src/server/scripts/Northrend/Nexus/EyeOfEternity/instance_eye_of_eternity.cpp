@@ -30,11 +30,6 @@ BossBoundaryData const boundaries =
     { DATA_MALYGOS_EVENT, new CircleBoundary(Position(754.362f, 1301.609985f), 280.0) } // sanity check boundary
 };
 
-DungeonEncounterData const encounters[] =
-{
-    { DATA_MALYGOS_EVENT, {{ 1094 }} }
-};
-
 class instance_eye_of_eternity : public InstanceMapScript
 {
 public:
@@ -52,7 +47,6 @@ public:
             SetHeaders(DataHeader);
             SetBossNumber(MAX_ENCOUNTER);
             LoadBossBoundaries(boundaries);
-            LoadDungeonEncounterData(encounters);
         }
 
         void OnPlayerEnter(Player* player) override

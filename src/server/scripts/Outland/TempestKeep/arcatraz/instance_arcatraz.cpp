@@ -24,17 +24,9 @@
 
 DoorData const doorData[] =
 {
-    { GO_CONTAINMENT_CORE_SECURITY_FIELD_ALPHA, DATA_SOCCOTHRATES,  EncounterDoorBehavior::OpenWhenDone },
-    { GO_CONTAINMENT_CORE_SECURITY_FIELD_BETA,  DATA_DALLIAH,       EncounterDoorBehavior::OpenWhenDone },
-    { 0,                                        0,                  EncounterDoorBehavior::OpenWhenNotInProgress } // END
-};
-
-DungeonEncounterData const encounters[] =
-{
-    { DATA_ZEREKETH, {{ 1916 }} },
-    { DATA_DALLIAH, {{ 1913 }} },
-    { DATA_SOCCOTHRATES, {{ 1915 }} },
-    { DATA_HARBINGER_SKYRISS, {{ 1914 }} }
+    { GO_CONTAINMENT_CORE_SECURITY_FIELD_ALPHA, DATA_SOCCOTHRATES,  DOOR_TYPE_PASSAGE },
+    { GO_CONTAINMENT_CORE_SECURITY_FIELD_BETA,  DATA_DALLIAH,       DOOR_TYPE_PASSAGE },
+    { 0,                                        0,                  DOOR_TYPE_ROOM } // END
 };
 
 class instance_arcatraz : public InstanceMapScript
@@ -49,7 +41,6 @@ class instance_arcatraz : public InstanceMapScript
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadDoorData(doorData);
-                LoadDungeonEncounterData(encounters);
 
                 ConversationState = NOT_STARTED;
 

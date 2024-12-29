@@ -123,6 +123,18 @@ void WorldSession::SendTaxiMenu(Creature* unit)
     GetPlayer()->SetTaxiCheater(lastTaxiCheaterState);
 }
 
+void WorldSession::SendDoFlight(uint32 mountDisplayId, uint32 path, uint32 pathNode)
+{
+    // remove fake death
+    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
+        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
+
+    if (mountDisplayId)
+        GetPlayer()->Mount(mountDisplayId);
+
+    GetPlayer()->GetMotionMaster()->MoveTaxiFlight(path, pathNode);
+}
+
 bool WorldSession::SendLearnNewTaxiNode(Creature* unit)
 {
     // find current node
@@ -133,7 +145,7 @@ bool WorldSession::SendLearnNewTaxiNode(Creature* unit)
 
     if (GetPlayer()->m_taxi.SetTaximaskNode(curloc))
     {
-        SendPacket(WorldPackets::Taxi::NewTaxiPath(curloc).Write());
+        SendPacket(WorldPackets::Taxi::NewTaxiPath().Write());
 
         WorldPackets::Taxi::TaxiNodeStatus data;
         data.Unit = unit->GetGUID();
@@ -149,7 +161,7 @@ bool WorldSession::SendLearnNewTaxiNode(Creature* unit)
 void WorldSession::SendDiscoverNewTaxiNode(uint32 nodeid)
 {
     if (GetPlayer()->m_taxi.SetTaximaskNode(nodeid))
-        SendPacket(WorldPackets::Taxi::NewTaxiPath(nodeid).Write());
+        SendPacket(WorldPackets::Taxi::NewTaxiPath().Write());
 }
 
 void WorldSession::HandleActivateTaxiOpcode(WorldPackets::Taxi::ActivateTaxi& activateTaxi)
@@ -190,7 +202,10 @@ void WorldSession::HandleActivateTaxiOpcode(WorldPackets::Taxi::ActivateTaxi& ac
                 DB2Manager::MountXDisplayContainer usableDisplays;
                 std::copy_if(mountDisplays->begin(), mountDisplays->end(), std::back_inserter(usableDisplays), [this](MountXDisplayEntry const* mountDisplay)
                 {
-                    return ConditionMgr::IsPlayerMeetingCondition(GetPlayer(), mountDisplay->PlayerConditionID);
+                    if (PlayerConditionEntry const* playerCondition = sPlayerConditionStore.LookupEntry(mountDisplay->PlayerConditionID))
+                        return sConditionMgr->IsPlayerMeetingCondition(GetPlayer(), playerCondition);
+
+                    return true;
                 });
 
                 if (!usableDisplays.empty())

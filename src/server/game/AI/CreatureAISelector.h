@@ -18,8 +18,6 @@
 #ifndef TRINITY_CREATUREAISELECTOR_H
 #define TRINITY_CREATUREAISELECTOR_H
 
-#include "Define.h"
-
 class CreatureAI;
 class Creature;
 class MovementGenerator;

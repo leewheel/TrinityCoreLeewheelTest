@@ -51,3 +51,10 @@ WorldPacket const* WorldPackets::Transmogrification::AccountTransmogUpdate::Writ
 
     return &_worldPacket;
 }
+
+WorldPacket const* WorldPackets::Transmogrification::TransmogrifyNPC::Write()
+{
+    _worldPacket << Guid;
+
+    return &_worldPacket;
+}

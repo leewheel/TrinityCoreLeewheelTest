@@ -31,14 +31,13 @@ using ChatSubCommandMap = std::map<std::string_view, Trinity::Impl::ChatCommands
 
 void Trinity::Impl::ChatCommands::ChatCommandNode::LoadFromBuilder(ChatCommandBuilder const& builder)
 {
-    if (ChatCommandBuilder::InvokerEntry const* invokerEntry = std::get_if<ChatCommandBuilder::InvokerEntry>(&builder._data))
+    if (std::holds_alternative<ChatCommandBuilder::InvokerEntry>(builder._data))
     {
         ASSERT(!_invoker, "Duplicate blank sub-command.");
-        _invoker = invokerEntry->_invoker;
-        if (invokerEntry->_help)
-            _help.emplace<TrinityStrings>(invokerEntry->_help);
-
-        _permission = invokerEntry->_permissions;
+        TrinityStrings help;
+        std::tie(_invoker, help, _permission) = *(std::get<ChatCommandBuilder::InvokerEntry>(builder._data));
+        if (help)
+            _help.emplace<TrinityStrings>(help);
     }
     else
         LoadCommandsIntoMap(this, _subCommands, std::get<ChatCommandBuilder::SubCommandEntry>(builder._data));
@@ -153,19 +152,18 @@ static void LogCommandUsage(WorldSession const& session, uint32 permission, std:
     {
         LocaleConstant locale = session.GetSessionDbcLocale();
         areaName = area->AreaName[locale];
-        if (area->GetFlags().HasFlag(AreaFlags::IsSubzone))
-            if (AreaTableEntry const* zone = sAreaTableStore.LookupEntry(area->ParentAreaID))
-                zoneName = zone->AreaName[locale];
+        if (AreaTableEntry const* zone = sAreaTableStore.LookupEntry(area->ParentAreaID))
+            zoneName = zone->AreaName[locale];
     }
 
     sLog->OutCommand(session.GetAccountId(), "Command: {} [Player: {} ({}) (Account: {}) X: {} Y: {} Z: {} Map: {} ({}) Area: {} ({}) Zone: {} Selected: {} ({})]",
-        cmdStr, player->GetName(), player->GetGUID().ToString(),
+        cmdStr, player->GetName().c_str(), player->GetGUID().ToString().c_str(),
         session.GetAccountId(), player->GetPositionX(), player->GetPositionY(),
         player->GetPositionZ(), player->GetMapId(),
         player->FindMap() ? player->FindMap()->GetMapName() : "Unknown",
-        areaId, areaName, zoneName,
-        player->GetSelectedUnit() ? player->GetSelectedUnit()->GetName().c_str() : "",
-        targetGuid.ToString());
+        areaId, areaName.c_str(), zoneName.c_str(),
+        (player->GetSelectedUnit()) ? player->GetSelectedUnit()->GetName().c_str() : "",
+        targetGuid.ToString().c_str());
 }
 
 void Trinity::Impl::ChatCommands::ChatCommandNode::SendCommandHelp(ChatHandler& handler) const
@@ -402,9 +400,15 @@ namespace Trinity::Impl::ChatCommands
                 auto possibility = ([prefix = std::string_view(path), suffix = std::string_view(newTail)](std::string_view match)
                 {
                     if (prefix.empty())
-                        return Trinity::StringFormat("{}{}{}", match, COMMAND_DELIMITER, suffix);
+                    {
+                        return Trinity::StringFormat(STRING_VIEW_FMT "{}" STRING_VIEW_FMT,
+                            STRING_VIEW_FMT_ARG(match), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(suffix));
+                    }
                     else
-                        return Trinity::StringFormat("{}{}{}{}{}", prefix, COMMAND_DELIMITER, match, COMMAND_DELIMITER, suffix);
+                    {
+                        return Trinity::StringFormat(STRING_VIEW_FMT "{}" STRING_VIEW_FMT "{}" STRING_VIEW_FMT,
+                            STRING_VIEW_FMT_ARG(prefix), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(match), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(suffix));
+                    }
                 });
 
                 vec.emplace_back(possibility(it1->first));
@@ -420,8 +424,10 @@ namespace Trinity::Impl::ChatCommands
         if (path.empty())
             path.assign(it1->first);
         else
-            path = Trinity::StringFormat("{}{}{}", path, COMMAND_DELIMITER, it1->first);
-
+        {
+            path = Trinity::StringFormat(STRING_VIEW_FMT "{}" STRING_VIEW_FMT,
+                STRING_VIEW_FMT_ARG(path), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(it1->first));
+        }
         cmd = &it1->second;
         map = &cmd->_subCommands;
 
@@ -433,7 +439,8 @@ namespace Trinity::Impl::ChatCommands
         if (cmd)
         { /* if we matched a command at some point, auto-complete it */
             return {
-                Trinity::StringFormat("{}{}{}", path, COMMAND_DELIMITER, oldTail)
+                Trinity::StringFormat(STRING_VIEW_FMT "{}" STRING_VIEW_FMT,
+                    STRING_VIEW_FMT_ARG(path), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(oldTail))
             };
         }
         else
@@ -447,7 +454,8 @@ namespace Trinity::Impl::ChatCommands
                 return std::string(match);
             else
             {
-                return Trinity::StringFormat("{}{}{}", prefix, COMMAND_DELIMITER, match);
+                return Trinity::StringFormat(STRING_VIEW_FMT "{}" STRING_VIEW_FMT,
+                    STRING_VIEW_FMT_ARG(prefix), COMMAND_DELIMITER, STRING_VIEW_FMT_ARG(match));
             }
         });
 

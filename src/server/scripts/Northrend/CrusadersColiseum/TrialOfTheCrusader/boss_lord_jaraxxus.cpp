@@ -16,7 +16,6 @@
  */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "InstanceScript.h"
 #include "MotionMaster.h"
 #include "Player.h"
@@ -114,6 +113,7 @@ struct boss_jaraxxus : public BossAI
 
     void Reset() override
     {
+        me->SetCombatPulseDelay(0);
         me->ResetLootMode();
         events.Reset();
         summons.DespawnAll();
@@ -280,6 +280,8 @@ struct boss_jaraxxus : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -321,7 +323,7 @@ struct npc_infernal_volcano : public ScriptedAI
         me->SetReactState(REACT_PASSIVE);
         DoCastSelf(SPELL_INFERNAL_ERUPTION_EFFECT, true);
         if (IsHeroic())
-            me->SetUninteractible(false);
+            me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
     }
 };
 
@@ -360,7 +362,10 @@ struct npc_fel_infernal : public ScriptedAI
         if (!UpdateVictim())
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff, [this]
+        {
+            DoMeleeAttackIfReady();
+        });
     }
 
 private:
@@ -380,7 +385,7 @@ struct npc_nether_portal : public ScriptedAI
         me->SetReactState(REACT_PASSIVE);
         DoCastSelf(SPELL_NETHER_PORTAL_EFFECT, true);
         if (IsHeroic())
-            me->SetUninteractible(false);
+            me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
     }
 };
 
@@ -450,6 +455,8 @@ struct npc_mistress_of_pain : public ScriptedAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -460,6 +467,8 @@ private:
 // 66334, 67905, 67906, 67907 - Mistress' Kiss
 class spell_mistress_kiss : public AuraScript
 {
+    PrepareAuraScript(spell_mistress_kiss);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_MISTRESS_KISS_DAMAGE_SILENCE });
@@ -485,9 +494,11 @@ class spell_mistress_kiss : public AuraScript
 // 66336, 67076, 67077, 67078 - Mistress' Kiss
 class spell_mistress_kiss_area : public SpellScript
 {
+    PrepareSpellScript(spell_mistress_kiss_area);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_0 } }) && ValidateSpellInfo({ static_cast<uint32>(spellInfo->GetEffect(EFFECT_0).CalcValue()) });
+        return !spellInfo->GetEffects().empty() && ValidateSpellInfo({ static_cast<uint32>(spellInfo->GetEffect(EFFECT_0).CalcValue()) });
     }
 
     void FilterTargets(std::list<WorldObject*>& targets)
@@ -521,9 +532,11 @@ class spell_mistress_kiss_area : public SpellScript
 // 66493 - Fel Streak
 class spell_fel_streak_visual : public SpellScript
 {
+    PrepareSpellScript(spell_fel_streak_visual);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
-        return ValidateSpellEffect({ { spellInfo->Id, EFFECT_0 } }) && ValidateSpellInfo({ static_cast<uint32>(spellInfo->GetEffect(EFFECT_0).CalcValue()) });
+        return !spellInfo->GetEffects().empty() && ValidateSpellInfo({ static_cast<uint32>(spellInfo->GetEffect(EFFECT_0).CalcValue()) });
     }
 
     void HandleScript(SpellEffIndex /*effIndex*/)

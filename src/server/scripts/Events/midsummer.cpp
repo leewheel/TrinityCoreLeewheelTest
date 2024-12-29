@@ -35,6 +35,8 @@ enum TorchSpells
 // 45724 - Braziers Hit!
 class spell_midsummer_braziers_hit : public AuraScript
 {
+    PrepareAuraScript(spell_midsummer_braziers_hit);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -71,6 +73,8 @@ class spell_midsummer_braziers_hit : public AuraScript
 // 45907 - Torch Target Picker
 class spell_midsummer_torch_target_picker : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_torch_target_picker);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_TARGET_INDICATOR_COSMETIC, SPELL_TARGET_INDICATOR });
@@ -92,6 +96,8 @@ class spell_midsummer_torch_target_picker : public SpellScript
 // 46054 - Torch Toss (land)
 class spell_midsummer_torch_toss_land : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_torch_toss_land);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_BRAZIERS_HIT });
@@ -122,6 +128,8 @@ enum RibbonPoleData
 // 29705, 29726, 29727 - Test Ribbon Pole Channel
 class spell_midsummer_test_ribbon_pole_channel : public AuraScript
 {
+    PrepareAuraScript(spell_midsummer_test_ribbon_pole_channel);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -165,6 +173,8 @@ class spell_midsummer_test_ribbon_pole_channel : public AuraScript
 // 45406 - Holiday - Midsummer, Ribbon Pole Periodic Visual
 class spell_midsummer_ribbon_pole_periodic_visual : public AuraScript
 {
+    PrepareAuraScript(spell_midsummer_ribbon_pole_periodic_visual);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -210,6 +220,8 @@ enum JugglingTorch
 // 45819 - Throw Torch
 class spell_midsummer_juggle_torch : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_juggle_torch);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({
@@ -265,6 +277,8 @@ class spell_midsummer_juggle_torch : public SpellScript
 // 45644 - Juggle Torch (Catch)
 class spell_midsummer_torch_catch : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_torch_catch);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_GIVE_TORCH });
@@ -300,6 +314,8 @@ enum FlingTorch
 // 46747 - Fling torch
 class spell_midsummer_fling_torch : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_fling_torch);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FLING_TORCH_TRIGGERED, SPELL_FLING_TORCH_SHADOW });
@@ -307,7 +323,7 @@ class spell_midsummer_fling_torch : public SpellScript
 
     void HandleDummy(SpellEffIndex /*effIndex*/)
     {
-        Position dest = GetCaster()->GetFirstCollisionPosition(30.0f, rand_norm() * static_cast<float>(2 * M_PI));
+        Position dest = GetCaster()->GetFirstCollisionPosition(30.0f, (float)rand_norm() * static_cast<float>(2 * M_PI));
         GetCaster()->CastSpell(dest, SPELL_FLING_TORCH_TRIGGERED, true);
         GetCaster()->CastSpell(dest, SPELL_FLING_TORCH_SHADOW);
     }
@@ -321,6 +337,8 @@ class spell_midsummer_fling_torch : public SpellScript
 // 45669 - Fling Torch
 class spell_midsummer_fling_torch_triggered : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_fling_torch_triggered);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_JUGGLE_TORCH_MISSED });
@@ -348,6 +366,8 @@ class spell_midsummer_fling_torch_triggered : public SpellScript
 // 45671 - Juggle Torch (Catch, Quest)
 class spell_midsummer_fling_torch_catch : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_fling_torch_catch);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({
@@ -391,7 +411,7 @@ class spell_midsummer_fling_torch_catch : public SpellScript
         }
         else
         {
-            Position dest = player->GetFirstCollisionPosition(15.0f, rand_norm() * static_cast<float>(2 * M_PI));
+            Position dest = player->GetFirstCollisionPosition(15.0f, (float)rand_norm() * static_cast<float>(2 * M_PI));
             player->CastSpell(player, SPELL_TORCHES_CAUGHT);
             player->CastSpell(dest, SPELL_FLING_TORCH_TRIGGERED, true);
             player->CastSpell(dest, SPELL_FLING_TORCH_SHADOW);
@@ -407,6 +427,8 @@ class spell_midsummer_fling_torch_catch : public SpellScript
 // 45676 - Juggle Torch (Quest, Missed)
 class spell_midsummer_fling_torch_missed : public SpellScript
 {
+    PrepareSpellScript(spell_midsummer_fling_torch_missed);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         // This spell only hits the caster

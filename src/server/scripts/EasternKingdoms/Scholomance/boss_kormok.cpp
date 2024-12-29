@@ -119,6 +119,8 @@ public:
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
             }
+
+            DoMeleeAttackIfReady();
         }
 
         private:
@@ -148,6 +150,8 @@ class spell_kormok_summon_bone_mages : SpellScriptLoader
 
         class spell_kormok_summon_bone_magesSpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_kormok_summon_bone_magesSpellScript);
+
             bool Validate(SpellInfo const* /*spell*/) override
             {
                 return ValidateSpellInfo(SummonMageSpells);
@@ -180,6 +184,8 @@ class spell_kormok_summon_bone_minions : SpellScriptLoader
 
     class spell_kormok_summon_bone_minionsSpellScript : public SpellScript
     {
+        PrepareSpellScript(spell_kormok_summon_bone_minionsSpellScript);
+
         bool Validate(SpellInfo const* /*spell*/) override
         {
             return ValidateSpellInfo({ SPELL_SUMMON_BONE_MINIONS });

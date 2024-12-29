@@ -170,7 +170,7 @@ namespace
             return;
 
         for (wchar_t& w : wstrText)
-            if (!isLatin1Character(w) && !isNumeric(w) && w <= 0xFF && w != L'\'')
+            if (!isExtendedLatinCharacter(w) && !isNumeric(w) && w <= 0xFF && w != L'\\')
                 w = L' ';
 
         WStrToUtf8(wstrText, text);
@@ -189,11 +189,15 @@ namespace
         0xE3061AE7, 0xA39B0FA1, 0x9797F25F, 0xE4444563,
     };
 
-    uint32 SStrHash(std::string_view string, bool caseInsensitive, uint32 seed = 0x7FED7FED)
+    uint32 SStrHash(char const* string, bool caseInsensitive, uint32 seed = 0x7FED7FED)
     {
+        ASSERT(string);
+
         uint32 shift = 0xEEEEEEEE;
-        for (char c : string)
+        while (*string)
         {
+            char c = *string++;
+
             if (caseInsensitive)
                 c = upper_backslash(c);
 
@@ -218,8 +222,8 @@ std::string LanguageMgr::Translate(std::string const& msg, uint32 language, Loca
         uint32 wordLen = std::min(18u, uint32(str.length()));
         if (LanguageMgr::WordList const* wordGroup = FindWordGroup(language, wordLen))
         {
-            uint32 wordHash = SStrHash(str, true);
-            uint8 idxInsideGroup = language * wordHash % wordGroup->size();
+            uint32 wordHash = SStrHash(str.data(), true);
+            uint8 idxInsideGroup = wordHash % wordGroup->size();
 
             char const* replacementWord = (*wordGroup)[idxInsideGroup];
 
@@ -233,7 +237,7 @@ std::string LanguageMgr::Translate(std::string const& msg, uint32 language, Loca
                     for (size_t i = 0; i < length; ++i)
                     {
                         if (str[i] >= 'A' && str[i] <= 'Z')
-                            result += charToUpper(replacementWord[i]);
+                            result += char(toupper(replacementWord[i]));
                         else
                             result += replacementWord[i];
                     }
@@ -247,10 +251,10 @@ std::string LanguageMgr::Translate(std::string const& msg, uint32 language, Loca
                         size_t length = std::min(wstrSourceWord.length(), strlen(replacementWord));
                         for (size_t i = 0; i < length; ++i)
                         {
-                            if (wstrSourceWord[i] != L'\'' && isUpper(wstrSourceWord[i]))
-                                result += charToUpper(replacementWord[i]);
+                            if (isUpper(wstrSourceWord[i]))
+                                result += char(toupper(replacementWord[i]));
                             else
-                                result += charToLower(replacementWord[i]);
+                                result += char(tolower(replacementWord[i]));
                         }
                     }
                     break;

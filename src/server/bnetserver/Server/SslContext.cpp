@@ -28,34 +28,34 @@ bool Battlenet::SslContext::_usesDevWildcardCertificate = false;
 
 namespace
 {
-auto CreatePasswordUiMethodFromPemCallback(::pem_password_cb* callback)
-{
-    return Trinity::make_unique_ptr_with_deleter<&::UI_destroy_method>(UI_UTIL_wrap_read_pem_callback(callback, 0));
-}
+    auto CreatePasswordUiMethodFromPemCallback(::pem_password_cb* callback)
+    {
+        return Trinity::make_unique_ptr_with_deleter<&::UI_destroy_method>(UI_UTIL_wrap_read_pem_callback(callback, 0));
+    }
 
-auto OpenOpenSSLStore(boost::filesystem::path const& storePath, UI_METHOD const* passwordCallback, void* passwordCallbackData)
-{
-    std::string uri;
-    uri.reserve(6 + storePath.size());
+    auto OpenOpenSSLStore(boost::filesystem::path const& storePath, UI_METHOD const* passwordCallback, void* passwordCallbackData)
+    {
+        std::string uri;
+        uri.reserve(6 + storePath.size());
 
-    uri += "file:";
-    std::string genericPath = storePath.generic_string();
-    if (!genericPath.empty() && !genericPath.starts_with('/'))
-        uri += '/'; // ensure the path starts with / (windows special case, unix absolute paths already do)
+        uri += "file:";
+        std::string genericPath = storePath.generic_string();
+        if (!genericPath.empty() && !genericPath.starts_with('/'))
+            uri += '/'; // ensure the path starts with / (windows special case, unix absolute paths already do)
 
-    uri += genericPath;
+        uri += genericPath;
 
-    return Trinity::make_unique_ptr_with_deleter<&::OSSL_STORE_close>(OSSL_STORE_open(uri.c_str(), passwordCallback, passwordCallbackData, nullptr, nullptr));
-}
+        return Trinity::make_unique_ptr_with_deleter<&::OSSL_STORE_close>(OSSL_STORE_open(uri.c_str(), passwordCallback, passwordCallbackData, nullptr, nullptr));
+    }
 
-boost::system::error_code GetLastOpenSSLError()
-{
-    auto ossl_error = ::ERR_get_error();
-    if (ERR_SYSTEM_ERROR(ossl_error))
-        return boost::system::error_code(static_cast<int>(::ERR_GET_REASON(ossl_error)), boost::asio::error::get_system_category());
+    boost::system::error_code GetLastOpenSSLError()
+    {
+        auto ossl_error = ::ERR_get_error();
+        if (ERR_SYSTEM_ERROR(ossl_error))
+            return boost::system::error_code(static_cast<int>(::ERR_GET_REASON(ossl_error)), boost::asio::error::get_system_category());
 
-    return boost::system::error_code(static_cast<int>(ossl_error), boost::asio::error::get_ssl_category());
-}
+        return boost::system::error_code(static_cast<int>(ossl_error), boost::asio::error::get_ssl_category());
+    }
 }
 
 bool Battlenet::SslContext::Initialize()
@@ -71,9 +71,9 @@ bool Battlenet::SslContext::Initialize()
     std::string certificateChainFile = sConfigMgr->GetStringDefault("CertificatesFile", "./bnetserver.cert.pem");
 
     auto passwordCallback = [](std::size_t /*max_length*/, boost::asio::ssl::context::password_purpose /*purpose*/) -> std::string
-    {
-        return sConfigMgr->GetStringDefault("PrivateKeyPassword", "");
-    };
+        {
+            return sConfigMgr->GetStringDefault("PrivateKeyPassword", "");
+        };
 
     LOAD_CHECK(instance().set_password_callback(passwordCallback, err));
 
@@ -100,14 +100,14 @@ bool Battlenet::SslContext::Initialize()
 
         switch (OSSL_STORE_INFO_get_type(info))
         {
-            case OSSL_STORE_INFO_PKEY:
-                key = OSSL_STORE_INFO_get1_PKEY(info);
-                break;
-            case OSSL_STORE_INFO_CERT:
-                sk_X509_push(certs, OSSL_STORE_INFO_get1_CERT(info));
-                break;
-            default:
-                break;
+        case OSSL_STORE_INFO_PKEY:
+            key = OSSL_STORE_INFO_get1_PKEY(info);
+            break;
+        case OSSL_STORE_INFO_CERT:
+            sk_X509_push(certs, OSSL_STORE_INFO_get1_CERT(info));
+            break;
+        default:
+            break;
         }
     }
 
@@ -116,34 +116,34 @@ bool Battlenet::SslContext::Initialize()
         X509* cert = sk_X509_shift(certs);
 
         _usesDevWildcardCertificate = [&]
-        {
-            X509_NAME* nm = X509_get_subject_name(cert);
-            int32 lastpos = -1;
-            while (true)
             {
-                lastpos = X509_NAME_get_index_by_NID(nm, NID_commonName, lastpos);
-                if (lastpos == -1)
-                    break;
-
-                X509_NAME_ENTRY* e = X509_NAME_get_entry(nm, lastpos);
-                if (!e)
-                    continue;
-
-                ASN1_STRING* text = X509_NAME_ENTRY_get_data(e);
-                if (!text)
-                    continue;
-
-                unsigned char* utf8TextRaw = nullptr;
-                if (int utf8Length = ASN1_STRING_to_UTF8(&utf8TextRaw, text); utf8Length >= 0)
+                X509_NAME* nm = X509_get_subject_name(cert);
+                int32 lastpos = -1;
+                while (true)
                 {
-                    auto utf8Text = Trinity::make_unique_ptr_with_deleter<[](unsigned char* ptr) { ::OPENSSL_free(ptr); } >(utf8TextRaw);
-                    if (std::string_view(reinterpret_cast<char const*>(utf8Text.get()), utf8Length) == "*.*")
-                        return true;
-                }
-            }
+                    lastpos = X509_NAME_get_index_by_NID(nm, NID_commonName, lastpos);
+                    if (lastpos == -1)
+                        break;
 
-            return false;
-        }();
+                    X509_NAME_ENTRY* e = X509_NAME_get_entry(nm, lastpos);
+                    if (!e)
+                        continue;
+
+                    ASN1_STRING* text = X509_NAME_ENTRY_get_data(e);
+                    if (!text)
+                        continue;
+
+                    unsigned char* utf8TextRaw = nullptr;
+                    if (int utf8Length = ASN1_STRING_to_UTF8(&utf8TextRaw, text); utf8Length >= 0)
+                    {
+                        auto utf8Text = Trinity::make_unique_ptr_with_deleter < [](unsigned char* ptr) { ::OPENSSL_free(ptr); } > (utf8TextRaw);
+                        if (std::string_view(reinterpret_cast<char const*>(utf8Text.get()), utf8Length) == "*.*")
+                            return true;
+                    }
+                }
+
+                return false;
+            }();
 
         SSL_CTX_use_cert_and_key(nativeContext, cert, key, certs, 1);
     }

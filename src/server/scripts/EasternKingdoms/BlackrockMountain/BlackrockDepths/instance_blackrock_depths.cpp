@@ -22,19 +22,16 @@
 #include "Log.h"
 #include "Map.h"
 #include "ScriptedCreature.h"
+#include <sstream>
 
 #define TIMER_TOMBOFTHESEVEN    15000
+#define MAX_ENCOUNTER           6
 constexpr uint8 TOMB_OF_SEVEN_BOSS_NUM = 7;
 
 enum Creatures
 {
-    NPC_GOLEM_LORD_ARGELMACH = 8983,
-    NPC_BAELGAR              = 9016,
-    NPC_LORD_INCENDIUS       = 9017,
     NPC_EMPEROR              = 9019,
     NPC_PHALANX              = 9502,
-    NPC_PYROMANCER_LOREGRAIN = 9024,
-    NPC_LORD_ROCCOR          = 9025,
     NPC_ANGERREL             = 9035,
     NPC_DOPEREL              = 9040,
     NPC_HATEREL              = 9034,
@@ -42,12 +39,6 @@ enum Creatures
     NPC_SEETHREL             = 9038,
     NPC_GLOOMREL             = 9037,
     NPC_DOOMREL              = 9039,
-    NPC_WARDER_STILGISS      = 9041,
-    NPC_FINEOUS_DARKVIRE     = 9056,
-    NPC_HOUNDMASTER_GREBMAR  = 9319,
-    NPC_PLUGGER_SPAZZRING    = 9499,
-    NPC_HURLEY_BLACKBREATH   = 9537,
-    NPC_RIBBLY_SCREWSPIGOT   = 9543,
     NPC_MAGMUS               = 9938,
     NPC_MOIRA                = 8929,
     NPC_COREN                = 23872,
@@ -78,29 +69,6 @@ enum GameObjects
     GO_CHEST_SEVEN          = 169243
 };
 
-static constexpr DungeonEncounterData encounters[] =
-{
-    { BOSS_HIGH_INTERROGATOR_GERSTAHN, { { 227 }} },
-    { BOSS_LORD_ROCCOR, { { 228 }} },
-    { BOSS_HOUNDMASTER_GREBMAR, { { 229 }} },
-    { BOSS_RING_OF_LAW, { { 230 }} },
-    { BOSS_PYROMANCER_LOREGRAIN, { { 231 }} },
-    { BOSS_LORD_INCENDIUS, { { 232 }} },
-    { BOSS_WARDER_STILGISS, { { 233 }} },
-    { BOSS_FINEOUS_DARKVIRE, { { 234 }} },
-    { BOSS_BAELGAR, { { 235 }} },
-    { BOSS_GENERAL_ANGERFORGE, { { 236 }} },
-    { BOSS_GOLEM_LORD_ARGELMACH, { { 237 }} },
-    { BOSS_HURLEY_BLACKBREATH, { { 238 }} },
-    { BOSS_PHALANX, { { 239 }} },
-    { BOSS_RIBBLY_SCREWSPIGOT, { { 240 }} },
-    { BOSS_PLUGGER_SPAZZRING, { { 241 }} },
-    { BOSS_AMBASSADOR_FLAMELASH, { { 242 }} },
-    { BOSS_THE_SEVEN, { { 243 }} },
-    { BOSS_MAGMUS, { { 244 }} },
-    { BOSS_EMPEROR_DAGRAN_THAURISSAN, { { 245 }} }
-};
-
 class instance_blackrock_depths : public InstanceMapScript
 {
 public:
@@ -116,14 +84,16 @@ public:
         instance_blackrock_depths_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
         {
             SetHeaders(DataHeader);
-            SetBossNumber(MAX_ENCOUNTER);
-            LoadDungeonEncounterData(encounters);
+            memset(&encounter, 0, sizeof(encounter));
 
             BarAleCount = 0;
             GhostKillCount = 0;
             TombTimer = TIMER_TOMBOFTHESEVEN;
             TombEventCounter = 0;
         }
+
+        uint32 encounter[MAX_ENCOUNTER];
+        std::string str_data;
 
         ObjectGuid EmperorGUID;
         ObjectGuid PhalanxGUID;
@@ -217,25 +187,6 @@ public:
             }
         }
 
-        void OnUnitDeath(Unit* unit) override
-        {
-            switch (unit->GetEntry())
-            {
-                case NPC_LORD_ROCCOR: SetBossState(BOSS_LORD_ROCCOR, DONE); break;
-                case NPC_HOUNDMASTER_GREBMAR: SetBossState(BOSS_HOUNDMASTER_GREBMAR, DONE); break;
-                case NPC_PYROMANCER_LOREGRAIN: SetBossState(BOSS_PYROMANCER_LOREGRAIN, DONE); break;
-                case NPC_LORD_INCENDIUS: SetBossState(BOSS_LORD_INCENDIUS, DONE); break;
-                case NPC_WARDER_STILGISS: SetBossState(BOSS_WARDER_STILGISS, DONE); break;
-                case NPC_FINEOUS_DARKVIRE: SetBossState(BOSS_FINEOUS_DARKVIRE, DONE); break;
-                case NPC_BAELGAR: SetBossState(BOSS_BAELGAR, DONE); break;
-                case NPC_GOLEM_LORD_ARGELMACH: SetBossState(BOSS_GOLEM_LORD_ARGELMACH, DONE); break;
-                case NPC_HURLEY_BLACKBREATH: SetBossState(BOSS_HURLEY_BLACKBREATH, DONE); break;
-                case NPC_RIBBLY_SCREWSPIGOT: SetBossState(BOSS_RIBBLY_SCREWSPIGOT, DONE); break;
-                case NPC_PLUGGER_SPAZZRING: SetBossState(BOSS_PLUGGER_SPAZZRING, DONE); break;
-                default: break;
-            }
-        }
-
         void SetGuidData(uint32 type, ObjectGuid data) override
         {
             TC_LOG_DEBUG("scripts", "Instance Blackrock Depths: SetGuidData update (Type: {} Data {})", type, data.ToString());
@@ -259,29 +210,43 @@ public:
             switch (type)
             {
                 case TYPE_RING_OF_LAW:
-                    SetBossState(BOSS_RING_OF_LAW, EncounterState(data));
+                    encounter[0] = data;
                     break;
                 case TYPE_VAULT:
-                    SetBossState(1, EncounterState(data));
+                    encounter[1] = data;
                     break;
                 case TYPE_BAR:
                     if (data == SPECIAL)
                         ++BarAleCount;
                     else
-                        SetBossState(2, EncounterState(data));
+                        encounter[2] = data;
                     break;
                 case TYPE_TOMB_OF_SEVEN:
-                    SetBossState(BOSS_THE_SEVEN, EncounterState(data));
+                    encounter[3] = data;
                     break;
                 case TYPE_LYCEUM:
-                    SetBossState(4, EncounterState(data));
+                    encounter[4] = data;
                     break;
                 case TYPE_IRON_HALL:
-                    SetBossState(BOSS_MAGMUS, EncounterState(data));
+                    encounter[5] = data;
                     break;
                 case DATA_GHOSTKILL:
                     GhostKillCount += data;
                     break;
+            }
+
+            if (data == DONE || GhostKillCount >= TOMB_OF_SEVEN_BOSS_NUM)
+            {
+                OUT_SAVE_INST_DATA;
+
+                std::ostringstream saveStream;
+                saveStream << encounter[0] << ' ' << encounter[1] << ' ' << encounter[2] << ' '
+                    << encounter[3] << ' ' << encounter[4] << ' ' << encounter[5] << ' ' << GhostKillCount;
+
+                str_data = saveStream.str();
+
+                SaveToDB();
+                OUT_SAVE_INST_DATA_COMPLETE;
             }
         }
 
@@ -290,20 +255,20 @@ public:
             switch (type)
             {
                 case TYPE_RING_OF_LAW:
-                    return GetBossState(BOSS_RING_OF_LAW);
+                    return encounter[0];
                 case TYPE_VAULT:
-                    return GetBossState(1);
+                    return encounter[1];
                 case TYPE_BAR:
-                    if (GetBossState(2) == IN_PROGRESS && BarAleCount == 3)
+                    if (encounter[2] == IN_PROGRESS && BarAleCount == 3)
                         return SPECIAL;
                     else
-                        return GetBossState(2);
+                        return encounter[2];
                 case TYPE_TOMB_OF_SEVEN:
-                    return GetBossState(BOSS_THE_SEVEN);
+                    return encounter[3];
                 case TYPE_LYCEUM:
-                    return GetBossState(4);
+                    return encounter[4];
                 case TYPE_IRON_HALL:
-                    return GetBossState(BOSS_MAGMUS);
+                    return encounter[5];
                 case DATA_GHOSTKILL:
                     return GhostKillCount;
             }
@@ -352,6 +317,36 @@ public:
                     return GoSpectralChaliceGUID;
             }
             return ObjectGuid::Empty;
+        }
+
+        std::string GetSaveData() override
+        {
+            return str_data;
+        }
+
+        void Load(char const* in) override
+        {
+            if (!in)
+            {
+                OUT_LOAD_INST_DATA_FAIL;
+                return;
+            }
+
+            OUT_LOAD_INST_DATA(in);
+
+            std::istringstream loadStream(in);
+            loadStream >> encounter[0] >> encounter[1] >> encounter[2] >> encounter[3]
+            >> encounter[4] >> encounter[5] >> GhostKillCount;
+
+            for (uint8 i = 0; i < MAX_ENCOUNTER; ++i)
+                if (encounter[i] == IN_PROGRESS)
+                    encounter[i] = NOT_STARTED;
+            if (GhostKillCount > 0 && GhostKillCount < TOMB_OF_SEVEN_BOSS_NUM)
+                GhostKillCount = 0;//reset tomb of seven event
+            if (GhostKillCount >= TOMB_OF_SEVEN_BOSS_NUM)
+                GhostKillCount = TOMB_OF_SEVEN_BOSS_NUM;
+
+            OUT_LOAD_INST_DATA_COMPLETE;
         }
 
         void TombOfSevenEvent()

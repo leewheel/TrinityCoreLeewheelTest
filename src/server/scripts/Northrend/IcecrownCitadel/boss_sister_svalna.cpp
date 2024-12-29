@@ -17,7 +17,6 @@
 
 #include "icecrown_citadel.h"
 #include "CellImpl.h"
-#include "Containers.h"
 #include "GridNotifiersImpl.h"
 #include "InstanceScript.h"
 #include "MotionMaster.h"
@@ -457,7 +456,7 @@ struct boss_sister_svalna : public BossAI
                     CastSpellExtraArgs args;
                     args.AddSpellBP0(1);
                     summon->CastSpell(target, VEHICLE_SPELL_RIDE_HARDCODED, args);
-                    summon->SetInteractionAllowedWhileHostile(true);
+                    summon->SetUnitFlag2(UNIT_FLAG2_INTERACT_WHILE_HOSTILE);
                 }
                 break;
             default:
@@ -505,13 +504,13 @@ struct boss_sister_svalna : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
     bool _isEventInProgress;
 };
-
-static constexpr uint32 PATH_ESCORT_CROK_SCOURGEBANE = 297034;
 
 struct npc_crok_scourgebane : public EscortAI
 {
@@ -747,8 +746,7 @@ struct npc_crok_scourgebane : public EscortAI
                     Talk(SAY_CROK_INTRO_3);
                     break;
                 case EVENT_START_PATHING:
-                    LoadPath(PATH_ESCORT_CROK_SCOURGEBANE),
-                    Start(true);
+                    Start(true, true);
                     break;
                 case EVENT_SCOURGE_STRIKE:
                     DoCastVictim(SPELL_SCOURGE_STRIKE);
@@ -776,6 +774,8 @@ struct npc_crok_scourgebane : public EscortAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
     bool CanAIAttack(Unit const* target) const override
@@ -833,7 +833,7 @@ public:
                 me->SetReactState(REACT_DEFENSIVE);
                 FollowAngle = me->GetAbsoluteAngle(crok) + me->GetOrientation();
                 FollowDist = me->GetDistance2d(crok);
-                me->GetMotionMaster()->MoveFollow(crok, FollowDist, FollowAngle, {}, MOTION_SLOT_DEFAULT);
+                me->GetMotionMaster()->MoveFollow(crok, FollowDist, FollowAngle, MOTION_SLOT_DEFAULT);
             }
 
             me->setActive(true);
@@ -874,7 +874,7 @@ public:
         {
             me->GetMotionMaster()->Clear();
             if (Creature* crok = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_CROK_SCOURGEBANE)))
-                me->GetMotionMaster()->MoveFollow(crok, FollowDist, FollowAngle, {}, MOTION_SLOT_DEFAULT);
+                me->GetMotionMaster()->MoveFollow(crok, FollowDist, FollowAngle, MOTION_SLOT_DEFAULT);
         }
 
         Reset();
@@ -960,8 +960,7 @@ struct npc_captain_arnath : public npc_argent_captainAI
                 case EVENT_ARNATH_PW_SHIELD:
                 {
                     std::list<Creature*> targets = DoFindFriendlyMissingBuff(40.0f, SPELL_POWER_WORD_SHIELD);
-                    if (!targets.empty())
-                        DoCast(Trinity::Containers::SelectRandomContainerElement(targets), SPELL_POWER_WORD_SHIELD);
+                    DoCast(Trinity::Containers::SelectRandomContainerElement(targets), SPELL_POWER_WORD_SHIELD);
                     Events.ScheduleEvent(EVENT_ARNATH_PW_SHIELD, 15s, 20s);
                     break;
                 }
@@ -981,6 +980,8 @@ struct npc_captain_arnath : public npc_argent_captainAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -1049,6 +1050,8 @@ struct npc_captain_brandon : public npc_argent_captainAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -1106,6 +1109,8 @@ struct npc_captain_grondel : public npc_argent_captainAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -1159,6 +1164,8 @@ struct npc_captain_rupert : public npc_argent_captainAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -1354,6 +1361,8 @@ struct npc_frostwing_ymirjar_vrykul : public ScriptedAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -1410,6 +1419,8 @@ public:
 // 70053 - Revive Champion
 class spell_svalna_revive_champion : public SpellScript
 {
+    PrepareSpellScript(spell_svalna_revive_champion);
+
     void RemoveAliveTarget(std::list<WorldObject*>& targets)
     {
         targets.remove_if(ICCSvalnaAliveCheck());
@@ -1439,6 +1450,8 @@ class spell_svalna_revive_champion : public SpellScript
 // 71462 - Remove Spear
 class spell_svalna_remove_spear : public SpellScript
 {
+    PrepareSpellScript(spell_svalna_remove_spear);
+
     void HandleScript(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);

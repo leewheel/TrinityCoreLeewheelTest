@@ -49,19 +49,24 @@ class boss_emperor_dagran_thaurissan : public CreatureScript
     public:
         boss_emperor_dagran_thaurissan() : CreatureScript("boss_emperor_dagran_thaurissan") { }
 
-        struct boss_draganthaurissanAI : public BossAI
+        struct boss_draganthaurissanAI : public ScriptedAI
         {
-            boss_draganthaurissanAI(Creature* creature) : BossAI(creature, BOSS_EMPEROR_DAGRAN_THAURISSAN)
+            boss_draganthaurissanAI(Creature* creature) : ScriptedAI(creature)
             {
+                _instance = me->GetInstanceScript();
             }
 
-            void JustEngagedWith(Unit* who) override
+            void Reset() override
             {
-                _JustEngagedWith(who);
+                _events.Reset();
+            }
+
+            void JustEngagedWith(Unit* /*who*/) override
+            {
                 Talk(SAY_AGGRO);
                 me->CallForHelp(VISIBLE_RANGE);
-                events.ScheduleEvent(EVENT_HANDOFTHAURISSAN, 4s);
-                events.ScheduleEvent(EVENT_AVATAROFFLAME, 25s);
+                _events.ScheduleEvent(EVENT_HANDOFTHAURISSAN, 4s);
+                _events.ScheduleEvent(EVENT_AVATAROFFLAME, 25s);
             }
 
             void KilledUnit(Unit* who) override
@@ -72,8 +77,7 @@ class boss_emperor_dagran_thaurissan : public CreatureScript
 
             void JustDied(Unit* /*killer*/) override
             {
-                _JustDied();
-                if (Creature* moira = ObjectAccessor::GetCreature(*me, instance->GetGuidData(DATA_MOIRA)))
+                if (Creature* moira = ObjectAccessor::GetCreature(*me, _instance->GetGuidData(DATA_MOIRA)))
                 {
                     moira->AI()->EnterEvadeMode();
                     moira->SetFaction(FACTION_FRIENDLY);
@@ -86,26 +90,32 @@ class boss_emperor_dagran_thaurissan : public CreatureScript
                 if (!UpdateVictim())
                     return;
 
-                events.Update(diff);
+                _events.Update(diff);
 
-                while (uint32 eventId = events.ExecuteEvent())
+                while (uint32 eventId = _events.ExecuteEvent())
                 {
                     switch (eventId)
                     {
                         case EVENT_HANDOFTHAURISSAN:
                             if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                                 DoCast(target, SPELL_HANDOFTHAURISSAN);
-                            events.ScheduleEvent(EVENT_HANDOFTHAURISSAN, 5s);
+                            _events.ScheduleEvent(EVENT_HANDOFTHAURISSAN, 5s);
                             break;
                         case EVENT_AVATAROFFLAME:
                             DoCastVictim(SPELL_AVATAROFFLAME);
-                            events.ScheduleEvent(EVENT_AVATAROFFLAME, 18s);
+                            _events.ScheduleEvent(EVENT_AVATAROFFLAME, 18s);
                             break;
                         default:
                             break;
                     }
                 }
+
+                DoMeleeAttackIfReady();
             }
+
+        private:
+            InstanceScript* _instance;
+            EventMap _events;
         };
 
         CreatureAI* GetAI(Creature* creature) const override

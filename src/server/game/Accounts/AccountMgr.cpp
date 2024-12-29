@@ -22,13 +22,12 @@
 #include "Log.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "ScriptMgr.h"
 #include "SRP6.h"
 #include "Util.h"
+#include "World.h"
 #include "WorldSession.h"
-
-using AccountSRP6 = Trinity::Crypto::SRP::GruntSRP6;
 
 AccountMgr::AccountMgr() { }
 
@@ -61,9 +60,9 @@ AccountOpResult AccountMgr::CreateAccount(std::string username, std::string pass
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_INS_ACCOUNT);
 
     stmt->setString(0, username);
-    auto [salt, verifier] = Trinity::Crypto::SRP6::MakeRegistrationData<AccountSRP6>(username, password);
-    stmt->setBinary(1, salt);
-    stmt->setBinary(2, verifier);
+    std::pair<Trinity::Crypto::SRP6::Salt, Trinity::Crypto::SRP6::Verifier> registrationData = Trinity::Crypto::SRP6::MakeRegistrationData(username, password);
+    stmt->setBinary(1, registrationData.first);
+    stmt->setBinary(2, registrationData.second);
     stmt->setString(3, email);
     stmt->setString(4, email);
 
@@ -185,10 +184,10 @@ AccountOpResult AccountMgr::ChangeUsername(uint32 accountId, std::string newUser
     stmt->setUInt32(1, accountId);
     LoginDatabase.Execute(stmt);
 
-    auto [salt, verifier] = Trinity::Crypto::SRP6::MakeRegistrationData<AccountSRP6>(newUsername, newPassword);
+    std::pair<Trinity::Crypto::SRP6::Salt, Trinity::Crypto::SRP6::Verifier> registrationData = Trinity::Crypto::SRP6::MakeRegistrationData(newUsername, newPassword);
     stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LOGON);
-    stmt->setBinary(0, salt);
-    stmt->setBinary(1, verifier);
+    stmt->setBinary(0, registrationData.first);
+    stmt->setBinary(1, registrationData.second);
     stmt->setUInt32(2, accountId);
     LoginDatabase.Execute(stmt);
 
@@ -213,11 +212,11 @@ AccountOpResult AccountMgr::ChangePassword(uint32 accountId, std::string newPass
 
     Utf8ToUpperOnlyLatin(username);
     Utf8ToUpperOnlyLatin(newPassword);
-    auto [salt, verifier] = Trinity::Crypto::SRP6::MakeRegistrationData<AccountSRP6>(username, newPassword);
+    std::pair<Trinity::Crypto::SRP6::Salt, Trinity::Crypto::SRP6::Verifier> registrationData = Trinity::Crypto::SRP6::MakeRegistrationData(username, newPassword);
 
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LOGON);
-    stmt->setBinary(0, salt);
-    stmt->setBinary(1, verifier);
+    stmt->setBinary(0, registrationData.first);
+    stmt->setBinary(1, registrationData.second);
     stmt->setUInt32(2, accountId);
     LoginDatabase.Execute(stmt);
 
@@ -345,25 +344,6 @@ bool AccountMgr::GetEmail(uint32 accountId, std::string& email)
     return false;
 }
 
-bool AccountMgr::CheckPassword(std::string username, std::string password)
-{
-    Utf8ToUpperOnlyLatin(username);
-    Utf8ToUpperOnlyLatin(password);
-
-    LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_CHECK_PASSWORD_BY_NAME);
-    stmt->setString(0, username);
-
-    if (PreparedQueryResult result = LoginDatabase.Query(stmt))
-    {
-        Trinity::Crypto::SRP::Salt salt = (*result)[0].GetBinary<Trinity::Crypto::SRP::SALT_LENGTH>();
-        Trinity::Crypto::SRP::Verifier verifier = (*result)[1].GetBinary();
-        if (AccountSRP6(username, salt, verifier).CheckCredentials(username, password))
-            return true;
-    }
-
-    return false;
-}
-
 bool AccountMgr::CheckPassword(uint32 accountId, std::string password)
 {
     std::string username;
@@ -379,9 +359,9 @@ bool AccountMgr::CheckPassword(uint32 accountId, std::string password)
 
     if (PreparedQueryResult result = LoginDatabase.Query(stmt))
     {
-        Trinity::Crypto::SRP::Salt salt = (*result)[0].GetBinary<Trinity::Crypto::SRP::SALT_LENGTH>();
-        Trinity::Crypto::SRP::Verifier verifier = (*result)[1].GetBinary();
-        if (AccountSRP6(username, salt, verifier).CheckCredentials(username, password))
+        Trinity::Crypto::SRP6::Salt salt = (*result)[0].GetBinary<Trinity::Crypto::SRP6::SALT_LENGTH>();
+        Trinity::Crypto::SRP6::Verifier verifier = (*result)[1].GetBinary<Trinity::Crypto::SRP6::VERIFIER_LENGTH>();
+        if (Trinity::Crypto::SRP6::CheckLogin(username, password, salt, verifier))
             return true;
     }
 
@@ -502,7 +482,7 @@ void AccountMgr::LoadRBAC()
     while (result->NextRow());
 
     TC_LOG_DEBUG("rbac", "AccountMgr::LoadRBAC: Loading default permissions");
-    result = LoginDatabase.PQuery("SELECT secId, permissionId FROM rbac_default_permissions WHERE (realmId = {} OR realmId = -1) ORDER BY secId ASC", sRealmList->GetCurrentRealmId().Realm);
+    result = LoginDatabase.PQuery("SELECT secId, permissionId FROM rbac_default_permissions WHERE (realmId = {} OR realmId = -1) ORDER BY secId ASC", realm.Id.Realm);
     if (!result)
     {
         TC_LOG_INFO("server.loading", ">> Loaded 0 default permission definitions. DB table `rbac_default_permissions` is empty.");

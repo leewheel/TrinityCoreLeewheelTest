@@ -19,7 +19,6 @@
 #define ItemPackets_h__
 
 #include "Packet.h"
-#include "CraftingPacketsCommon.h"
 #include "DBCEnums.h"
 #include "ItemDefines.h"
 #include "ItemPacketsCommon.h"
@@ -212,7 +211,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            int32 BagResult = EQUIP_ERR_OK; /// @see enum InventoryResult
+            int8 BagResult = EQUIP_ERR_OK; /// @see enum InventoryResult
             uint8 ContainerBSlot = 0;
             ObjectGuid SrcContainer;
             ObjectGuid DstContainer;
@@ -320,7 +319,7 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             ObjectGuid VendorGUID;
-            std::vector<ObjectGuid> ItemGUIDs;
+            ObjectGuid ItemGUID;
             SellResult Reason = SELL_ERR_UNK;
         };
 
@@ -346,16 +345,15 @@ namespace WorldPackets
                                                  // only set if different than real ID (similar to CreatureTemplate.KillCredit)
             int32 Quantity                  = 0;
             int32 QuantityInInventory       = 0;
-            int32 DungeonEncounterID        = 0;
+            int32 DungeonEncounterID       = 0;
             int32 BattlePetSpeciesID        = 0;
             int32 BattlePetBreedID          = 0;
-            uint8 BattlePetBreedQuality     = 0;
+            uint32 BattlePetBreedQuality    = 0;
             int32 BattlePetLevel            = 0;
             ObjectGuid ItemGUID;
             bool Pushed                     = false;
             DisplayType DisplayText         = DISPLAY_TYPE_HIDDEN;
             bool Created                    = false;
-            bool Unused_1017                = false;
             bool IsBonusRoll                = false;
             bool IsEncounterLoot            = false;
         };
@@ -484,6 +482,30 @@ namespace WorldPackets
             ObjectGuid Item;
         };
 
+        class SortBags final : public ClientPacket
+        {
+        public:
+            SortBags(WorldPacket&& packet) : ClientPacket(CMSG_SORT_BAGS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class SortBankBags final : public ClientPacket
+        {
+        public:
+            SortBankBags(WorldPacket&& packet) : ClientPacket(CMSG_SORT_BANK_BAGS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class SortReagentBankBags final : public ClientPacket
+        {
+        public:
+            SortReagentBankBags(WorldPacket&& packet) : ClientPacket(CMSG_SORT_REAGENT_BANK_BAGS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
         class BagCleanupFinished final : public ServerPacket
         {
         public:
@@ -510,47 +532,14 @@ namespace WorldPackets
             WorldPacket const* Write() override { return &_worldPacket; }
         };
 
-        class ReforgeItem final : public ClientPacket
+        class SetAmmo final : public ClientPacket
         {
         public:
-            ReforgeItem(WorldPacket&& packet) : ClientPacket(CMSG_REFORGE_ITEM, std::move(packet)) { }
+            SetAmmo(WorldPacket&& packet) : ClientPacket(CMSG_SET_AMMO, std::move(packet)) { }
 
             void Read() override;
 
-            ObjectGuid ReforgerGUID;
-            int32 ContainerId = 0;
-            int32 SlotNum = 0;
-            int32 ItemReforgeRecId = 0;
-        };
-
-        class AddItemPassive final : public ServerPacket
-        {
-        public:
-            AddItemPassive() : ServerPacket(SMSG_ADD_ITEM_PASSIVE, 4) { }
-
-            WorldPacket const* Write() override;
-
-            int32 SpellID = 0;
-        };
-
-        class RemoveItemPassive final : public ServerPacket
-        {
-        public:
-            RemoveItemPassive() : ServerPacket(SMSG_REMOVE_ITEM_PASSIVE, 4) { }
-
-            WorldPacket const* Write() override;
-
-            int32 SpellID = 0;
-        };
-
-        class SendItemPassives final : public ServerPacket
-        {
-        public:
-            SendItemPassives() : ServerPacket(SMSG_SEND_ITEM_PASSIVES, 4) { }
-
-            WorldPacket const* Write() override;
-
-            std::vector<int32> SpellID;
+            uint32 ItemID;
         };
     }
 }

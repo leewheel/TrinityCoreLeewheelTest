@@ -18,21 +18,41 @@
 #include "AdhocStatement.h"
 #include "MySQLConnection.h"
 #include "QueryResult.h"
+#include <cstdlib>
+#include <cstring>
 
 /*! Basic, ad-hoc queries. */
-QueryResult BasicStatementTask::Query(MySQLConnection* conn, char const* sql)
+BasicStatementTask::BasicStatementTask(char const* sql, bool async) :
+m_result(nullptr)
 {
-    ResultSet* result = conn->Query(sql);
-    if (!result || !result->GetRowCount() || !result->NextRow())
-    {
-        delete result;
-        result = nullptr;
-    }
-
-    return QueryResult(result);
+    m_sql = strdup(sql);
+    m_has_result = async; // If the operation is async, then there's a result
+    if (async)
+        m_result = new QueryResultPromise();
 }
 
-bool BasicStatementTask::Execute(MySQLConnection* conn, char const* sql)
+BasicStatementTask::~BasicStatementTask()
 {
-    return conn->Execute(sql);
+    free((void*)m_sql);
+    if (m_has_result && m_result != nullptr)
+        delete m_result;
+}
+
+bool BasicStatementTask::Execute()
+{
+    if (m_has_result)
+    {
+        ResultSet* result = m_conn->Query(m_sql);
+        if (!result || !result->GetRowCount() || !result->NextRow())
+        {
+            delete result;
+            m_result->set_value(QueryResult(nullptr));
+            return false;
+        }
+
+        m_result->set_value(QueryResult(result));
+        return true;
+    }
+
+    return m_conn->Execute(m_sql);
 }

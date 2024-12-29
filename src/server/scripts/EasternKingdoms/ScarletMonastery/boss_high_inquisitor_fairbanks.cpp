@@ -120,6 +120,8 @@ struct boss_high_inquisitor_fairbanks : public BossAI
 
         if (!_healTimer.Passed())
             _healTimer.Update(diff);
+
+        DoMeleeAttackIfReady();
     }
 
     void ExecuteEvent(uint32 eventId) override

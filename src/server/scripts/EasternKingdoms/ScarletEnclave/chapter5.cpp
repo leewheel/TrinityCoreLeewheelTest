@@ -258,8 +258,6 @@ Position const LightofDawnLoc[] =
     {2273.972f, -5257.676f, 78.862f, 0},     // 29 Lich king moves forward
 };
 
-static constexpr uint32 PATH_ESCORT_MOGRAINE = 233386;
-
 class npc_highlord_darion_mograine : public CreatureScript
 {
 public:
@@ -747,7 +745,7 @@ public:
                         case 15: // summon gate
                             if (Creature* temp = me->SummonCreature(NPC_HIGHLORD_ALEXANDROS_MOGRAINE, LightofDawnLoc[22], TEMPSUMMON_TIMED_OR_CORPSE_DESPAWN, 5min))
                             {
-                                temp->SetUninteractible(true);
+                                temp->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                                 temp->CastSpell(temp, SPELL_ALEXANDROS_MOGRAINE_SPAWN, true);
                                 temp->AI()->Talk(EMOTE_LIGHT_OF_DAWN06);
                                 uiAlexandrosGUID = temp->GetGUID();
@@ -758,7 +756,7 @@ public:
                         case 16: // Alexandros out
                             if (Creature* temp = ObjectAccessor::GetCreature(*me, uiAlexandrosGUID))
                             {
-                                temp->SetUninteractible(false);
+                                temp->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                                 temp->GetMotionMaster()->MovePoint(0, LightofDawnLoc[23]);
                                 temp->AI()->Talk(SAY_LIGHT_OF_DAWN32);
                             }
@@ -1465,6 +1463,8 @@ public:
                     SetHoldState(false);
 
                 } else uiFight_duration -= diff;
+
+                DoMeleeAttackIfReady();
             }
         }
 
@@ -1608,8 +1608,7 @@ public:
                 case GOSSIP_ACTION_INFO_DEF + 1:
                     CloseGossipMenuFor(player);
                     uiStep = 1;
-                    LoadPath(PATH_ESCORT_MOGRAINE);
-                    Start(true, player->GetGUID());
+                    Start(true, true, player->GetGUID());
                     break;
             }
             return true;

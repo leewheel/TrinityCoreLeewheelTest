@@ -18,7 +18,6 @@
 #include "ScriptMgr.h"
 #include "black_temple.h"
 #include "CellImpl.h"
-#include "Containers.h"
 #include "GridNotifiersImpl.h"
 #include "InstanceScript.h"
 #include "PassiveAI.h"
@@ -248,12 +247,14 @@ struct IllidariCouncilBossAI : public BossAI
 
     void Reset() override
     {
+        me->SetCombatPulseDelay(0);
         events.Reset();
         DoCastSelf(SPELL_BALANCE_OF_POWER, true);
     }
 
     void JustEngagedWith(Unit* /*who*/) override
     {
+        me->SetCombatPulseDelay(5);
         me->setActive(true);
         if (Creature* illidari = instance->GetCreature(DATA_ILLIDARI_COUNCIL))
             DoZoneInCombat(illidari);
@@ -448,10 +449,7 @@ private:
 
 struct boss_lady_malande : public IllidariCouncilBossAI
 {
-    boss_lady_malande(Creature* creature) : IllidariCouncilBossAI(creature, DATA_LADY_MALANDE)
-    {
-        me->SetCanMelee(false); // DoSpellAttackIfReady
-    }
+    boss_lady_malande(Creature* creature) : IllidariCouncilBossAI(creature, DATA_LADY_MALANDE) { }
 
     void ScheduleEvents() override
     {
@@ -564,6 +562,8 @@ private:
 // 41499 - Empyreal Balance
 class spell_illidari_council_empyreal_balance : public SpellScript
 {
+    PrepareSpellScript(spell_illidari_council_empyreal_balance);
+
     void HandleDummy(SpellEffIndex /*effIndex*/)
     {
         Unit* target = GetHitUnit();
@@ -581,6 +581,8 @@ class spell_illidari_council_empyreal_balance : public SpellScript
 // 41333 - Empyreal Equivalency
 class spell_illidari_council_empyreal_equivalency : public SpellScript
 {
+    PrepareSpellScript(spell_illidari_council_empyreal_equivalency);
+
     void HandleScript(SpellEffIndex /*effIndex*/)
     {
         GetHitUnit()->SetHealth(GetCaster()->CountPctFromCurHealth(25));
@@ -595,6 +597,8 @@ class spell_illidari_council_empyreal_equivalency : public SpellScript
 // 41341 - Balance of Power
 class spell_illidari_council_balance_of_power : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_balance_of_power);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SHARED_RULE });
@@ -615,6 +619,8 @@ class spell_illidari_council_balance_of_power : public AuraScript
 // 41480 - Deadly Strike
 class spell_illidari_council_deadly_strike : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_deadly_strike);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_DEADLY_POISON });
@@ -637,6 +643,8 @@ class spell_illidari_council_deadly_strike : public AuraScript
 // 41485 - Deadly Poison
 class spell_illidari_council_deadly_poison : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_deadly_poison);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_ENVENOM, SPELL_ENVENOM_VISUAL });
@@ -661,6 +669,8 @@ class spell_illidari_council_deadly_poison : public AuraScript
 // 41476 - Vanish
 class spell_illidari_council_vanish : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_vanish);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_VANISH_TELEPORT });
@@ -680,6 +690,8 @@ class spell_illidari_council_vanish : public AuraScript
 // 41475 - Reflective Shield
 class spell_illidari_council_reflective_shield : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_reflective_shield);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_REFLECTIVE_SHIELD_DAMAGE });
@@ -703,6 +715,8 @@ class spell_illidari_council_reflective_shield : public AuraScript
 // 41467 - Judgement
 class spell_illidari_council_judgement : public SpellScript
 {
+    PrepareSpellScript(spell_illidari_council_judgement);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -739,6 +753,8 @@ class spell_illidari_council_judgement : public SpellScript
    41459 - Seal of Blood */
 class spell_illidari_council_seal : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_council_seal);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo(
@@ -767,6 +783,8 @@ class spell_illidari_council_seal : public AuraScript
 // 41478 - Dampen Magic
 class spell_illidari_dampen_magic : public AuraScript
 {
+    PrepareAuraScript(spell_illidari_dampen_magic);
+
     void OnRemove(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
     {
         if (Creature* target = GetTarget()->ToCreature())

@@ -50,9 +50,9 @@ public:
         return GetStratholmeAI<boss_magistrate_barthilasAI>(creature);
     }
 
-    struct boss_magistrate_barthilasAI : public BossAI
+    struct boss_magistrate_barthilasAI : public ScriptedAI
     {
-        boss_magistrate_barthilasAI(Creature* creature) : BossAI(creature, BOSS_MAGISTRATE_BARTHILAS)
+        boss_magistrate_barthilasAI(Creature* creature) : ScriptedAI(creature)
         {
             Initialize();
         }
@@ -74,8 +74,6 @@ public:
 
         void Reset() override
         {
-            BossAI::Reset();
-
             Initialize();
 
             if (me->IsAlive())
@@ -84,11 +82,21 @@ public:
                 me->SetDisplayId(MODEL_HUMAN);
         }
 
-        void JustDied(Unit* killer) override
-        {
-            BossAI::JustDied(killer);
+        void MoveInLineOfSight(Unit* who) override
 
+        {
+            //nothing to see here yet
+
+            ScriptedAI::MoveInLineOfSight(who);
+        }
+
+        void JustDied(Unit* /*killer*/) override
+        {
             me->SetDisplayId(MODEL_HUMAN);
+        }
+
+        void JustEngagedWith(Unit* /*who*/) override
+        {
         }
 
         void UpdateAI(uint32 diff) override
@@ -127,6 +135,8 @@ public:
                 DoCastVictim(SPELL_MIGHTYBLOW);
                 MightyBlow_Timer = 20000;
             } else MightyBlow_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 

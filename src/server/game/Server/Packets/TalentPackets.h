@@ -22,42 +22,45 @@
 #include "DBCEnums.h"
 #include "ObjectGuid.h"
 #include "PacketUtilities.h"
+#include "SharedDefines.h"
 
 namespace WorldPackets
 {
     namespace Talent
     {
+        struct PvPTalent
+        {
+            uint16 PvPTalentID = 0;
+            uint8 Slot = 0;
+        };
+
         struct TalentInfo
         {
             uint32 TalentID = 0;
-            uint32 Rank = 0;
+            uint8 Rank = 0;
         };
 
         struct TalentGroupInfo
         {
             uint8 SpecID = 0;
-            uint32 PrimarySpecialization = 0;
-            std::vector<TalentInfo> Talents;
-            std::vector<uint16> Glyphs;
-        };
-
-        struct TalentInfoUpdate
-        {
-            uint32 UnspentTalentPoints = 0;
-            uint8 ActiveGroup = 0;
-            bool IsPetTalents = false;
-
-            std::vector<TalentGroupInfo> TalentGroups;
+            std::vector<TalentInfo> TalentInfos;
+            std::array<uint16, MAX_GLYPH_SLOT_INDEX> GlyphInfo;
         };
 
         class UpdateTalentData final : public ServerPacket
         {
         public:
-            UpdateTalentData() : ServerPacket(SMSG_UPDATE_TALENT_DATA, 2+4+4+4+12) { }
+            UpdateTalentData() : ServerPacket(SMSG_UPDATE_TALENT_DATA, 4 + 1 + 1 + 2 + 2 + 2 + 2 + 2 + 2)
+            {
+                for (TalentGroupInfo& talentGroupInfo : TalentGroupInfos)
+                    talentGroupInfo.GlyphInfo.fill(0);
+            }
 
             WorldPacket const* Write() override;
 
-            TalentInfoUpdate Info;
+            uint32 UnspentTalentPoints = 0;
+            uint8 ActiveGroup = 0;
+            std::vector<TalentGroupInfo> TalentGroupInfos;
         };
 
         class LearnTalent final : public ClientPacket
@@ -67,29 +70,8 @@ namespace WorldPackets
 
             void Read() override;
 
-            uint32 TalentID = 0;
+            int32 TalentID = 0;
             uint16 Rank = 0;
-        };
-
-        class LearnPreviewTalents final : public ClientPacket
-        {
-        public:
-            LearnPreviewTalents(WorldPacket&& packet) : ClientPacket(CMSG_LEARN_PREVIEW_TALENTS, std::move(packet)) { }
-
-            void Read() override;
-
-            int32 TabIndex = 0;
-            Array<TalentInfo, 100> Talents;
-        };
-
-        class SetPrimaryTalentTree final : public ClientPacket
-        {
-        public:
-            SetPrimaryTalentTree(WorldPacket&& packet) : ClientPacket(CMSG_SET_PRIMARY_TALENT_TREE, std::move(packet)) { }
-
-            void Read() override;
-
-            int32 TabIndex = 0;
         };
 
         class RespecWipeConfirm final : public ServerPacket
@@ -146,9 +128,27 @@ namespace WorldPackets
             bool IsFullUpdate = false;
         };
 
-        ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Talent::TalentInfoUpdate const& talentInfoUpdate);
-        ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Talent::TalentGroupInfo const& talentGroupInfo);
-        ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Talent::TalentInfo const& talentInfo);
+        class LearnPvpTalents final : public ClientPacket
+        {
+        public:
+            LearnPvpTalents(WorldPacket&& packet) : ClientPacket(CMSG_LEARN_PVP_TALENTS, std::move(packet)) { }
+
+            void Read() override;
+
+            Array<PvPTalent, 4> Talents;
+        };
+
+        class LearnPvpTalentFailed final : public ServerPacket
+        {
+        public:
+            LearnPvpTalentFailed() : ServerPacket(SMSG_LEARN_PVP_TALENT_FAILED, 1 + 4 + 4 + (2 + 1)) { }
+
+            WorldPacket const* Write() override;
+
+            uint32 Reason = 0;
+            int32 SpellID = 0;
+            std::vector<PvPTalent> Talents;
+        };
     }
 }
 

@@ -20,30 +20,11 @@
 
 #include "Define.h"
 #include "DatabaseEnvFwd.h"
+#include "SQLOperation.h"
 #include "StringFormat.h"
 #include <functional>
-#include <future>
 #include <mutex>
-#include <variant>
 #include <vector>
-
-class MySQLConnection;
-
-struct TransactionData
-{
-    std::variant<std::unique_ptr<PreparedStatementBase>, std::string> query;
-
-    template<typename... Args>
-    TransactionData(Args&&... args) : query(std::forward<Args>(args)...) { }
-    TransactionData(TransactionData const&) = delete;
-    TransactionData(TransactionData&&) noexcept = default;
-    TransactionData& operator=(TransactionData const&) = delete;
-    TransactionData& operator=(TransactionData&&) noexcept = default;
-    ~TransactionData();
-
-    static PreparedStatementBase* ToExecutable(std::unique_ptr<PreparedStatementBase> const& stmt) { return stmt.get(); }
-    static char const* ToExecutable(std::string const& sql) { return sql.c_str(); }
-};
 
 /*! Transactions, high level class. */
 class TC_DATABASE_API TransactionBase
@@ -56,17 +37,13 @@ class TC_DATABASE_API TransactionBase
 
     public:
         TransactionBase() : _cleanedUp(false) { }
-        TransactionBase(TransactionBase const&) = delete;
-        TransactionBase(TransactionBase &&) noexcept = default;
-        TransactionBase& operator=(TransactionBase const&) = delete;
-        TransactionBase& operator=(TransactionBase &&) noexcept = default;
         virtual ~TransactionBase() { Cleanup(); }
 
         void Append(char const* sql);
-        template<typename... Args>
-        void PAppend(Trinity::FormatString<Args...> sql, Args&&... args)
+        template<typename Format, typename... Args>
+        void PAppend(Format&& sql, Args&&... args)
         {
-            Append(Trinity::StringFormat(sql, std::forward<Args>(args)...).c_str());
+            Append(Trinity::StringFormat(std::forward<Format>(sql), std::forward<Args>(args)...).c_str());
         }
 
         std::size_t GetSize() const { return m_queries.size(); }
@@ -74,7 +51,7 @@ class TC_DATABASE_API TransactionBase
     protected:
         void AppendPreparedStatement(PreparedStatementBase* statement);
         void Cleanup();
-        std::vector<TransactionData> m_queries;
+        std::vector<SQLElementData> m_queries;
 
     private:
         bool _cleanedUp;
@@ -92,21 +69,42 @@ public:
 };
 
 /*! Low level class*/
-class TC_DATABASE_API TransactionTask
+class TC_DATABASE_API TransactionTask : public SQLOperation
+{
+    template <class T> friend class DatabaseWorkerPool;
+    friend class DatabaseWorker;
+    friend class TransactionCallback;
+
+    public:
+        TransactionTask(std::shared_ptr<TransactionBase> trans) : m_trans(trans) { }
+        ~TransactionTask() { }
+
+    protected:
+        bool Execute() override;
+        int TryExecute();
+        void CleanupOnFailure();
+
+        std::shared_ptr<TransactionBase> m_trans;
+        static std::mutex _deadlockLock;
+};
+
+class TC_DATABASE_API TransactionWithResultTask : public TransactionTask
 {
 public:
-    static bool Execute(MySQLConnection* conn, std::shared_ptr<TransactionBase> trans);
+    TransactionWithResultTask(std::shared_ptr<TransactionBase> trans) : TransactionTask(trans) { }
 
-private:
-    static int TryExecute(MySQLConnection* conn, std::shared_ptr<TransactionBase> trans);
+    TransactionFuture GetFuture() { return m_result.get_future(); }
 
-    static std::mutex _deadlockLock;
+protected:
+    bool Execute() override;
+
+    TransactionPromise m_result;
 };
 
 class TC_DATABASE_API TransactionCallback
 {
 public:
-    TransactionCallback(std::future<bool>&& future) : m_future(std::move(future)) { }
+    TransactionCallback(TransactionFuture&& future) : m_future(std::move(future)) { }
     TransactionCallback(TransactionCallback&&) = default;
 
     TransactionCallback& operator=(TransactionCallback&&) = default;
@@ -118,7 +116,7 @@ public:
 
     bool InvokeIfReady();
 
-    std::future<bool> m_future;
+    TransactionFuture m_future;
     std::function<void(bool)> m_callback;
 };
 

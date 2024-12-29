@@ -16,7 +16,6 @@
  */
 
 #include "culling_of_stratholme.h"
-#include "Containers.h"
 #include "GameObject.h"
 #include "InstanceScript.h"
 #include "Log.h"
@@ -31,7 +30,6 @@
 #include "ScriptedGossip.h"
 #include "ScriptMgr.h"
 #include "ScriptSystem.h"
-#include "SmartEnum.h"
 #include "SpellScript.h"
 #include "SplineChainMovementGenerator.h"
 #include "TemporarySummon.h"
@@ -908,6 +906,8 @@ public:
             }
             else
                 _exorcismCooldown -= diff;
+
+            DoMeleeAttackIfReady();
         }
 
         void UpdateAI(uint32 diff) override
@@ -1550,7 +1550,7 @@ public:
 
         void EnterEvadeMode(EvadeReason why) override
         {
-            TC_LOG_TRACE("scripts.cos", "npc_arthas_stratholmeAI::EnterEvadeMode: why = {} ", EnumUtils::ToConstant(why));
+            TC_LOG_TRACE("scripts.cos", "npc_arthas_stratholmeAI::EnterEvadeMode: why = {} ", why);
             ScriptedAI::EnterEvadeMode(why);
         }
 
@@ -1656,6 +1656,8 @@ struct npc_stratholme_rp_dummy : NullCreatureAI
 // 50773 - Crusader Strike
 class spell_stratholme_crusader_strike : public SpellScript
 {
+    PrepareSpellScript(spell_stratholme_crusader_strike);
+
     void HandleDummy(SpellEffIndex /*effIndex*/)
     {
         if (Unit* target = GetHitUnit())

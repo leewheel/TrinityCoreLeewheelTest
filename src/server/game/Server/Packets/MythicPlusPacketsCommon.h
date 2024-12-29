@@ -82,6 +82,7 @@ namespace WorldPackets
             int32 MapChallengeModeID = 0;
             std::vector<DungeonScoreBestRunForAffix> BestRuns;
             float OverAllScore = 0.0f;
+
         };
 
         struct DungeonScoreSeasonData

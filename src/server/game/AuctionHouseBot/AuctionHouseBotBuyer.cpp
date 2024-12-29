@@ -398,7 +398,7 @@ uint32 AuctionBotBuyer::GetChanceMultiplier(uint32 quality)
 // Buys the auction and does necessary actions to complete the buyout
 void AuctionBotBuyer::BuyEntry(AuctionPosting* auction, AuctionHouseObject* auctionHouse)
 {
-    TC_LOG_DEBUG("ahbot", "AHBot: Entry {} bought at {:.2f}g", auction->Id, float(auction->BuyoutOrUnitPrice) / float(GOLD));
+    TC_LOG_DEBUG("ahbot", "AHBot: Entry {} bought at {:.2f}g", auction->Id, float(auction->BuyoutOrUnitPrice) / GOLD);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
@@ -412,15 +412,12 @@ void AuctionBotBuyer::BuyEntry(AuctionPosting* auction, AuctionHouseObject* auct
     auction->Bidder = newBidder;
     auction->BidAmount = auction->BuyoutOrUnitPrice;
 
-    // Copy data before freeing AuctionPosting in auctionHouse->RemoveAuction
-    // Because auctionHouse->SendAuctionWon can unload items if bidder is offline
-    // we need to RemoveAuction before sending mails
-    std::map<uint32, AuctionPosting>::node_type removedAuctionNode = auctionHouse->RemoveAuction(trans, auction);
-    auction = &removedAuctionNode.mapped();
-
     // Mails must be under transaction control too to prevent data loss
-    auctionHouse->SendAuctionSold(auction, nullptr, trans);
     auctionHouse->SendAuctionWon(auction, nullptr, trans);
+    auctionHouse->SendAuctionSold(auction, nullptr, trans);
+
+    // Remove auction
+    auctionHouse->RemoveAuction(trans, auction);
 
     // Run SQLs
     CharacterDatabase.CommitTransaction(trans);
@@ -429,7 +426,7 @@ void AuctionBotBuyer::BuyEntry(AuctionPosting* auction, AuctionHouseObject* auct
 // Bids on the auction and does the necessary actions for bidding
 void AuctionBotBuyer::PlaceBidToEntry(AuctionPosting* auction, AuctionHouseObject* auctionHouse, uint32 bidPrice)
 {
-    TC_LOG_DEBUG("ahbot", "AHBot: Bid placed to entry {}, {:.2f}g", auction->Id, float(bidPrice) / float(GOLD));
+    TC_LOG_DEBUG("ahbot", "AHBot: Bid placed to entry {}, {:.2f}g", auction->Id, float(bidPrice) / GOLD);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 

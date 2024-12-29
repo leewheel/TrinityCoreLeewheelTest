@@ -16,7 +16,6 @@
  */
 
 #include "CombatManager.h"
-#include "Containers.h"
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "Player.h"
@@ -295,31 +294,22 @@ void CombatManager::EndCombatBeyondRange(float range, bool includingPvP)
     }
 }
 
-void CombatManager::SuppressPvPCombat(UnitFilter* unitFilter /*= nullptr*/)
+void CombatManager::SuppressPvPCombat()
 {
-    for (auto const& [guid, combatRef] : _pvpRefs)
-        if (!unitFilter || unitFilter(combatRef->GetOther(_owner)))
-            combatRef->Suppress(_owner);
-
+    for (auto const& pair : _pvpRefs)
+        pair.second->Suppress(_owner);
     if (UpdateOwnerCombatState())
         if (UnitAI* ownerAI = _owner->GetAI())
             ownerAI->JustExitedCombat();
 }
 
-void CombatManager::EndAllPvECombat(UnitFilter* unitFilter /*= nullptr*/)
+void CombatManager::EndAllPvECombat()
 {
     // cannot have threat without combat
-    _owner->GetThreatManager().RemoveMeFromThreatLists(unitFilter);
+    _owner->GetThreatManager().RemoveMeFromThreatLists();
     _owner->GetThreatManager().ClearAllThreat();
-
-    std::vector<CombatReference*> combatReferencesToRemove;
-    combatReferencesToRemove.reserve(_pveRefs.size());
-    for (auto const& [guid, combatRef] : _pveRefs)
-        if (!unitFilter || unitFilter(combatRef->GetOther(_owner)))
-            combatReferencesToRemove.push_back(combatRef);
-
-    for (CombatReference* combatRef : combatReferencesToRemove)
-        combatRef->EndCombat();
+    while (!_pveRefs.empty())
+        _pveRefs.begin()->second->EndCombat();
 }
 
 void CombatManager::RevalidateCombat()
@@ -351,16 +341,10 @@ void CombatManager::RevalidateCombat()
     }
 }
 
-void CombatManager::EndAllPvPCombat(UnitFilter* unitFilter /*= nullptr*/)
+void CombatManager::EndAllPvPCombat()
 {
-    std::vector<CombatReference*> combatReferencesToRemove;
-    combatReferencesToRemove.reserve(_pvpRefs.size());
-    for (auto const& [guid, combatRef] : _pvpRefs)
-        if (!unitFilter || unitFilter(combatRef->GetOther(_owner)))
-            combatReferencesToRemove.push_back(combatRef);
-
-    for (CombatReference* combatRef : combatReferencesToRemove)
-        combatRef->EndCombat();
+    while (!_pvpRefs.empty())
+        _pvpRefs.begin()->second->EndCombat();
 }
 
 /*static*/ void CombatManager::NotifyAICombat(Unit* me, Unit* other)

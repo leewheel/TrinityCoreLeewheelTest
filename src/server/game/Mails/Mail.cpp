@@ -113,18 +113,16 @@ void MailDraft::prepareItems(Player* receiver, CharacterDatabaseTransaction tran
     if (m_mailTemplateId == 123)
         m_money = 1000000;
 
-    Loot mailLoot(nullptr, ObjectGuid::Empty, LOOT_NONE, nullptr);
+    Loot mailLoot(nullptr, ObjectGuid::Empty, LOOT_NONE);
 
     // can be empty
     mailLoot.FillLoot(m_mailTemplateId, LootTemplates_Mail, receiver, true, true, LOOT_MODE_DEFAULT, ItemContext::NONE);
 
-    for (uint32 i = 0; m_items.size() < MAX_MAIL_ITEMS && i < mailLoot.items.size(); ++i)
+    uint32 max_slot = mailLoot.GetMaxSlotInLootFor(receiver);
+    for (uint32 i = 0; m_items.size() < MAX_MAIL_ITEMS && i < max_slot; ++i)
     {
-        if (LootItem const* lootitem = mailLoot.LootItemInSlot(i, receiver))
+        if (LootItem* lootitem = mailLoot.LootItemInSlot(i, receiver))
         {
-            if (lootitem->type != LootItemType::Item)
-                continue;
-
             if (Item* item = Item::CreateItem(lootitem->itemid, lootitem->count, lootitem->context, receiver))
             {
                 item->SaveToDB(trans);                           // save for prevent lost at next mail load, if send fail then item will deleted
@@ -200,7 +198,7 @@ void MailDraft::SendMailTo(CharacterDatabaseTransaction trans, MailReceiver cons
     if (pReceiver)
         prepareItems(pReceiver, trans);                            // generate mail template items
 
-    uint64 mailId = sObjectMgr->GenerateMailID();
+    uint32 mailId = sObjectMgr->GenerateMailID();
 
     time_t deliver_time = GameTime::GetGameTime() + deliver_delay;
 
@@ -224,7 +222,7 @@ void MailDraft::SendMailTo(CharacterDatabaseTransaction trans, MailReceiver cons
     // Add to DB
     uint8 index = 0;
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_MAIL);
-    stmt->setUInt64(  index, mailId);
+    stmt->setUInt32(  index, mailId);
     stmt->setUInt8 (++index, uint8(sender.GetMailMessageType()));
     stmt->setInt8  (++index, int8(sender.GetStationery()));
     stmt->setUInt16(++index, GetMailTemplateId());
@@ -244,7 +242,7 @@ void MailDraft::SendMailTo(CharacterDatabaseTransaction trans, MailReceiver cons
     {
         Item* pItem = mailItemIter->second;
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_MAIL_ITEM);
-        stmt->setUInt64(0, mailId);
+        stmt->setUInt32(0, mailId);
         stmt->setUInt64(1, pItem->GetGUID().GetCounter());
         stmt->setUInt64(2, receiver.GetPlayerGUIDLow());
         trans->Append(stmt);

@@ -35,17 +35,12 @@ static void DoMovementInform(Unit* owner, Unit* target)
         AI->MovementInform(FOLLOW_MOTION_TYPE, target->GetGUID().GetCounter());
 }
 
-FollowMovementGenerator::FollowMovementGenerator(Unit* target, float range, Optional<ChaseAngle> angle, Optional<Milliseconds> duration,
-    bool ignoreTargetWalk /*= false*/, Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult /*= {}*/)
-    : AbstractFollower(ASSERT_NOTNULL(target)), _range(range), _angle(angle), _ignoreTargetWalk(ignoreTargetWalk), _checkTimer(CHECK_INTERVAL)
+FollowMovementGenerator::FollowMovementGenerator(Unit* target, float range, ChaseAngle angle) : AbstractFollower(ASSERT_NOTNULL(target)), _range(range), _angle(angle), _checkTimer(CHECK_INTERVAL)
 {
     Mode = MOTION_MODE_DEFAULT;
     Priority = MOTION_PRIORITY_NORMAL;
     Flags = MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING;
     BaseUnitState = UNIT_STATE_FOLLOW;
-    ScriptResult = std::move(scriptResult);
-    if (duration)
-        _duration.emplace(*duration);
 }
 FollowMovementGenerator::~FollowMovementGenerator() = default;
 
@@ -86,17 +81,6 @@ bool FollowMovementGenerator::Update(Unit* owner, uint32 diff)
     if (!target || !target->IsInWorld())
         return false;
 
-    if (_duration)
-    {
-        _duration->Update(diff);
-        if (_duration->Passed())
-        {
-            owner->StopMoving();
-            DoMovementInform(owner, target);
-            return false;
-        }
-    }
-
     if (owner->HasUnitState(UNIT_STATE_NOT_MOVE) || owner->IsMovementPreventedByCasting())
     {
         _path = nullptr;
@@ -105,16 +89,11 @@ bool FollowMovementGenerator::Update(Unit* owner, uint32 diff)
         return true;
     }
 
-    float range = _range;
-    if (Creature* cOwner = owner->ToCreature())
-        if (cOwner->IsIgnoringChaseRange())
-            range = 0.0f;
-
     _checkTimer.Update(diff);
     if (_checkTimer.Passed())
     {
         _checkTimer.Reset(CHECK_INTERVAL);
-        if (HasFlag(MOVEMENTGENERATOR_FLAG_INFORM_ENABLED) && PositionOkay(owner, target, range, _angle))
+        if (HasFlag(MOVEMENTGENERATOR_FLAG_INFORM_ENABLED) && PositionOkay(owner, target, _range, _angle))
         {
             RemoveFlag(MOVEMENTGENERATOR_FLAG_INFORM_ENABLED);
             _path = nullptr;
@@ -136,7 +115,7 @@ bool FollowMovementGenerator::Update(Unit* owner, uint32 diff)
     if (!_lastTargetPosition || _lastTargetPosition->GetExactDistSq(target->GetPosition()) > 0.0f)
     {
         _lastTargetPosition = target->GetPosition();
-        if (owner->HasUnitState(UNIT_STATE_FOLLOW_MOVE) || !PositionOkay(owner, target, range + FOLLOW_RANGE_TOLERANCE))
+        if (owner->HasUnitState(UNIT_STATE_FOLLOW_MOVE) || !PositionOkay(owner, target, _range + FOLLOW_RANGE_TOLERANCE))
         {
             if (!_path)
                 _path = std::make_unique<PathGenerator>(owner);
@@ -146,19 +125,19 @@ bool FollowMovementGenerator::Update(Unit* owner, uint32 diff)
             // select angle
             float tAngle;
             float const curAngle = target->GetRelativeAngle(owner);
-            if (!_angle || _angle->IsAngleOkay(curAngle))
+            if (_angle.IsAngleOkay(curAngle))
                 tAngle = curAngle;
             else
             {
-                float const diffUpper = Position::NormalizeOrientation(curAngle - _angle->UpperBound());
-                float const diffLower = Position::NormalizeOrientation(_angle->LowerBound() - curAngle);
+                float const diffUpper = Position::NormalizeOrientation(curAngle - _angle.UpperBound());
+                float const diffLower = Position::NormalizeOrientation(_angle.LowerBound() - curAngle);
                 if (diffUpper < diffLower)
-                    tAngle = _angle->UpperBound();
+                    tAngle = _angle.UpperBound();
                 else
-                    tAngle = _angle->LowerBound();
+                    tAngle = _angle.LowerBound();
             }
 
-            target->GetNearPoint(owner, x, y, z, range, target->ToAbsoluteAngle(tAngle));
+            target->GetNearPoint(owner, x, y, z, _range, target->ToAbsoluteAngle(tAngle));
 
             if (owner->IsHovering())
                 owner->UpdateAllowedPositionZ(x, y, z);
@@ -183,8 +162,7 @@ bool FollowMovementGenerator::Update(Unit* owner, uint32 diff)
 
             Movement::MoveSplineInit init(owner);
             init.MovebyPath(_path->GetPath());
-            if (!_ignoreTargetWalk)
-                init.SetWalk(target->IsWalking());
+            init.SetWalk(target->IsWalking());
             init.SetFacing(target->GetOrientation());
             init.Launch();
         }
@@ -199,15 +177,13 @@ void FollowMovementGenerator::Deactivate(Unit* owner)
     owner->ClearUnitState(UNIT_STATE_FOLLOW_MOVE);
 }
 
-void FollowMovementGenerator::Finalize(Unit* owner, bool active, bool movementInform)
+void FollowMovementGenerator::Finalize(Unit* owner, bool active, bool/* movementInform*/)
 {
     AddFlag(MOVEMENTGENERATOR_FLAG_FINALIZED);
     if (active)
     {
         owner->ClearUnitState(UNIT_STATE_FOLLOW_MOVE);
         UpdatePetSpeed(owner);
-        if (movementInform)
-            SetScriptResult(MovementStopReason::Finished);
     }
 }
 

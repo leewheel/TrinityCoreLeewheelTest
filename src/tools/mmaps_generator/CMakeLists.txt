@@ -12,6 +12,8 @@ CollectSourceFiles(
   ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE_SOURCES)
 
+list(APPEND PRIVATE_SOURCES ${sources_windows})
+
 add_executable(mmaps_generator ${PRIVATE_SOURCES})
 
 target_link_libraries(mmaps_generator
@@ -35,9 +37,9 @@ target_include_directories(mmaps_generator
     ${CMAKE_CURRENT_BINARY_DIR})
 
 set_target_properties(mmaps_generator
-  PROPERTIES
-    COMPILE_WARNING_AS_ERROR ${WITH_WARNINGS_AS_ERRORS}
-    FOLDER "tools")
+    PROPERTIES
+      FOLDER
+        "tools")
 
 if(UNIX)
   install(TARGETS mmaps_generator DESTINATION bin)

@@ -42,6 +42,11 @@ void WorldSession::HandleBattlePetSetBattleSlot(WorldPackets::BattlePet::BattleP
             slot->Pet = pet->PacketInfo;
 }
 
+void WorldSession::HandleBattlePetModifyName(WorldPackets::BattlePet::BattlePetModifyName& battlePetModifyName)
+{
+    GetBattlePetMgr()->ModifyName(battlePetModifyName.PetGuid, battlePetModifyName.Name, std::move(battlePetModifyName.DeclinedNames));
+}
+
 void WorldSession::HandleQueryBattlePetName(WorldPackets::BattlePet::QueryBattlePetName& queryBattlePetName)
 {
     WorldPackets::BattlePet::QueryBattlePetNameResponse response;
@@ -83,6 +88,11 @@ void WorldSession::HandleQueryBattlePetName(WorldPackets::BattlePet::QueryBattle
     SendPacket(response.Write());
 }
 
+void WorldSession::HandleBattlePetDeletePet(WorldPackets::BattlePet::BattlePetDeletePet& battlePetDeletePet)
+{
+    GetBattlePetMgr()->RemovePet(battlePetDeletePet.PetGuid);
+}
+
 void WorldSession::HandleBattlePetSetFlags(WorldPackets::BattlePet::BattlePetSetFlags& battlePetSetFlags)
 {
     if (!GetBattlePetMgr()->HasJournalLock())
@@ -105,15 +115,7 @@ void WorldSession::HandleBattlePetClearFanfare(WorldPackets::BattlePet::BattlePe
     GetBattlePetMgr()->ClearFanfare(battlePetClearFanfare.PetGuid);
 }
 
-void WorldSession::HandleBattlePetSummon(WorldPackets::BattlePet::BattlePetSummon& battlePetSummon)
+void WorldSession::HandleCageBattlePet(WorldPackets::BattlePet::CageBattlePet& cageBattlePet)
 {
-    if (*_player->m_activePlayerData->SummonedBattlePetGUID != battlePetSummon.PetGuid)
-        GetBattlePetMgr()->SummonPet(battlePetSummon.PetGuid);
-    else
-        GetBattlePetMgr()->DismissPet();
-}
-
-void WorldSession::HandleBattlePetUpdateNotify(WorldPackets::BattlePet::BattlePetUpdateNotify& battlePetUpdateNotify)
-{
-    GetBattlePetMgr()->UpdateBattlePetData(battlePetUpdateNotify.PetGuid);
+    GetBattlePetMgr()->CageBattlePet(cageBattlePet.PetGuid);
 }

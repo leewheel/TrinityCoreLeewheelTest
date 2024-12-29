@@ -25,7 +25,7 @@
 #include <bitset>
 #include <vector>
 
-enum ItemModType : uint8
+enum ItemModType
 {
     ITEM_MOD_MANA                     = 0,
     ITEM_MOD_HEALTH                   = 1,
@@ -109,9 +109,6 @@ enum ItemSpelltriggerType
     ITEM_SPELLTRIGGER_ON_PICKUP         = 5,
     ITEM_SPELLTRIGGER_ON_LEARN          = 6,                  // used in ItemEffect in second slot with spell_id with SPELL_GENERIC_LEARN in spell_1
     ITEM_SPELLTRIGGER_ON_LOOTED         = 7,
-    ITEM_SPELLTRIGGER_TEACH_MOUNT       = 8,
-    ITEM_SPELLTRIGGER_ON_PICKUP_FORCED  = 9,
-    ITEM_SPELLTRIGGER_ON_LOOTED_FORCED  = 10,
 };
 
 enum ItemBondingType
@@ -121,12 +118,9 @@ enum ItemBondingType
     BIND_ON_EQUIP                               = 2,
     BIND_ON_USE                                 = 3,
     BIND_QUEST                                  = 4,
-    BIND_UNUSED_1                               = 5,
-    BIND_UNUSED_2                               = 6,
-    BIND_WOW_ACCOUNT                            = 7,
-    BIND_BNET_ACCOUNT                           = 8,
-    BIND_BNET_ACCOUNT_UNTIL_EQUIPPED            = 9,
 };
+
+#define MAX_BIND_TYPE                             5
 
 /* /// @todo: Requiring actual cases in which using (an) item isn't allowed while shapeshifted. Else, this flag would need an implementation.
     ITEM_FLAG_USE_WHEN_SHAPESHIFTED    = 0x00800000, // Item can be used in shapeshift forms */
@@ -304,18 +298,7 @@ enum ItemFlags4
     ITEM_FLAG4_SQUISH_USING_ITEM_LEVEL_AS_PLAYER_LEVEL          = 0x00004000,
     ITEM_FLAG4_ALWAYS_SHOW_SELL_PRICE_IN_TOOLTIP                = 0x00008000,
     ITEM_FLAG4_COSMETIC_ITEM                                    = 0x00010000,
-    ITEM_FLAG4_NO_SPELL_EFFECT_TOOLTIP_PREFIXES                 = 0x00020000,
-    ITEM_FLAG4_IGNORE_COSMETIC_COLLECTION_BEHAVIOR              = 0x00040000,
-    ITEM_FLAG4_NPC_ONLY                                         = 0x00080000,
-    ITEM_FLAG4_NOT_RESTORABLE                                   = 0x00100000,
-    ITEM_FLAG4_DONT_DISPLAY_AS_CRAFTING_REAGENT                 = 0x00200000,
-    ITEM_FLAG4_DISPLAY_REAGENT_QUALITY_AS_CRAFTED_QUALITY       = 0x00400000,
-    ITEM_FLAG4_NO_SALVAGE                                       = 0x00800000,
-    ITEM_FLAG4_RECRAFTABLE                                      = 0x01000000,
-    ITEM_FLAG4_CC_TRINKET                                       = 0x02000000,
-    ITEM_FLAG4_KEEP_THROUGH_FACTION_CHANGE                      = 0x04000000,
-    ITEM_FLAG4_NOT_MULTICRAFTABLE                               = 0x08000000,
-    ITEM_FLAG4_DONT_REPORT_LOOT_LOG_TO_SELF                     = 0x10000000,
+    ITEM_FLAG4_NO_SPELL_EFFECT_TOOLTIP_PREFIXES                 = 0x00020000
 };
 
 enum ItemFlagsCustom
@@ -323,6 +306,22 @@ enum ItemFlagsCustom
     ITEM_FLAGS_CU_UNUSED                = 0x0001,
     ITEM_FLAGS_CU_IGNORE_QUEST_STATUS   = 0x0002,   // No quest status will be checked when this item drops
     ITEM_FLAGS_CU_FOLLOW_LOOT_RULES     = 0x0004    // Item will always follow group/master/need before greed looting rules
+};
+
+enum CurrencyFlags
+{
+    CURRENCY_FLAG_TRADEABLE          = 0x01,
+    // ...
+    CURRENCY_FLAG_HIGH_PRECISION     = 0x08,
+    // ...
+    CURRENCY_FLAG_COUNT_SEASON_TOTAL = 0x80,
+};
+
+enum CurrencyCategory
+{
+    // ...
+    CURRENCY_CATEGORY_META_CONQUEST = 89,
+    // ...
 };
 
 enum BAG_FAMILY_MASK
@@ -349,34 +348,27 @@ enum BAG_FAMILY_MASK
 
 enum SocketColor
 {
-    SOCKET_COLOR_META                           = 0x000001,
-    SOCKET_COLOR_RED                            = 0x000002,
-    SOCKET_COLOR_YELLOW                         = 0x000004,
-    SOCKET_COLOR_BLUE                           = 0x000008,
-    SOCKET_COLOR_HYDRAULIC                      = 0x000010, // not used
-    SOCKET_COLOR_COGWHEEL                       = 0x000020,
-    SOCKET_COLOR_PRISMATIC                      = 0x00000E,
-    SOCKET_COLOR_RELIC_IRON                     = 0x000040,
-    SOCKET_COLOR_RELIC_BLOOD                    = 0x000080,
-    SOCKET_COLOR_RELIC_SHADOW                   = 0x000100,
-    SOCKET_COLOR_RELIC_FEL                      = 0x000200,
-    SOCKET_COLOR_RELIC_ARCANE                   = 0x000400,
-    SOCKET_COLOR_RELIC_FROST                    = 0x000800,
-    SOCKET_COLOR_RELIC_FIRE                     = 0x001000,
-    SOCKET_COLOR_RELIC_WATER                    = 0x002000,
-    SOCKET_COLOR_RELIC_LIFE                     = 0x004000,
-    SOCKET_COLOR_RELIC_WIND                     = 0x008000,
-    SOCKET_COLOR_RELIC_HOLY                     = 0x010000,
-    SOCKET_COLOR_PUNCHCARD_RED                  = 0x020000,
-    SOCKET_COLOR_PUNCHCARD_YELLOW               = 0x040000,
-    SOCKET_COLOR_PUNCHCARD_BLUE                 = 0x080000,
-    SOCKET_COLOR_DOMINATION                     = 0x100000,
-    SOCKET_COLOR_CYPHER                         = 0x200000,
-    SOCKET_COLOR_TINKER                         = 0x400000,
-    SOCKET_COLOR_PRIMORDIAL                     = 0x800000,
+    SOCKET_COLOR_META                           = 0x00001,
+    SOCKET_COLOR_RED                            = 0x00002,
+    SOCKET_COLOR_YELLOW                         = 0x00004,
+    SOCKET_COLOR_BLUE                           = 0x00008,
+    SOCKET_COLOR_HYDRAULIC                      = 0x00010, // not used
+    SOCKET_COLOR_COGWHEEL                       = 0x00020,
+    SOCKET_COLOR_PRISMATIC                      = 0x0000E,
+    SOCKET_COLOR_RELIC_IRON                     = 0x00040,
+    SOCKET_COLOR_RELIC_BLOOD                    = 0x00080,
+    SOCKET_COLOR_RELIC_SHADOW                   = 0x00100,
+    SOCKET_COLOR_RELIC_FEL                      = 0x00200,
+    SOCKET_COLOR_RELIC_ARCANE                   = 0x00400,
+    SOCKET_COLOR_RELIC_FROST                    = 0x00800,
+    SOCKET_COLOR_RELIC_FIRE                     = 0x01000,
+    SOCKET_COLOR_RELIC_WATER                    = 0x02000,
+    SOCKET_COLOR_RELIC_LIFE                     = 0x04000,
+    SOCKET_COLOR_RELIC_WIND                     = 0x08000,
+    SOCKET_COLOR_RELIC_HOLY                     = 0x10000
 };
 
-extern int32 const SocketColorToGemTypeMask[26];
+extern int32 const SocketColorToGemTypeMask[19];
 
 #define SOCKET_COLOR_STANDARD (SOCKET_COLOR_RED | SOCKET_COLOR_YELLOW | SOCKET_COLOR_BLUE)
 
@@ -410,30 +402,10 @@ enum InventoryType : uint8
     INVTYPE_THROWN                              = 25,
     INVTYPE_RANGEDRIGHT                         = 26,
     INVTYPE_QUIVER                              = 27,
-    INVTYPE_RELIC                               = 28,
-    INVTYPE_PROFESSION_TOOL                     = 29,
-    INVTYPE_PROFESSION_GEAR                     = 30,
-    INVTYPE_EQUIPABLE_SPELL_OFFENSIVE           = 31,
-    INVTYPE_EQUIPABLE_SPELL_UTILITY             = 32,
-    INVTYPE_EQUIPABLE_SPELL_DEFENSIVE           = 33,
-    INVTYPE_EQUIPABLE_SPELL_MOBILITY            = 34
+    INVTYPE_RELIC                               = 28
 };
 
-#define MAX_INVTYPE                               35
-
-constexpr std::array<InventoryType, 10> InventoryTypesEquipable =
-{
-    INVTYPE_WEAPON,
-    INVTYPE_SHIELD,
-    INVTYPE_RANGED,
-    INVTYPE_2HWEAPON,
-    INVTYPE_WEAPONMAINHAND,
-    INVTYPE_WEAPONOFFHAND,
-    INVTYPE_HOLDABLE,
-    INVTYPE_THROWN,
-    INVTYPE_RANGEDRIGHT,
-    INVTYPE_PROFESSION_TOOL
-};
+#define MAX_INVTYPE                               29
 
 enum ItemClass : uint8
 {
@@ -455,11 +427,10 @@ enum ItemClass : uint8
     ITEM_CLASS_MISCELLANEOUS                    = 15,
     ITEM_CLASS_GLYPH                            = 16,
     ITEM_CLASS_BATTLE_PETS                      = 17,
-    ITEM_CLASS_WOW_TOKEN                        = 18,
-    ITEM_CLASS_PROFESSION                       = 19
+    ITEM_CLASS_WOW_TOKEN                        = 18
 };
 
-#define MAX_ITEM_CLASS                            20
+#define MAX_ITEM_CLASS                            19
 
 enum ItemSubclassConsumable
 {
@@ -489,11 +460,10 @@ enum ItemSubclassContainer
     ITEM_SUBCLASS_LEATHERWORKING_CONTAINER      = 7,
     ITEM_SUBCLASS_INSCRIPTION_CONTAINER         = 8,
     ITEM_SUBCLASS_TACKLE_CONTAINER              = 9,
-    ITEM_SUBCLASS_COOKING_CONTAINER             = 10,
-    ITEM_SUBCLASS_REAGENT_CONTAINER             = 11
+    ITEM_SUBCLASS_COOKING_CONTAINER             = 10
 };
 
-#define MAX_ITEM_SUBCLASS_CONTAINER               12
+#define MAX_ITEM_SUBCLASS_CONTAINER               11
 
 enum ItemSubclassWeapon
 {
@@ -522,7 +492,7 @@ enum ItemSubclassWeapon
 
 #define ITEM_SUBCLASS_MASK_WEAPON_RANGED (\
     (1 << ITEM_SUBCLASS_WEAPON_BOW) | (1 << ITEM_SUBCLASS_WEAPON_GUN) |\
-    (1 << ITEM_SUBCLASS_WEAPON_CROSSBOW) | (1 << ITEM_SUBCLASS_WEAPON_THROWN))
+    (1 << ITEM_SUBCLASS_WEAPON_CROSSBOW))
 
 #define MAX_ITEM_SUBCLASS_WEAPON                  21
 
@@ -565,11 +535,10 @@ enum ItemSubclassArmor
 enum ItemSubclassReagent
 {
     ITEM_SUBCLASS_REAGENT                       = 0,
-    ITEM_SUBCLASS_KEYSTONE                      = 1,
-    ITEM_SUBCLASS_CONTEXT_TOKEN                 = 2
+    ITEM_SUBCLASS_KEYSTONE                      = 1
 };
 
-#define MAX_ITEM_SUBCLASS_REAGENT                 3
+#define MAX_ITEM_SUBCLASS_REAGENT                 2
 
 enum ItemSubclassProjectile
 {
@@ -601,12 +570,10 @@ enum ItemSubclassTradeGoods
     ITEM_SUBCLASS_ENCHANTMENT                   = 14,
     ITEM_SUBCLASS_WEAPON_ENCHANTMENT            = 15,
     ITEM_SUBCLASS_INSCRIPTION                   = 16,
-    ITEM_SUBCLASS_EXPLOSIVES_DEVICES            = 17,
-    ITEM_SUBCLASS_OPTIONAL_REAGENT              = 18,
-    ITEM_SUBCLASS_FINISHING_REAGENT             = 19,
+    ITEM_SUBCLASS_EXPLOSIVES_DEVICES            = 17
 };
 
-#define MAX_ITEM_SUBCLASS_TRADE_GOODS             20
+#define MAX_ITEM_SUBCLASS_TRADE_GOODS             18
 
 enum ItemSubclassItemEnhancement
 {
@@ -623,11 +590,10 @@ enum ItemSubclassItemEnhancement
     ITEM_SUBCLASS_ITEM_ENHANCEMENT_FINGER               = 10,
     ITEM_SUBCLASS_ITEM_ENHANCEMENT_WEAPON               = 11,
     ITEM_SUBCLASS_ITEM_ENHANCEMENT_TWO_HANDED_WEAPON    = 12,
-    ITEM_SUBCLASS_ITEM_ENHANCEMENT_SHIELD_OFF_HAND      = 13,
-    ITEM_SUBCLASS_ITEM_ENHANCEMENT_MISC                 = 14
+    ITEM_SUBCLASS_ITEM_ENHANCEMENT_SHIELD_OFF_HAND      = 13
 };
 
-#define MAX_ITEM_SUBCLASS_ITEM_ENHANCEMENT                15
+#define MAX_ITEM_SUBCLASS_ITEM_ENHANCEMENT                14
 
 enum ItemSubclassRecipe
 {
@@ -696,10 +662,9 @@ enum ItemSubclassJunk
     ITEM_SUBCLASS_MISCELLANEOUS_HOLIDAY         = 3,
     ITEM_SUBCLASS_MISCELLANEOUS_OTHER           = 4,
     ITEM_SUBCLASS_MISCELLANEOUS_MOUNT           = 5,
-    ITEM_SUBCLASS_MISCELLANEOUS_MOUNT_EQUIPMENT = 6
 };
 
-#define MAX_ITEM_SUBCLASS_MISCELLANEOUS           7
+#define MAX_ITEM_SUBCLASS_MISCELLANEOUS           6
 
 enum ItemSubclassGlyph
 {
@@ -733,26 +698,6 @@ enum ItemSubclassWowToken
 
 #define MAX_ITEM_SUBCLASS_WOW_TOKEN               1
 
-enum ItemSubclassProfession
-{
-    ITEM_SUBCLASS_PROFESSION_BLACKSMITHING      = 0,
-    ITEM_SUBCLASS_PROFESSION_LEATHERWORKING     = 1,
-    ITEM_SUBCLASS_PROFESSION_ALCHEMY            = 2,
-    ITEM_SUBCLASS_PROFESSION_HERBALISM          = 3,
-    ITEM_SUBCLASS_PROFESSION_COOKING            = 4,
-    ITEM_SUBCLASS_PROFESSION_MINING             = 5,
-    ITEM_SUBCLASS_PROFESSION_TAILORING          = 6,
-    ITEM_SUBCLASS_PROFESSION_ENGINEERING        = 7,
-    ITEM_SUBCLASS_PROFESSION_ENCHANTING         = 8,
-    ITEM_SUBCLASS_PROFESSION_FISHING            = 9,
-    ITEM_SUBCLASS_PROFESSION_SKINNING           = 10,
-    ITEM_SUBCLASS_PROFESSION_JEWELCRAFTING      = 11,
-    ITEM_SUBCLASS_PROFESSION_INSCRIPTION        = 12,
-    ITEM_SUBCLASS_PROFESSION_ARCHAEOLOGY        = 13
-};
-
-#define MAX_ITEM_SUBCLASS_PROFESSION              14
-
 const uint32 MaxItemSubclassValues[MAX_ITEM_CLASS] =
 {
     MAX_ITEM_SUBCLASS_CONSUMABLE,
@@ -773,8 +718,7 @@ const uint32 MaxItemSubclassValues[MAX_ITEM_CLASS] =
     MAX_ITEM_SUBCLASS_MISCELLANEOUS,
     MAX_ITEM_SUBCLASS_GLYPH,
     MAX_ITEM_SUBCLASS_BATTLE_PET,
-    MAX_ITEM_SUBCLASS_WOW_TOKEN,
-    MAX_ITEM_SUBCLASS_PROFESSION
+    MAX_ITEM_SUBCLASS_WOW_TOKEN
 };
 
 #define MAX_ITEM_SUBCLASS_TOTAL 21
@@ -783,27 +727,6 @@ enum ItemLevelConstants : uint32
 {
     MIN_ITEM_LEVEL = 1,
     MAX_ITEM_LEVEL = 1300
-};
-
-enum ItemIdConstants
-{
-    ITEM_HEARTHSTONE                             = 6948,    // Hearthstone
-    ITEM_GARRISON_HEARTHSTONE                    = 110560,  // Garrison Hearthstone
-    ITEM_DALARAN_HEARTHSTONE                     = 140192,  // Dalaran Hearthstone
-    ITEM_FLIGHT_MASTER_WHISTLE                   = 141605,  // Flight Master Whistle
-
-    ITEM_RED_RIBBONED_WRAPPING_PAPER             = 5042,    // Red Ribboned Wrapping Paper
-    ITEM_RED_RIBBONED_GIFT                       = 5043,    // Red Ribboned Gift
-    ITEM_BLUE_RIBBONED_WRAPPING_PAPER            = 5048,    // Blue Ribboned Wrapping Paper
-    ITEM_BLUE_RIBBONED_GIFT                      = 5044,    // Blue Ribboned Gift
-    ITEM_BLUE_RIBBONED_HOLIDAY_WRAPPING_PAPER    = 17303,   // Blue Ribboned Wrapping Paper
-    ITEM_BLUE_RIBBONED_HOLIDAY_GIFT              = 17302,   // Blue Ribboned Holiday Gift
-    ITEM_GREEN_RIBBONED_WRAPPING_PAPER           = 17304,   // Green Ribboned Wrapping Paper
-    ITEM_GREEN_RIBBONED_HOLIDAY_GIFT             = 17305,   // Green Ribboned Holiday Gift
-    ITEM_PURPLE_RIBBONED_WRAPPING_PAPER          = 17307,   // Purple Ribboned Wrapping Paper
-    ITEM_PURPLE_RIBBONED_HOLIDAY_GIFT            = 17308,   // Purple Ribboned Holiday Gift
-    ITEM_EMPTY_WRAPPER                           = 21830,   // Empty Wrapper
-    ITEM_WRAPPED_GIFT                            = 21831,   // Wrappered Gift
 };
 
 class Player;
@@ -827,7 +750,8 @@ struct TC_GAME_API ItemTemplate
     InventoryType GetInventoryType() const { return InventoryType(ExtendedData->InventoryType); }
     int32 GetAllowableClass() const { return ExtendedData->AllowableClass; }
     Trinity::RaceMask<int64> GetAllowableRace() const { return ExtendedData->AllowableRace; }
-    uint32 GetBaseItemLevel() const { return ExtendedData->ItemLevel; }
+    uint32 GetItemLevel() const { return ExtendedData->ItemLevel; }
+    uint32 GetBaseItemLevel() const { return ExtendedData->ItemLevel; } 
     int32 GetBaseRequiredLevel() const { return ExtendedData->RequiredLevel; }
     uint32 GetRequiredSkill() const { return ExtendedData->RequiredSkill; }
     uint32 GetRequiredSkillRank() const { return ExtendedData->RequiredSkillRank; }
@@ -836,14 +760,13 @@ struct TC_GAME_API ItemTemplate
     uint32 GetRequiredReputationRank() const { return ExtendedData->MinReputation; }
     uint32 GetMaxCount() const { return ExtendedData->MaxCount; }
     uint32 GetContainerSlots() const { return ExtendedData->ContainerSlots; }
-    int32 GetStatModifierBonusAmount(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatModifierBonusAmount[index]; }
     int32 GetStatModifierBonusStat(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatModifierBonusStat[index]; }
+    int32 GetStatModifierBonusValue(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatModifierBonusAmount[index]; }
     int32 GetStatPercentEditor(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatPercentEditor[index]; }
     float GetStatPercentageOfSocket(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_STATS); return ExtendedData->StatPercentageOfSocket[index]; }
-    uint16 GetScalingStatDistributionID() const { return ExtendedData->ScalingStatDistributionID; }
-    uint32 GetScalingStatContentTuning() const { return ExtendedData->ContentTuningID; }
-    uint32 GetPlayerLevelToItemLevelCurveId() const { return ExtendedData->PlayerLevelToItemLevelCurveID; }
-    uint32 GetDamageType() const { return ExtendedData->DamageDamageType; }
+    uint32 GetScalingStatContentTuning() const { return 1; /* ExtendedData->ContentTuningID; */ } 
+    uint32 GetPlayerLevelToItemLevelCurveId() const { return 1;/* ExtendedData->PlayerLevelToItemLevelCurveID */ }
+    uint32 GetDamageType() const { return ExtendedData->DamageType; }
     uint32 GetDelay() const { return ExtendedData->ItemDelay; }
     float GetRangedModRange() const { return ExtendedData->ItemRange; }
     ItemBondingType GetBonding() const { return ItemBondingType(ExtendedData->Bonding); }
@@ -851,26 +774,23 @@ struct TC_GAME_API ItemTemplate
     uint32 GetPageText() const { return ExtendedData->PageID; }
     uint32 GetStartQuest() const { return ExtendedData->StartQuestID; }
     uint32 GetLockID() const { return ExtendedData->LockID; }
+    uint32 GetRandomProperty() const { return ExtendedData->RandomSelect; }
+    uint32 GetRandomSuffix() const { return ExtendedData->ItemRandomSuffixGroupID; }
     uint32 GetItemSet() const { return ExtendedData->ItemSet; }
     uint32 GetArea(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_ZONES); return ExtendedData->ZoneBound[index]; }
     uint32 GetMap() const { return ExtendedData->InstanceBound; }
     uint32 GetBagFamily() const { return ExtendedData->BagFamily; }
     uint32 GetTotemCategory() const { return ExtendedData->TotemCategoryID; }
     SocketColor GetSocketColor(uint32 index) const { ASSERT(index < MAX_ITEM_PROTO_SOCKETS); return SocketColor(ExtendedData->SocketType[index]); }
-    uint32 GetSocketBonus() const { return ExtendedData->SocketMatchEnchantmentID; }
+    uint32 GetSocketBonus() const { return ExtendedData->SocketMatchEnchantmentId; }
     uint32 GetGemProperties() const { return ExtendedData->GemProperties; }
     float GetQualityModifier() const { return ExtendedData->QualityModifier; }
     uint32 GetDuration() const { return ExtendedData->DurationInInventory; }
     uint32 GetItemLimitCategory() const { return ExtendedData->LimitCategory; }
     HolidayIds GetHolidayID() const { return HolidayIds(ExtendedData->RequiredHoliday); }
     float  GetDmgVariance() const { return ExtendedData->DmgVariance; }
-    uint8 GetArtifactID() const { return ExtendedData->ArtifactID; }
     uint8 GetRequiredExpansion() const { return ExtendedData->ExpansionID; }
-    uint16 GetRandomSelect() const { return ExtendedData->RandomSelect; }
-    uint16 GetItemRandomSuffixGroupID() const { return ExtendedData->ItemRandomSuffixGroupID; }
-    int32 GetMinDamage(uint8 index) const { return BasicData->MinDamage[index]; }
-    int32 GetMaxDamage(uint8 index) const { return BasicData->MaxDamage[index]; }
-    int16 GetResistance(SpellSchools school) const { return ExtendedData->Resistances[school]; }
+    int16 GetShieldBlockValue(uint32 itemLevel) const;
 
     uint32 MaxDurability;
     std::vector<ItemEffectEntry const*> Effects;
@@ -885,7 +805,6 @@ struct TC_GAME_API ItemTemplate
     uint32 RandomBonusListTemplateId;
     std::bitset<MAX_CLASSES * MAX_SPECIALIZATIONS> Specializations[3];  // one set for 1-40 level range and another for 41-109 and one for 110
     uint32 ItemSpecClassMask;
-    int32 QuestLogItemId;
 
     // helpers
     bool CanChangeEquipStateInCombat() const;
@@ -906,14 +825,14 @@ struct TC_GAME_API ItemTemplate
     bool HasSignature() const;
 
     bool IsWeapon() const { return GetClass() == ITEM_CLASS_WEAPON; }
-    bool IsArmor() const { return GetClass() == ITEM_CLASS_ARMOR; }
 
     bool IsRangedWeapon() const
     {
         return IsWeapon() &&
                (GetSubClass() == ITEM_SUBCLASS_WEAPON_BOW ||
                GetSubClass() == ITEM_SUBCLASS_WEAPON_GUN ||
-               GetSubClass() == ITEM_SUBCLASS_WEAPON_CROSSBOW);
+               GetSubClass() == ITEM_SUBCLASS_WEAPON_CROSSBOW ||
+               GetSubClass() == ITEM_SUBCLASS_THROWN);
     }
 
     inline bool HasFlag(ItemFlags flag) const { return (ExtendedData->Flags[0] & flag) != 0; }
@@ -923,8 +842,11 @@ struct TC_GAME_API ItemTemplate
     inline bool HasFlag(ItemFlagsCustom customFlag) const { return (FlagsCu & customFlag) != 0; }
 
     char const* GetDefaultLocaleName() const;
+    uint32 GetArmor(uint32 itemLevel) const;
     float GetDPS(uint32 itemLevel) const;
     void GetDamage(uint32 itemLevel, float& minDamage, float& maxDamage) const;
+    bool IsUsableByLootSpecialization(Player const* player, bool alwaysAllowBoundToAccount) const;
+    static std::size_t CalculateItemSpecBit(ChrSpecializationEntry const* spec);
 };
 
 #endif

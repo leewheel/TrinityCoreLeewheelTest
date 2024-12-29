@@ -47,17 +47,10 @@ void WorldSession::HandleInspectOpcode(WorldPackets::Inspect::Inspect& inspect)
 
     if (GetPlayer()->CanBeGameMaster() || sWorld->getIntConfig(CONFIG_TALENTS_INSPECTING) + (GetPlayer()->GetEffectiveTeam() == player->GetEffectiveTeam()) > 1)
     {
-        //PlayerTalentMap const* talents = player->GetTalentMap(player->GetActiveTalentGroup());
-        //for (PlayerTalentMap::value_type const& v : *talents)
-        //    if (v.second != PLAYERSPELL_REMOVED)
-        //        inspectResult.Talents.push_back(v.first);
-
-        /*
-        inspectResult.TalentTraits.Level = player->GetLevel();
-        inspectResult.TalentTraits.ChrSpecializationID = AsUnderlyingType(player->GetPrimarySpecialization());
-        if (UF::TraitConfig const* traitConfig = player->GetTraitConfig(player->m_activePlayerData->ActiveCombatTraitConfigID))
-            inspectResult.TalentTraits.Config = WorldPackets::Traits::TraitConfig(*traitConfig);
-        */
+        PlayerTalentMap talents = player->GetPlayerTalentMap(player->GetActiveTalentGroup());
+        for (PlayerTalentMap::value_type const& v : talents)
+            if (v.second.State != PLAYERSPELL_REMOVED)
+                inspectResult.Talents.push_back(v.first);
     }
 
     if (Guild* guild = sGuildMgr->GetGuildById(player->GetGuildId()))

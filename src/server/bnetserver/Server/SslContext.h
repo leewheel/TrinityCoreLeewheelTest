@@ -22,18 +22,18 @@
 
 namespace Battlenet
 {
-    class SslContext
-    {
-    public:
-        static bool Initialize();
+	class SslContext
+	{
+	public:
+		static bool Initialize();
 
-        static boost::asio::ssl::context& instance();
+		static boost::asio::ssl::context& instance();
 
-        static bool UsesDevWildcardCertificate() { return _usesDevWildcardCertificate; }
+		static bool UsesDevWildcardCertificate() { return _usesDevWildcardCertificate; }
 
-    private:
-        static bool _usesDevWildcardCertificate;
-    };
+	private:
+		static bool _usesDevWildcardCertificate;
+	};
 }
 
 #endif // SslContext_h__

@@ -83,7 +83,7 @@ class LinkedListElement
         LinkedListElement& operator=(LinkedListElement&&) = delete;
 
     protected:
-        virtual ~LinkedListElement()
+        ~LinkedListElement()
         {
             delink();
         }
@@ -162,7 +162,7 @@ class LinkedListHead
                 {                                           // construct with null node pointer
                 }
 
-                explicit Iterator(pointer _Pnode) : _Ptr(_Pnode)
+                Iterator(pointer _Pnode) : _Ptr(_Pnode)
                 {                                           // construct with node pointer _Pnode
                 }
 
@@ -208,8 +208,40 @@ class LinkedListHead
                     return (_Tmp);
                 }
 
-                bool operator==(Iterator const& _Right) const = default;
-                                                            // test for iterator equality
+                bool operator==(Iterator const& _Right) const
+                {                                           // test for iterator equality
+                    return (_Ptr == _Right._Ptr);
+                }
+
+                bool operator!=(Iterator const& _Right) const
+                {                                           // test for iterator inequality
+                    return (!(*this == _Right));
+                }
+
+                bool operator==(pointer const& _Right) const
+                {                                           // test for pointer equality
+                    return (_Ptr != _Right);
+                }
+
+                bool operator!=(pointer const& _Right) const
+                {                                           // test for pointer equality
+                    return (!(*this == _Right));
+                }
+
+                bool operator==(const_reference _Right) const
+                {                                           // test for reference equality
+                    return (_Ptr == &_Right);
+                }
+
+                bool operator!=(const_reference _Right) const
+                {                                           // test for reference equality
+                    return (_Ptr != &_Right);
+                }
+
+                pointer _Mynode()
+                {                                           // return node pointer
+                    return (_Ptr);
+                }
 
             protected:
                 pointer _Ptr;                               // pointer to node

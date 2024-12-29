@@ -39,10 +39,7 @@ enum Spawns
     SPAWN_NEAR_TOWER    = 2,
 };
 
-enum NPCTEXTS
-{
-    JAINA_RETREAT_HORDE_BASE    = 7
-};
+#define YELL_HURRY  "Hurry, we don't have much time"
 
 // Locations for summoning gargoyls and frost wyrms in special cases
 float SpawnPointSpecial[3][3]=
@@ -394,7 +391,7 @@ void hyjalAI::Reset()
     {
         case JAINA:
             Faction = 0;
-            DoCastSelf(SPELL_BRILLIANCE_AURA, true);
+            DoCast(me, SPELL_BRILLIANCE_AURA, true);
             break;
 
         case THRALL:
@@ -403,7 +400,6 @@ void hyjalAI::Reset()
 
         case TYRANDE:
             Faction = 2;
-            DoCastSelf(SPELL_TRUESHOT_AURA, true);
             break;
     }
 
@@ -433,7 +429,7 @@ void hyjalAI::EnterEvadeMode(EvadeReason /*why*/)
     if (me->IsAlive())
         me->GetMotionMaster()->MoveTargetedHome();
 
-    me->SetTappedBy(nullptr);
+    me->SetLootRecipient(nullptr);
 }
 
 void hyjalAI::JustEngagedWith(Unit* /*who*/)
@@ -626,7 +622,7 @@ void hyjalAI::Retreat()
         instance->SetData(DATA_ALLIANCE_RETREAT, 1);
         AddWaypoint(0, JainaWPs[0][0], JainaWPs[0][1], JainaWPs[0][2]);
         AddWaypoint(1, JainaWPs[1][0], JainaWPs[1][1], JainaWPs[1][2]);
-        Start(false);
+        Start(false, false);
         SetDespawnAtEnd(false);//move to center of alliance base
     }
     if (Faction == 1)
@@ -640,7 +636,7 @@ void hyjalAI::Retreat()
             DummyGuid = JainaDummy->GetGUID();
         }
         AddWaypoint(0, JainaDummySpawn[1][0], JainaDummySpawn[1][1], JainaDummySpawn[1][2]);
-        Start(false);
+        Start(false, false);
         SetDespawnAtEnd(false);//move to center of alliance base
     }
     SpawnVeins();
@@ -834,10 +830,7 @@ void hyjalAI::UpdateAI(uint32 diff)
                     }
                     else if (BossGUID[i] == BossGUID[1])
                     {
-                        if (me->GetEntry() == THRALL) // thrall yell success after boss deaded,jaina yell success after select gossip
-                        {
-                            Talk(SUCCESS);
-                        }
+                        Talk(SUCCESS);
                         SecondBossDead = true;
                     }
                     EventBegun = false;
@@ -888,6 +881,8 @@ void hyjalAI::UpdateAI(uint32 diff)
             } else SpellTimer[i] -= diff;
         }
     }
+
+    DoMeleeAttackIfReady();
 }
 
 void hyjalAI::JustDied(Unit* /*killer*/)
@@ -899,6 +894,15 @@ void hyjalAI::JustDied(Unit* /*killer*/)
     RespawnTimer = 120000;
     Talk(DEATH);
     Summons.DespawnAll();//despawn all wave's summons
+    //reset encounter if boss is despawned (ex: thrall is killed, boss despawns, event stucks at inprogress)
+    if (instance->GetData(DATA_RAGEWINTERCHILLEVENT) == IN_PROGRESS)
+        instance->SetData(DATA_RAGEWINTERCHILLEVENT, NOT_STARTED);
+    if (instance->GetData(DATA_ANETHERONEVENT) == IN_PROGRESS)
+        instance->SetData(DATA_ANETHERONEVENT, NOT_STARTED);
+    if (instance->GetData(DATA_KAZROGALEVENT) == IN_PROGRESS)
+        instance->SetData(DATA_KAZROGALEVENT, NOT_STARTED);
+    if (instance->GetData(DATA_AZGALOREVENT) == IN_PROGRESS)
+        instance->SetData(DATA_AZGALOREVENT, NOT_STARTED);
     instance->SetData(DATA_RESET_RAIDDAMAGE, 0);//reset damage on die
 }
 
@@ -931,6 +935,7 @@ void hyjalAI::WaypointReached(uint32 waypointId, uint32 /*pathId*/)
 {
     if (waypointId == 1 || (waypointId == 0 && me->GetEntry() == THRALL))
     {
+        me->Yell(YELL_HURRY, LANG_UNIVERSAL);
         WaitForTeleport = true;
         TeleportTimer = 20000;
         if (me->GetEntry() == JAINA)
@@ -940,7 +945,6 @@ void hyjalAI::WaypointReached(uint32 waypointId, uint32 /*pathId*/)
             if (Creature* creature = ObjectAccessor::GetCreature(*me, DummyGuid))
             {
                 hyjalAI* ai = ENSURE_AI(hyjalAI, creature->AI());
-                ai->Talk(JAINA_RETREAT_HORDE_BASE);
                 ai->DoMassTeleport = true;
                 ai->MassTeleportTimer = 20000;
                 creature->CastSpell(me, SPELL_MASS_TELEPORT, false);

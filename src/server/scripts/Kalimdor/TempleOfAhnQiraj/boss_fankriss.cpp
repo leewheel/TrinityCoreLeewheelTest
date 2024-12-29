@@ -203,6 +203,8 @@ public:
                     SpawnHatchlings_Timer = urand(45000, 60000);
                 } else SpawnHatchlings_Timer -= diff;
             }
+
+            DoMeleeAttackIfReady();
         }
     };
 

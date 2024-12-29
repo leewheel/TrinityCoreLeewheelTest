@@ -47,8 +47,7 @@ namespace lfg
 enum LfgOptions
 {
     LFG_OPTION_ENABLE_DUNGEON_FINDER             = 0x01,
-    LFG_OPTION_ENABLE_RAID_FINDER                = 0x02,
-    LFG_OPTION_ENABLE_PREMADE_GROUP              = 0x04,
+    LFG_OPTION_ENABLE_RAID_BROWSER               = 0x02,
 };
 
 enum LFGMgrEnum
@@ -298,17 +297,16 @@ struct LFGDungeonData
 
     uint32 id;
     std::string name;
-    int16 map;
+    uint32 map;
     uint8 type;
     uint8 expansion;
     uint8 group;
-    uint8 minLevel;
-    uint8 maxLevel;
+    uint8 minlevel;
+    uint8 maxlevel;
     Difficulty difficulty;
     bool seasonal;
     float x, y, z, o;
     uint16 requiredItemLevel;
-    uint32 finalDungeonEncounterId;
 
     // Helpers
     uint32 Entry() const { return id + (type << 24); }
@@ -332,8 +330,6 @@ class TC_GAME_API LFGMgr
         void Update(uint32 diff);
 
         // World.cpp
-        /// Check dungeon completion on encounter completion
-        void OnDungeonEncounterDone(ObjectGuid gguid, std::array<uint32, 4> const& dungeonEncounterId, Map const* currMap);
         /// Finish the dungeon for the given group. All check are performed using internal lfg data
         void FinishDungeon(ObjectGuid gguid, uint32 dungeonId, Map const* currMap);
         /// Loads rewards for random dungeons
@@ -409,7 +405,7 @@ class TC_GAME_API LFGMgr
         /// Gets the random dungeon reward corresponding to given dungeon and player level
         LfgReward const* GetRandomDungeonReward(uint32 dungeon, uint8 level);
         /// Returns all random and seasonal dungeons for given level and expansion
-        LfgDungeonSet GetRandomAndSeasonalDungeons(uint8 level, uint8 expansion);
+        LfgDungeonSet GetRandomAndSeasonalDungeons(uint8 level, uint8 expansion, uint32 contentTuningReplacementConditionMask);
         /// Teleport a player to/from selected dungeon
         void TeleportPlayer(Player* player, bool out, bool fromOpcode = false);
         /// Inits new proposal to boot a player
@@ -509,6 +505,7 @@ inline int32 format_as(LfgProposalState e) { return e; }
 inline uint8 format_as(LfgTeleportResult e) { return e; }
 inline int32 format_as(LfgJoinResult e) { return e; }
 inline int32 format_as(LfgRoleCheckState e) { return e; }
+
 } // namespace lfg
 
 #define sLFGMgr lfg::LFGMgr::instance()

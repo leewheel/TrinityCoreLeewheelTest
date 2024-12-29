@@ -15,20 +15,19 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "violet_hold.h"
+#include "ScriptMgr.h"
 #include "GameObject.h"
-#include "GameObjectAI.h"
 #include "InstanceScript.h"
 #include "Map.h"
 #include "MotionMaster.h"
 #include "Player.h"
-#include "ScriptMgr.h"
+#include "GameObjectAI.h"
 #include "ScriptedEscortAI.h"
 #include "ScriptedGossip.h"
 #include "SpellAuraEffects.h"
 #include "SpellScript.h"
 #include "TemporarySummon.h"
-#include "WaypointDefines.h"
+#include "violet_hold.h"
 
 /*
  * TODO:
@@ -295,79 +294,55 @@ Position const DefaultPortalWPs[] =
     { 1843.567017f, 804.288208f, 44.139091f }
 };
 
-static WaypointPath const SaboteurMoraggPath = // sniff
+Position const SaboteurMoraggPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1885.71f,  799.8929f, 38.37241f },
-        { 2, 1889.505f, 762.3288f, 47.66684f },
-        { 3, 1894.542f, 742.1829f, 47.66684f },
-        { 4, 1894.603f, 739.9231f, 47.66684f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1885.71f,  799.8929f, 38.37241f },
+    { 1889.505f, 762.3288f, 47.66684f },
+    { 1894.542f, 742.1829f, 47.66684f },
+    { 1894.603f, 739.9231f, 47.66684f },
 };
 
-static WaypointPath const SaboteurErekemPath = // sniff
+Position const SaboteurErekemPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1881.047f, 829.6866f, 38.64856f },
-        { 2, 1877.585f, 844.6685f, 43.33349f },
-        { 3, 1876.085f, 851.6685f, 42.99014f },
-        { 4, 1873.747f, 864.1373f, 43.33349f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1881.047f, 829.6866f, 38.64856f },
+    { 1877.585f, 844.6685f, 38.49014f },
+    { 1876.085f, 851.6685f, 42.99014f },
+    { 1873.747f, 864.1373f, 43.33349f }
 };
 
-static WaypointPath const SaboteurIchoronPath = // sniff
+Position const SaboteurIchoronPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1888.672f, 801.2348f, 38.42305f },
-        { 2, 1901.987f, 793.3254f, 38.65126f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1888.672f, 801.2348f, 38.42305f },
+    { 1901.987f, 793.3254f, 38.65126f }
 };
 
-static WaypointPath const SaboteurLavanthorPath = // sniff
+Position const SaboteurLavanthorPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1867.925f, 778.8035f, 38.64702f },
-        { 2, 1853.304f, 759.0161f, 38.65761f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1867.925f, 778.8035f, 38.64702f },
+    { 1853.304f, 759.0161f, 38.65761f }
 };
 
-static WaypointPath const SaboteurXevozzPath = // sniff
+Position const SaboteurXevozzPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1889.096f, 810.0487f, 38.43871f },
-        { 2, 1896.547f, 823.5473f, 38.72863f },
-        { 3, 1906.666f, 842.3111f, 38.63351f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1889.096f, 810.0487f, 38.43871f },
+    { 1896.547f, 823.5473f, 38.72863f },
+    { 1906.666f, 842.3111f, 38.63351f }
 };
 
-static WaypointPath const SaboteurZuramatPath = // sniff
+Position const SaboteurZuramatPath[] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1886.251f, 803.0743f, 38.42326f },
-        { 1, 1889.69f,  807.0032f, 38.39914f },
-        { 2, 1906.91f,  818.2574f, 38.86596f },
-        { 3, 1929.03f,  824.2713f, 46.09165f },
-        { 4, 1928.441f, 842.8891f, 47.15078f },
-        { 5, 1927.454f, 851.6091f, 47.19094f },
-        { 6, 1927.947f, 852.2986f, 47.19637f }
-    },
-    WaypointMoveType::Run
+    { 1886.251f, 803.0743f, 38.42326f },
+    { 1889.69f,  807.0032f, 38.39914f },
+    { 1906.91f,  818.2574f, 38.86596f },
+    { 1929.03f,  824.2713f, 46.09165f },
+    { 1928.441f, 842.8891f, 47.15078f },
+    { 1927.454f, 851.6091f, 47.19094f },
+    { 1927.947f, 852.2986f, 47.19637f }
 };
 
 Position const SinclariPositions[] = // sniff
@@ -457,6 +432,8 @@ struct npc_sinclari_vh : public ScriptedAI
 
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
     void ScheduleIntro()
@@ -588,27 +565,33 @@ struct npc_azure_saboteur : public ScriptedAI
             _bossId = _instance->GetData(DATA_2ND_BOSS);
     }
 
+    template <size_t N>
+    void StartSmoothPath(Position const (&path)[N])
+    {
+        me->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, &path[0], N, false);
+    }
+
     void StartMovement()
     {
         switch (_bossId)
         {
             case DATA_MORAGG:
-                me->GetMotionMaster()->MovePath(SaboteurMoraggPath, false);
+                StartSmoothPath(SaboteurMoraggPath);
                 break;
             case DATA_EREKEM:
-                me->GetMotionMaster()->MovePath(SaboteurErekemPath, false);
+                StartSmoothPath(SaboteurErekemPath);
                 break;
             case DATA_ICHORON:
-                me->GetMotionMaster()->MovePath(SaboteurIchoronPath, false);
+                StartSmoothPath(SaboteurIchoronPath);
                 break;
             case DATA_LAVANTHOR:
-                me->GetMotionMaster()->MovePath(SaboteurLavanthorPath, false);
+                StartSmoothPath(SaboteurLavanthorPath);
                 break;
             case DATA_XEVOZZ:
-                me->GetMotionMaster()->MovePath(SaboteurXevozzPath, false);
+                StartSmoothPath(SaboteurXevozzPath);
                 break;
             case DATA_ZURAMAT:
-                me->GetMotionMaster()->MovePath(SaboteurZuramatPath, false);
+                StartSmoothPath(SaboteurZuramatPath);
                 break;
         }
     }
@@ -622,9 +605,9 @@ struct npc_azure_saboteur : public ScriptedAI
         });
     }
 
-    void WaypointPathEnded(uint32 /*waypointId*/, uint32 pathId) override
+    void MovementInform(uint32 type, uint32 pointId) override
     {
-        if (pathId == POINT_INTRO)
+        if (type == EFFECT_MOTION_TYPE && pointId == POINT_INTRO)
         {
             _scheduler.Schedule(0s, [this](TaskContext task)
             {
@@ -897,11 +880,11 @@ struct violet_hold_trashAI : public EscortAI
             if (path)
             {
                 for (uint32 i = 0; i <= _lastWaypointId; i++)
-                    AddWaypoint(i, path[i].GetPositionX() + irand(-1, 1), path[i].GetPositionY() + irand(-1, 1), path[i].GetPositionZ(), 0, {}, true);
+                    AddWaypoint(i, path[i].GetPositionX() + irand(-1, 1), path[i].GetPositionY() + irand(-1, 1), path[i].GetPositionZ(), 0);
                 me->SetHomePosition(path[_lastWaypointId].GetPositionX(), path[_lastWaypointId].GetPositionY(), path[_lastWaypointId].GetPositionZ(), float(M_PI));
             }
 
-            Start(true);
+            Start(true, true);
         }
     }
 
@@ -937,7 +920,8 @@ struct violet_hold_trashAI : public EscortAI
         if (!UpdateVictim())
             return;
 
-        _scheduler.Update(diff);
+        _scheduler.Update(diff,
+            std::bind(&EscortAI::DoMeleeAttackIfReady, this));
     }
 
     virtual void ScheduledTasks() { }
@@ -1221,6 +1205,8 @@ struct go_activation_crystal : public GameObjectAI
 // 58040 - Destroy Door Seal
 class spell_violet_hold_destroy_door_seal : public AuraScript
 {
+    PrepareAuraScript(spell_violet_hold_destroy_door_seal);
+
     bool Load() override
     {
         _instance = GetUnitOwner()->GetInstanceScript();
@@ -1246,6 +1232,8 @@ private:
 // 58008 - Portal Periodic
 class spell_violet_hold_portal_periodic : public AuraScript
 {
+    PrepareAuraScript(spell_violet_hold_portal_periodic);
+
     void PeriodicTick(AuraEffect const* aurEff)
     {
         PreventDefaultAction();
@@ -1262,6 +1250,8 @@ class spell_violet_hold_portal_periodic : public AuraScript
 // 62138 - Teleport to Inside Violet Hold
 class spell_violet_hold_teleport_player : public SpellScript
 {
+    PrepareSpellScript(spell_violet_hold_teleport_player);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_TELEPORT_PLAYER_EFFECT });

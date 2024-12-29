@@ -144,18 +144,12 @@ TC_API_EXPORT EnumText EnumUtils<InventoryResult>::ToString(InventoryResult valu
         case EQUIP_ERR_NOT_IN_NPE: return { "EQUIP_ERR_NOT_IN_NPE", "EQUIP_ERR_NOT_IN_NPE", "Not available during the tutorial" };
         case EQUIP_ERR_ITEM_COOLDOWN: return { "EQUIP_ERR_ITEM_COOLDOWN", "EQUIP_ERR_ITEM_COOLDOWN", "Item is not ready yet." };
         case EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND: return { "EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND", "EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND", "You can't do that in a rated battleground." };
-        case EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL: return { "EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL", "EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL", "" };
-        case EQUIP_ERR_CANT_BE_RECRAFTED: return { "EQUIP_ERR_CANT_BE_RECRAFTED", "EQUIP_ERR_CANT_BE_RECRAFTED", "You can't recraft that itemv" };
-        case EQUIP_ERR_REAGENTBAG_WRONG_SLOT: return { "EQUIP_ERR_REAGENTBAG_WRONG_SLOT", "EQUIP_ERR_REAGENTBAG_WRONG_SLOT", "Reagent Bags can only be placed in the reagent bag slot." };
-        case EQUIP_ERR_SLOT_ONLY_REAGENTBAG: return { "EQUIP_ERR_SLOT_ONLY_REAGENTBAG", "EQUIP_ERR_SLOT_ONLY_REAGENTBAG", "Only Reagent Bags can be placed in the reagent bag slot." };
-        case EQUIP_ERR_REAGENTBAG_ITEM_TYPE: return { "EQUIP_ERR_REAGENTBAG_ITEM_TYPE", "EQUIP_ERR_REAGENTBAG_ITEM_TYPE", "Only Reagents can be placed in Reagent Bags." };
-        case EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND: return { "EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND", "EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND", "Items that can be refunded can't be bulk sold." };
         default: throw std::out_of_range("value");
     }
 }
 
 template <>
-TC_API_EXPORT size_t EnumUtils<InventoryResult>::Count() { return 119; }
+TC_API_EXPORT size_t EnumUtils<InventoryResult>::Count() { return 113; }
 
 template <>
 TC_API_EXPORT InventoryResult EnumUtils<InventoryResult>::FromIndex(size_t index)
@@ -275,12 +269,6 @@ TC_API_EXPORT InventoryResult EnumUtils<InventoryResult>::FromIndex(size_t index
         case 110: return EQUIP_ERR_NOT_IN_NPE;
         case 111: return EQUIP_ERR_ITEM_COOLDOWN;
         case 112: return EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND;
-        case 113: return EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL;
-        case 114: return EQUIP_ERR_CANT_BE_RECRAFTED;
-        case 115: return EQUIP_ERR_REAGENTBAG_WRONG_SLOT;
-        case 116: return EQUIP_ERR_SLOT_ONLY_REAGENTBAG;
-        case 117: return EQUIP_ERR_REAGENTBAG_ITEM_TYPE;
-        case 118: return EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND;
         default: throw std::out_of_range("index");
     }
 }
@@ -403,12 +391,6 @@ TC_API_EXPORT size_t EnumUtils<InventoryResult>::ToIndex(InventoryResult value)
         case EQUIP_ERR_NOT_IN_NPE: return 110;
         case EQUIP_ERR_ITEM_COOLDOWN: return 111;
         case EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND: return 112;
-        case EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL: return 113;
-        case EQUIP_ERR_CANT_BE_RECRAFTED: return 114;
-        case EQUIP_ERR_REAGENTBAG_WRONG_SLOT: return 115;
-        case EQUIP_ERR_SLOT_ONLY_REAGENTBAG: return 116;
-        case EQUIP_ERR_REAGENTBAG_ITEM_TYPE: return 117;
-        case EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND: return 118;
         default: throw std::out_of_range("value");
     }
 }
@@ -488,15 +470,12 @@ TC_API_EXPORT EnumText EnumUtils<SellResult>::ToString(SellResult value)
         case SELL_ERR_UNK: return { "SELL_ERR_UNK", "SELL_ERR_UNK", "nothing appears..." };
         case SELL_ERR_ONLY_EMPTY_BAG: return { "SELL_ERR_ONLY_EMPTY_BAG", "SELL_ERR_ONLY_EMPTY_BAG", "You can only do that with empty bags." };
         case SELL_ERR_CANT_SELL_TO_THIS_MERCHANT: return { "SELL_ERR_CANT_SELL_TO_THIS_MERCHANT", "SELL_ERR_CANT_SELL_TO_THIS_MERCHANT", "You cannot sell items to this merchant." };
-        case SELL_ERR_MUST_REPAIR_DURABILITY: return { "SELL_ERR_MUST_REPAIR_DURABILITY", "SELL_ERR_MUST_REPAIR_DURABILITY", "You must repair that item's durability to use it." };
-        case SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE: return { "SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE", "SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE", "The merchant doesn't want that item. Bring it to the Scrapper to extract Titan Residuum." };
-        case SELL_ERR_INTERNAL_BAG_ERROR: return { "SELL_ERR_INTERNAL_BAG_ERROR", "SELL_ERR_INTERNAL_BAG_ERROR", "Internal Bag Error" };
         default: throw std::out_of_range("value");
     }
 }
 
 template <>
-TC_API_EXPORT size_t EnumUtils<SellResult>::Count() { return 10; }
+TC_API_EXPORT size_t EnumUtils<SellResult>::Count() { return 7; }
 
 template <>
 TC_API_EXPORT SellResult EnumUtils<SellResult>::FromIndex(size_t index)
@@ -510,9 +489,6 @@ TC_API_EXPORT SellResult EnumUtils<SellResult>::FromIndex(size_t index)
         case 4: return SELL_ERR_UNK;
         case 5: return SELL_ERR_ONLY_EMPTY_BAG;
         case 6: return SELL_ERR_CANT_SELL_TO_THIS_MERCHANT;
-        case 7: return SELL_ERR_MUST_REPAIR_DURABILITY;
-        case 8: return SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE;
-        case 9: return SELL_ERR_INTERNAL_BAG_ERROR;
         default: throw std::out_of_range("index");
     }
 }
@@ -529,9 +505,6 @@ TC_API_EXPORT size_t EnumUtils<SellResult>::ToIndex(SellResult value)
         case SELL_ERR_UNK: return 4;
         case SELL_ERR_ONLY_EMPTY_BAG: return 5;
         case SELL_ERR_CANT_SELL_TO_THIS_MERCHANT: return 6;
-        case SELL_ERR_MUST_REPAIR_DURABILITY: return 7;
-        case SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE: return 8;
-        case SELL_ERR_INTERNAL_BAG_ERROR: return 9;
         default: throw std::out_of_range("value");
     }
 }

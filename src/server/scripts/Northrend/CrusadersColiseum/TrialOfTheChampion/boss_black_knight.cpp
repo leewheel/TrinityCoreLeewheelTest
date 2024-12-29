@@ -137,7 +137,6 @@ public:
             summons.DespawnAll();
             me->SetDisplayId(me->GetNativeDisplayId());
             me->ClearUnitState(UNIT_STATE_ROOT | UNIT_STATE_STUNNED);
-            me->SetCanMelee(true);
 
             Initialize();
         }
@@ -169,7 +168,6 @@ public:
                     uiResurrectTimer = 4000;
                     bEventInProgress = false;
                     me->ClearUnitState(UNIT_STATE_ROOT | UNIT_STATE_STUNNED);
-                    me->SetCanMelee(true);
                 } else uiResurrectTimer -= uiDiff;
             }
 
@@ -264,6 +262,9 @@ public:
                     break;
                 }
             }
+
+            if (!me->HasUnitState(UNIT_STATE_ROOT) && !me->HealthBelowPct(1))
+                DoMeleeAttackIfReady();
         }
 
         void DamageTaken(Unit* /*pDoneBy*/, uint32& uiDamage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
@@ -273,7 +274,6 @@ public:
                 uiDamage = 0;
                 me->SetHealth(0);
                 me->AddUnitState(UNIT_STATE_ROOT | UNIT_STATE_STUNNED);
-                me->SetCanMelee(false);
                 summons.DespawnAll();
                 switch (uiPhase)
                 {
@@ -340,6 +340,8 @@ public:
                 }
                 uiAttackTimer = 3500;
             } else uiAttackTimer -= uiDiff;
+
+            DoMeleeAttackIfReady();
         }
     };
 
@@ -348,8 +350,6 @@ public:
         return GetTrialOfTheChampionAI<npc_risen_ghoulAI>(creature);
     }
 };
-
-static constexpr uint32 PATH_ESCORT_GRYPHON = 283930;
 
 class npc_black_knight_skeletal_gryphon : public CreatureScript
 {
@@ -360,8 +360,7 @@ public:
     {
         npc_black_knight_skeletal_gryphonAI(Creature* creature) : EscortAI(creature)
         {
-            LoadPath(PATH_ESCORT_GRYPHON);
-            Start(false);
+            Start(false, true);
         }
 
         void UpdateAI(uint32 uiDiff) override
@@ -382,6 +381,8 @@ public:
 // 67751 - Ghoul Explode
 class spell_black_knight_ghoul_explode : public SpellScript
 {
+    PrepareSpellScript(spell_black_knight_ghoul_explode);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
         return ValidateSpellInfo({ uint32(spellInfo->GetEffect(EFFECT_0).CalcValue()) });
@@ -402,6 +403,8 @@ class spell_black_knight_ghoul_explode : public SpellScript
 // 67889 - Ghoul Explode
 class spell_black_knight_ghoul_explode_risen_ghoul : public SpellScript
 {
+    PrepareSpellScript(spell_black_knight_ghoul_explode_risen_ghoul);
+
     bool Validate(SpellInfo const* spellInfo) override
     {
         return ValidateSpellInfo({ uint32(spellInfo->GetEffect(EFFECT_1).CalcValue()) });

@@ -17,160 +17,293 @@
 
 #include "Field.h"
 #include "Errors.h"
-#include "FieldValueConverter.h"
+#include "Log.h"
 #include <cstring>
 
-Field::Field() : _value(nullptr), _length(0), _meta(nullptr)
+Field::Field()
 {
+    data.value = nullptr;
+    data.length = 0;
+    data.raw = false;
+    meta = nullptr;
 }
 
 Field::~Field() = default;
 
 uint8 Field::GetUInt8() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetUInt8(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int8))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<uint8 const*>(data.value);
+    return static_cast<uint8>(strtoul(data.value, nullptr, 10));
 }
 
 int8 Field::GetInt8() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetInt8(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int8))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<int8 const*>(data.value);
+    return static_cast<int8>(strtol(data.value, nullptr, 10));
 }
 
 uint16 Field::GetUInt16() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetUInt16(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int16))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<uint16 const*>(data.value);
+    return static_cast<uint16>(strtoul(data.value, nullptr, 10));
 }
 
 int16 Field::GetInt16() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetInt16(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int16))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<int16 const*>(data.value);
+    return static_cast<int16>(strtol(data.value, nullptr, 10));
 }
 
 uint32 Field::GetUInt32() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetUInt32(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int32))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<uint32 const*>(data.value);
+    return static_cast<uint32>(strtoul(data.value, nullptr, 10));
 }
 
 int32 Field::GetInt32() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetInt32(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int32))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<int32 const*>(data.value);
+    return static_cast<int32>(strtol(data.value, nullptr, 10));
 }
 
 uint64 Field::GetUInt64() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetUInt64(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int64))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<uint64 const*>(data.value);
+    return static_cast<uint64>(strtoull(data.value, nullptr, 10));
 }
 
 int64 Field::GetInt64() const
 {
-    if (!_value)
+    if (!data.value)
         return 0;
 
-    return _meta->Converter->GetInt64(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Int64))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<int64 const*>(data.value);
+    return static_cast<int64>(strtoll(data.value, nullptr, 10));
 }
 
 float Field::GetFloat() const
 {
-    if (!_value)
+    if (!data.value)
         return 0.0f;
 
-    return _meta->Converter->GetFloat(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Float))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0.0f;
+    }
+#endif
+
+    if (data.raw)
+        return *reinterpret_cast<float const*>(data.value);
+    return static_cast<float>(atof(data.value));
 }
 
 double Field::GetDouble() const
 {
-    if (!_value)
-        return 0.0;
+    if (!data.value)
+        return 0.0f;
 
-    return _meta->Converter->GetDouble(_value, _length, _meta);
-}
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (!IsType(DatabaseFieldTypes::Double) && !IsType(DatabaseFieldTypes::Decimal))
+    {
+        LogWrongType(__FUNCTION__);
+        return 0.0f;
+    }
+#endif
 
-SystemTimePoint Field::GetDate() const
-{
-    if (!_value)
-        return SystemTimePoint::min();
-
-    return _meta->Converter->GetDate(_value, _length, _meta);
+    if (data.raw && !IsType(DatabaseFieldTypes::Decimal))
+        return *reinterpret_cast<double const*>(data.value);
+    return static_cast<double>(atof(data.value));
 }
 
 char const* Field::GetCString() const
 {
-    if (!_value)
+    if (!data.value)
         return nullptr;
 
-    return _meta->Converter->GetCString(_value, _length, _meta);
+#ifdef TRINITY_STRICT_DATABASE_TYPE_CHECKS
+    if (IsNumeric() && data.raw)
+    {
+        LogWrongType(__FUNCTION__);
+        return nullptr;
+    }
+#endif
+    return static_cast<char const*>(data.value);
 }
 
 std::string Field::GetString() const
 {
-    if (!_value)
+    if (!data.value)
         return "";
 
     char const* string = GetCString();
     if (!string)
         return "";
 
-    return std::string(string, _length);
+    return std::string(string, data.length);
 }
 
 std::string_view Field::GetStringView() const
 {
-    if (!_value)
+    if (!data.value)
         return {};
 
     char const* const string = GetCString();
     if (!string)
         return {};
 
-    return { string, _length };
+    return { string, data.length };
 }
 
 std::vector<uint8> Field::GetBinary() const
 {
     std::vector<uint8> result;
-    if (!_value || !_length)
+    if (!data.value || !data.length)
         return result;
 
-    result.resize(_length);
-    memcpy(result.data(), _value, _length);
+    result.resize(data.length);
+    memcpy(result.data(), data.value, data.length);
     return result;
 }
 
 void Field::GetBinarySizeChecked(uint8* buf, size_t length) const
 {
-    ASSERT(_value && (_length == length), "Expected %zu-byte binary blob, got %sdata (%u bytes) instead", length, _value ? "" : "no ", _length);
-    memcpy(buf, _value, length);
+    ASSERT(data.value && (data.length == length), "Expected %zu-byte binary blob, got %sdata (%u bytes) instead", length, data.value ? "" : "no ", data.length);
+    memcpy(buf, data.value, length);
 }
 
-void Field::SetValue(char const* newValue, uint32 length)
+void Field::SetByteValue(char const* newValue, uint32 length)
 {
     // This value stores raw bytes that have to be explicitly cast later
-    _value = newValue;
-    _length = length;
+    data.value = newValue;
+    data.length = length;
+    data.raw = true;
 }
 
-void Field::SetMetadata(QueryResultFieldMetadata const* meta)
+void Field::SetStructuredValue(char const* newValue, uint32 length)
 {
-    _meta = meta;
+    // This value stores somewhat structured data that needs function style casting
+    data.value = newValue;
+    data.length = length;
+    data.raw = false;
+}
+
+bool Field::IsType(DatabaseFieldTypes type) const
+{
+    return meta->Type == type;
+}
+
+bool Field::IsNumeric() const
+{
+    return (meta->Type == DatabaseFieldTypes::Int8 ||
+        meta->Type == DatabaseFieldTypes::Int16 ||
+        meta->Type == DatabaseFieldTypes::Int32 ||
+        meta->Type == DatabaseFieldTypes::Int64 ||
+        meta->Type == DatabaseFieldTypes::Float ||
+        meta->Type == DatabaseFieldTypes::Double);
+}
+
+void Field::LogWrongType(char const* getter) const
+{
+    TC_LOG_WARN("sql.sql", "Warning: {} on {} field {}.{} ({}{}) at index {}.",
+        getter, meta->TypeName, meta->TableAlias, meta->Alias, meta->TableName, meta->Name, meta->Index);
+}
+
+void Field::SetMetadata(QueryResultFieldMetadata const* fieldMeta)
+{
+    meta = fieldMeta;
 }

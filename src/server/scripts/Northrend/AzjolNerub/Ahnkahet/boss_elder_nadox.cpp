@@ -167,6 +167,8 @@ struct boss_elder_nadox : public BossAI
             DoCastSelf(SPELL_SUMMON_SWARM_GUARD);
             _guardianSummoned = true;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -204,6 +206,8 @@ struct npc_ahnkahar_nerubian : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -213,6 +217,8 @@ private:
 // 56159 - Swarm
 class spell_ahn_kahet_swarm : public SpellScript
 {
+    PrepareSpellScript(spell_ahn_kahet_swarm);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SWARM_BUFF });

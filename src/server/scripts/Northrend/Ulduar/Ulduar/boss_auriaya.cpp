@@ -266,6 +266,8 @@ struct boss_auriaya : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -331,6 +333,8 @@ struct npc_sanctum_sentry : public ScriptedAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -416,7 +420,7 @@ struct npc_feral_defender : public ScriptedAI
                 case EVENT_RESPAWN_DEFENDER_3:
                     me->RemoveAurasDueToSpell(SPELL_PERMANENT_FEIGN_DEATH);
                     DoCastSelf(SPELL_FULL_HEAL, true);
-                    me->SetUninteractible(false);
+                    me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                     me->SetReactState(REACT_AGGRESSIVE);
                     me->SetDisableGravity(false);
                     me->SetHover(false);
@@ -432,6 +436,8 @@ struct npc_feral_defender : public ScriptedAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 
     void DamageTaken(Unit* /*done_by*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
@@ -443,7 +449,7 @@ struct npc_feral_defender : public ScriptedAI
             {
                 me->SetReactState(REACT_PASSIVE);
                 me->AttackStop();
-                me->SetUninteractible(true);
+                me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 me->RemoveAurasDueToSpell(SPELL_RANDOM_AGRO_PERIODIC);
                 DoCastSelf(SPELL_PERMANENT_FEIGN_DEATH, true);
                 DoCastSelf(SPELL_FERAL_ESSENCE_APPLICATION_REMOVAL, true);
@@ -489,6 +495,8 @@ struct npc_swarming_guardian : public ScriptedAI
         _scheduler.Update(diff);
         if (!UpdateVictim())
             return;
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -516,6 +524,8 @@ private:
 // 64381 - Strength of the Pack
 class spell_auriaya_strenght_of_the_pack : public SpellScript
 {
+    PrepareSpellScript(spell_auriaya_strenght_of_the_pack);
+
     void FilterTargets(std::list<WorldObject*>& unitList)
     {
         unitList.remove_if([](WorldObject* obj) { return obj->GetEntry() != NPC_SANCTUM_SENTRY; });
@@ -530,6 +540,8 @@ class spell_auriaya_strenght_of_the_pack : public SpellScript
 // 64392, 64679 - Sentinel Blast
 class spell_auriaya_sentinel_blast : public SpellScript
 {
+    PrepareSpellScript(spell_auriaya_sentinel_blast);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         targets.remove_if([](WorldObject* object) -> bool
@@ -554,6 +566,8 @@ class spell_auriaya_sentinel_blast : public SpellScript
 // 63709 - Aggro Creator
 class spell_auriaya_agro_creator : public SpellScript
 {
+    PrepareSpellScript(spell_auriaya_agro_creator);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_POUNCE });
@@ -582,6 +596,8 @@ class spell_auriaya_agro_creator : public SpellScript
 // 64456 - Feral Essence Application Removal
 class spell_auriaya_feral_essence_removal : public SpellScript
 {
+    PrepareSpellScript(spell_auriaya_feral_essence_removal);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FERAL_ESSENCE });
@@ -602,6 +618,8 @@ class spell_auriaya_feral_essence_removal : public SpellScript
 // 64496, 64674 - Feral Rush
 class spell_auriaya_feral_rush : public SpellScript
 {
+    PrepareSpellScript(spell_auriaya_feral_rush);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_FERAL_RUSH_2 });

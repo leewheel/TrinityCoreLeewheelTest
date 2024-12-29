@@ -170,6 +170,8 @@ class boss_shattered_executioner : public CreatureScript
                 }
                 else
                     cleaveTimer -= diff;
+
+                DoMeleeAttackIfReady();
             }
         private:
             uint32 cleaveTimer;
@@ -189,6 +191,8 @@ class spell_kargath_executioner : public SpellScriptLoader
 
         class spell_kargath_executioner_AuraScript : public AuraScript
         {
+            PrepareAuraScript(spell_kargath_executioner_AuraScript);
+
             bool AreaCheck(Unit* target)
             {
                 if (target->GetMap()->GetId() != 540)
@@ -222,6 +226,8 @@ class spell_remove_kargath_executioner : public SpellScriptLoader
 
         class spell_remove_kargath_executioner_SpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_remove_kargath_executioner_SpellScript);
+
             void HandleScript(SpellEffIndex /*effIndex*/)
             {
                 Unit* target = GetCaster();

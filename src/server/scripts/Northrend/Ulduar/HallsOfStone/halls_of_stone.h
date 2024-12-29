@@ -27,30 +27,28 @@ uint32 const EncounterCount = 4;
 
 enum HOSDataTypes
 {
-    // Bosses
+    // Encounter States/Boss GUIDs
     DATA_KRYSTALLUS             = 0,
     DATA_MAIDEN_OF_GRIEF        = 1,
     DATA_TRIBUNAL_OF_AGES       = 2,
-    DATA_SJONNIR_THE_IRONSHAPER = 3,
+    DATA_SJONNIR                = 3,
 
     // Additional data
-    /*Tribunal of Ages*/
-    DATA_KADDRAK,
-    DATA_MARNAK,
-    DATA_ABEDNEUM,
-    DATA_GO_TRIBUNAL_CONSOLE,
-    DATA_GO_KADDRAK,
-    DATA_GO_MARNAK,
-    DATA_GO_ABEDNEUM,
-    DATA_GO_SKY_FLOOR,
-    DATA_GO_TRIBUNAL_CHEST
+    DATA_KADDRAK                = 4,
+    DATA_MARNAK                 = 5,
+    DATA_ABEDNEUM               = 6,
+    DATA_GO_TRIBUNAL_CONSOLE    = 7,
+    DATA_GO_KADDRAK             = 8,
+    DATA_GO_MARNAK              = 9,
+    DATA_GO_ABEDNEUM            = 10,
+    DATA_GO_SKY_FLOOR           = 11
 };
 
 enum HOSCreatureIds
 {
-    NPC_MAIDEN_OF_GRIEF         = 27975,
+    NPC_MAIDEN                  = 27975,
     NPC_KRYSTALLUS              = 27977,
-    NPC_SJONNIR_THE_IRONSHAPER  = 27978,
+    NPC_SJONNIR                 = 27978,
     NPC_MARNAK                  = 30897,
     NPC_KADDRAK                 = 30898,
     NPC_ABEDNEUM                = 30899,

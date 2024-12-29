@@ -23,11 +23,12 @@
 #include "Pet.h"
 #include "Player.h"
 #include "RBAC.h"
-#include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "WorldSession.h"
 
-using namespace Trinity::ChatCommands;
+#if TRINITY_COMPILER == TRINITY_COMPILER_GNU
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 inline Pet* GetSelectedPlayerPetOrOwn(ChatHandler* handler)
 {
@@ -48,23 +49,23 @@ class pet_commandscript : public CommandScript
 public:
     pet_commandscript() : CommandScript("pet_commandscript") { }
 
-    ChatCommandTable GetCommands() const override
+    std::vector<ChatCommand> GetCommands() const override
     {
-        static ChatCommandTable petCommandTable =
+        static std::vector<ChatCommand> petCommandTable =
         {
-            { "create",  HandlePetCreateCommand,  rbac::RBAC_PERM_COMMAND_PET_CREATE,  Console::No },
-            { "learn",   HandlePetLearnCommand,   rbac::RBAC_PERM_COMMAND_PET_LEARN,   Console::No },
-            { "unlearn", HandlePetUnlearnCommand, rbac::RBAC_PERM_COMMAND_PET_UNLEARN, Console::No },
-            { "level",   HandlePetLevelCommand,   rbac::RBAC_PERM_COMMAND_PET_LEVEL,   Console::No },
+            { "create",  rbac::RBAC_PERM_COMMAND_PET_CREATE,  false, &HandlePetCreateCommand,  "" },
+            { "learn",   rbac::RBAC_PERM_COMMAND_PET_LEARN,   false, &HandlePetLearnCommand,   "" },
+            { "unlearn", rbac::RBAC_PERM_COMMAND_PET_UNLEARN, false, &HandlePetUnlearnCommand, "" },
+            { "level",   rbac::RBAC_PERM_COMMAND_PET_LEVEL,   false, &HandlePetLevelCommand,   "" },
         };
 
-        static ChatCommandTable commandTable =
+        static std::vector<ChatCommand> commandTable =
         {
-            { "pet", petCommandTable },
+            { "pet", rbac::RBAC_PERM_COMMAND_PET, false, nullptr, "", petCommandTable },
         };
         return commandTable;
     }
-    static bool HandlePetCreateCommand(ChatHandler* handler)
+    static bool HandlePetCreateCommand(ChatHandler* handler, char const* /*args*/)
     {
         Player* player = handler->GetSession()->GetPlayer();
         Creature* creatureTarget = handler->getSelectedCreature();
@@ -116,8 +117,11 @@ public:
         return true;
     }
 
-    static bool HandlePetLearnCommand(ChatHandler* handler, SpellInfo const* spellInfo)
+    static bool HandlePetLearnCommand(ChatHandler* handler, char const* args)
     {
+        if (!*args)
+            return false;
+
         Pet* pet = GetSelectedPlayerPetOrOwn(handler);
 
         if (!pet)
@@ -127,7 +131,10 @@ public:
             return false;
         }
 
-        uint32 spellId = spellInfo->Id;
+        uint32 spellId = handler->extractSpellIdFromLink((char*)args);
+
+        if (!spellId || !sSpellMgr->GetSpellInfo(spellId, DIFFICULTY_NONE))
+            return false;
 
         // Check if pet already has it
         if (pet->HasSpell(spellId))
@@ -138,7 +145,8 @@ public:
         }
 
         // Check if spell is valid
-        if (!SpellMgr::IsSpellValid(spellInfo))
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId, DIFFICULTY_NONE);
+        if (!spellInfo || !SpellMgr::IsSpellValid(spellInfo))
         {
             handler->PSendSysMessage(LANG_COMMAND_SPELL_BROKEN, spellId);
             handler->SetSentErrorMessage(true);
@@ -151,8 +159,11 @@ public:
         return true;
     }
 
-    static bool HandlePetUnlearnCommand(ChatHandler* handler, SpellInfo const* spellInfo)
+    static bool HandlePetUnlearnCommand(ChatHandler* handler, char const* args)
     {
+        if (!*args)
+            return false;
+
         Pet* pet = GetSelectedPlayerPetOrOwn(handler);
         if (!pet)
         {
@@ -161,7 +172,7 @@ public:
             return false;
         }
 
-        uint32 spellId = spellInfo->Id;
+        uint32 spellId = handler->extractSpellIdFromLink((char*)args);
 
         if (pet->HasSpell(spellId))
             pet->removeSpell(spellId, false);
@@ -171,7 +182,7 @@ public:
         return true;
     }
 
-    static bool HandlePetLevelCommand(ChatHandler* handler, Optional<int32> level)
+    static bool HandlePetLevelCommand(ChatHandler* handler, char const* args)
     {
         Pet* pet = GetSelectedPlayerPetOrOwn(handler);
         Player* owner = pet ? pet->GetOwner() : nullptr;
@@ -182,9 +193,9 @@ public:
             return false;
         }
 
-        if (!level)
+        int32 level = args ? atoi(args) : 0;
+        if (level == 0)
             level = owner->GetLevel() - pet->GetLevel();
-
         if (level == 0 || level < -STRONG_MAX_LEVEL || level > STRONG_MAX_LEVEL)
         {
             handler->SendSysMessage(LANG_BAD_VALUE);
@@ -192,7 +203,7 @@ public:
             return false;
         }
 
-        int32 newLevel = pet->GetLevel() + *level;
+        int32 newLevel = pet->GetLevel() + level;
         if (newLevel < 1)
             newLevel = 1;
         else if (newLevel > owner->GetLevel())

@@ -198,6 +198,8 @@ struct boss_heigan : public BossAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
     private:
@@ -211,6 +213,8 @@ struct boss_heigan : public BossAI
 // 29371 - Eruption
 class spell_heigan_eruption : public SpellScript
 {
+    PrepareSpellScript(spell_heigan_eruption);
+
     void HandleScript(SpellEffIndex /*eff*/)
     {
         Unit* caster = GetCaster();

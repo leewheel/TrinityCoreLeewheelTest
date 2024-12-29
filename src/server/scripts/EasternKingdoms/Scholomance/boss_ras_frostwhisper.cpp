@@ -44,19 +44,18 @@ class boss_boss_ras_frostwhisper : public CreatureScript
 public:
     boss_boss_ras_frostwhisper() : CreatureScript("boss_boss_ras_frostwhisper") { }
 
-    struct boss_rasfrostAI : public BossAI
+    struct boss_rasfrostAI : public ScriptedAI
     {
-        boss_rasfrostAI(Creature* creature) : BossAI(creature, DATA_RAS_FROSTWHISPER) { }
+        boss_rasfrostAI(Creature* creature) : ScriptedAI(creature) { }
 
         void Reset() override
         {
-            _Reset();
+            events.Reset();
             DoCast(me, SPELL_ICE_ARMOR);
         }
 
-        void JustEngagedWith(Unit* who) override
+        void JustEngagedWith(Unit* /*who*/) override
         {
-            _JustEngagedWith(who);
             events.ScheduleEvent(EVENT_ICE_ARMOR, 2s);
             events.ScheduleEvent(EVENT_FROSTBOLT, 8s);
             events.ScheduleEvent(EVENT_CHILL_NOVA, 12s);
@@ -110,7 +109,12 @@ public:
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
             }
+
+            DoMeleeAttackIfReady();
         }
+
+        private:
+            EventMap events;
     };
 
     CreatureAI* GetAI(Creature* creature) const override

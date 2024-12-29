@@ -25,21 +25,18 @@ template<class Entity, class BasePath>
 class PathMovementBase
 {
     public:
-        using PathType = BasePath;
-
         PathMovementBase() : _path(), _currentNode(0) { }
-        explicit PathMovementBase(PathType&& path) : _path(std::move(path)), _currentNode(0) { }
-        virtual ~PathMovementBase() = default;
+        virtual ~PathMovementBase() { };
 
         uint32 GetCurrentNode() const { return _currentNode; }
 
         virtual std::string GetDebugInfo() const
         {
             return "Current Node: " + std::to_string(GetCurrentNode());
-        }
+        };
 
     protected:
-        PathType _path;
+        BasePath _path;
         uint32 _currentNode;
 };
 

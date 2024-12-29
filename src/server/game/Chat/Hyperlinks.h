@@ -25,7 +25,6 @@
 #include <string_view>
 
 struct AchievementEntry;
-struct BattlePetAbilityEntry;
 struct BattlePetSpeciesEntry;
 struct CurrencyContainerEntry;
 struct CurrencyTypesEntry;
@@ -36,8 +35,11 @@ struct ItemTemplate;
 struct LocalizedString;
 struct MapEntry;
 struct MapChallengeModeEntry;
+struct MawPowerEntry;
+struct PvpTalentEntry;
 class Quest;
 struct SkillLineEntry;
+struct SoulbindConduitRankEntry;
 class SpellInfo;
 struct SpellItemEnchantmentEntry;
 struct TalentEntry;
@@ -58,13 +60,6 @@ namespace Trinity::Hyperlinks
         std::array<uint32, 4> Criteria = { };
     };
 
-    struct ApiLinkData
-    {
-        std::string_view Type;
-        std::string_view Name;
-        std::string_view Parent;
-    };
-
     struct BattlePetLinkData
     {
         BattlePetSpeciesEntry const* Species = nullptr;
@@ -77,42 +72,12 @@ namespace Trinity::Hyperlinks
         uint32 DisplayId = 0;
     };
 
-    struct BattlePetAbilLinkData
-    {
-        BattlePetAbilityEntry const* Ability = nullptr;
-        uint32 MaxHealth = 0;
-        uint32 Power = 0;
-        uint32 Speed = 0;
-    };
-
     struct CurrencyLinkData
     {
         CurrencyTypesEntry const* Currency = nullptr;
         int32 Quantity = 0;
 
         CurrencyContainerEntry const* Container = nullptr;
-    };
-
-    struct DungeonScoreLinkData
-    {
-        uint32 Score = 0;
-        ObjectGuid Player;
-        std::string_view PlayerName;
-        uint8 PlayerClass = 0;
-        uint32 AvgItemLevel = 0;
-        uint8 PlayerLevel = 0;
-        uint32 RunsThisSeason = 0;
-        uint32 BestSeasonScore = 0;
-        uint32 BestSeasonNumber = 0;
-
-        struct Dungeon
-        {
-            uint32 MapChallengeModeID = 0;
-            bool CompletedInTime = false;
-            uint32 KeystoneLevel = 0;
-        };
-
-        std::vector<Dungeon> Dungeons;
     };
 
     struct InstanceLockLinkData
@@ -169,13 +134,6 @@ namespace Trinity::Hyperlinks
         MapChallengeModeEntry const* Map = nullptr;
         uint32 Level = 0;
         std::array<uint32, 4> Affix = { };
-    };
-
-    struct MountLinkData
-    {
-        SpellInfo const* Spell = nullptr;
-        uint32 DisplayId = 0;
-        std::string_view Customizations;
     };
 
     struct QuestLinkData
@@ -275,9 +233,7 @@ namespace Trinity::Hyperlinks
         make_base_tag(title, uint32);
 
         // client format
-        make_base_tag(clubFinder, ObjectGuid);
-        make_base_tag(clubTicket, std::string_view);
-        make_base_tag(outfit, std::string_view); // some sort of weird base91 derived encoding
+        make_base_tag(outfit, std::string const&); // some sort of weird base91 derived encoding
     #undef make_base_tag
 
         struct TC_GAME_API achievement
@@ -287,13 +243,6 @@ namespace Trinity::Hyperlinks
             static bool StoreTo(AchievementLinkData& val, std::string_view text);
         };
 
-        struct TC_GAME_API api
-        {
-            using value_type = ApiLinkData const&;
-            static constexpr std::string_view tag() { return "api"; }
-            static bool StoreTo(ApiLinkData& val, std::string_view text);
-        };
-
         struct TC_GAME_API battlepet
         {
             using value_type = BattlePetLinkData const&;
@@ -301,25 +250,11 @@ namespace Trinity::Hyperlinks
             static bool StoreTo(BattlePetLinkData& val, std::string_view text);
         };
 
-        struct TC_GAME_API battlePetAbil
-        {
-            using value_type = BattlePetAbilLinkData const&;
-            static constexpr std::string_view tag() { return "battlePetAbil"; }
-            static bool StoreTo(BattlePetAbilLinkData& val, std::string_view text);
-        };
-
         struct TC_GAME_API currency
         {
             using value_type = CurrencyLinkData const&;
             static constexpr std::string_view tag() { return "currency"; }
             static bool StoreTo(CurrencyLinkData& val, std::string_view text);
-        };
-
-        struct TC_GAME_API dungeonScore
-        {
-            using value_type = DungeonScoreLinkData const&;
-            static constexpr std::string_view tag() { return "dungeonScore"; }
-            static bool StoreTo(DungeonScoreLinkData& val, std::string_view text);
         };
 
         struct TC_GAME_API enchant
@@ -357,11 +292,11 @@ namespace Trinity::Hyperlinks
             static bool StoreTo(KeystoneLinkData& val, std::string_view text);
         };
 
-        struct TC_GAME_API mount
+        struct TC_GAME_API pvptal
         {
-            using value_type = MountLinkData const&;
-            static constexpr std::string_view tag() { return "mount"; }
-            static bool StoreTo(MountLinkData& val, std::string_view text);
+            using value_type = PvpTalentEntry const*;
+            static constexpr std::string_view tag() { return "pvptal"; }
+            static bool StoreTo(PvpTalentEntry const*& val, std::string_view text);
         };
 
         struct TC_GAME_API quest

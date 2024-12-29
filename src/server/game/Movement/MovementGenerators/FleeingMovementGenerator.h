@@ -22,45 +22,39 @@
 #include "ObjectGuid.h"
 #include "Timer.h"
 
+class Creature;
 class PathGenerator;
 struct Position;
 
-class FleeingMovementGenerator : public MovementGenerator
+template<class T>
+class FleeingMovementGenerator : public MovementGeneratorMedium<T, FleeingMovementGenerator<T>>
 {
     public:
-        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID,
-            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {});
-        FleeingMovementGenerator(FleeingMovementGenerator const&) = delete;
-        FleeingMovementGenerator(FleeingMovementGenerator&&) = delete;
-        FleeingMovementGenerator& operator=(FleeingMovementGenerator const&) = delete;
-        FleeingMovementGenerator& operator=(FleeingMovementGenerator&&) = delete;
-        ~FleeingMovementGenerator();
+        explicit FleeingMovementGenerator(ObjectGuid fleeTargetGUID);
 
         MovementGeneratorType GetMovementGeneratorType() const override;
 
-        void Initialize(Unit* owner) override;
-        void Reset(Unit* owner) override;
-        bool Update(Unit* owner, uint32 diff) override;
-        void Deactivate(Unit* owner) override;
-        void Finalize(Unit* owner, bool, bool) override;
+        void DoInitialize(T*);
+        void DoReset(T*);
+        bool DoUpdate(T*, uint32);
+        void DoDeactivate(T*);
+        void DoFinalize(T*, bool, bool);
 
-        void UnitSpeedChanged() override { AddFlag(MOVEMENTGENERATOR_FLAG_SPEED_UPDATE_PENDING); }
+        void UnitSpeedChanged() override { FleeingMovementGenerator<T>::AddFlag(MOVEMENTGENERATOR_FLAG_SPEED_UPDATE_PENDING); }
 
     private:
-        void SetTargetLocation(Unit* owner);
-        void GetPoint(Unit* owner, Position& position) const;
+        void SetTargetLocation(T*);
+        void GetPoint(T*, Position& position);
 
         std::unique_ptr<PathGenerator> _path;
         ObjectGuid _fleeTargetGUID;
         TimeTracker _timer;
 };
 
-class TimedFleeingMovementGenerator : public FleeingMovementGenerator
+class TimedFleeingMovementGenerator : public FleeingMovementGenerator<Creature>
 {
     public:
-        explicit TimedFleeingMovementGenerator(ObjectGuid fleeTargetGUID, Milliseconds time,
-            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult = {})
-            : FleeingMovementGenerator(fleeTargetGUID, std::move(scriptResult)), _totalFleeTime(time) { }
+        explicit TimedFleeingMovementGenerator(ObjectGuid fleeTargetGUID, uint32 time) : FleeingMovementGenerator<Creature>(fleeTargetGUID), _totalFleeTime(time) { }
 
         bool Update(Unit*, uint32) override;
         void Finalize(Unit*, bool, bool) override;

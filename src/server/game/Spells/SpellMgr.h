@@ -23,15 +23,13 @@
 #include "Define.h"
 #include "DBCEnums.h"
 #include "Duration.h"
-#include "EnumFlag.h"
 #include "Errors.h"
 #include "FlagsArray.h"
-#include "Hash.h"
 #include "IteratorPair.h"
 #include "RaceMask.h"
 #include "SharedDefines.h"
 #include "SpellDefines.h"
-#include <bitset>
+
 #include <functional>
 #include <map>
 #include <set>
@@ -65,7 +63,6 @@ struct SpellShapeshiftEntry;
 struct SpellTargetRestrictionsEntry;
 struct SpellTotemsEntry;
 struct SpellXSpellVisualEntry;
-enum AuraType : uint32;
 
 // only used in code
 enum SpellCategories
@@ -87,9 +84,14 @@ enum SpellFamilyFlag
     // Rogue
     SPELLFAMILYFLAG0_ROGUE_VANISH               = 0x00000800,
     SPELLFAMILYFLAG0_ROGUE_VAN_SPRINT           = 0x00000840, // Vanish, Sprint
+    SPELLFAMILYFLAG0_ROGUE_VAN_EVAS_SPRINT       = 0x00000860, // Vanish, Evasion, Sprint
+    SPELLFAMILYFLAG1_ROGUE_COLDB_SHADOWSTEP     = 0x00000240, // Cold Blood, Shadowstep
     SPELLFAMILYFLAG1_ROGUE_SHADOWSTEP           = 0x00000200, // Shadowstep
     SPELLFAMILYFLAG0_ROGUE_KICK                 = 0x00000010, // Kick
     SPELLFAMILYFLAG1_ROGUE_DISMANTLE_SMOKE_BOMB = 0x80100000, // Dismantle, Smoke Bomb
+    SPELLFAMILYFLAG1_ROGUE_DISMANTLE            = 0x00100000,   // Dismantle
+    SPELLFAMILYFLAG0_ROGUE_BLADE_FLURRY         = 0x40000000,   // Blade Flurry
+    SPELLFAMILYFLAG1_ROGUE_BLADE_FLURRY         = 0x00000800,   // Blade Flurry
 
     // Warrior
     SPELLFAMILYFLAG_WARRIOR_CHARGE              = 0x00000001,
@@ -121,12 +123,14 @@ enum SpellFamilyFlag
     SPELLFAMILYFLAG_SHAMAN_TOTEM_EFFECTS        = 0x04000000  // Seems to be linked to most totems and some totem effects
 };
 
+#define SPELL_LINKED_MAX_SPELLS  200000
+
 enum SpellLinkedType
 {
     SPELL_LINK_CAST     = 0,            // +: cast; -: remove
-    SPELL_LINK_HIT      = 1,
-    SPELL_LINK_AURA     = 2,            // +: aura; -: immune
-    SPELL_LINK_REMOVE   = 3
+    SPELL_LINK_HIT      = 1 * 200000,
+    SPELL_LINK_AURA     = 2 * 200000,   // +: aura; -: immune
+    SPELL_LINK_REMOVE   = 0
 };
 
 // Spell proc event related declarations (accessed using SpellMgr functions)
@@ -134,7 +138,7 @@ enum ProcFlags : uint32
 {
     PROC_FLAG_NONE                              = 0x00000000,
 
-    PROC_FLAG_HEARTBEAT                         = 0x00000001,    // 00 Heartbeat
+    PROC_FLAG_HEARTBEAT                         = 0x00000001,    // 00 Killed by agressor - not sure about this flag
     PROC_FLAG_KILL                              = 0x00000002,    // 01 Kill target (in most cases need XP/Honor reward)
 
     PROC_FLAG_DEAL_MELEE_SWING                  = 0x00000004,    // 02 Done melee auto attack
@@ -230,13 +234,9 @@ DEFINE_ENUM_FLAG(ProcFlags);
 enum ProcFlags2 : int32
 {
     PROC_FLAG_2_NONE                            = 0x00000000,
-    PROC_FLAG_2_TARGET_DIES                     = 0x00000001,    // 32 Kill or assist in killing target (not restricted to killing blow)
-    PROC_FLAG_2_KNOCKBACK                       = 0x00000002,    // 33 Knockback
-    PROC_FLAG_2_CAST_SUCCESSFUL                 = 0x00000004,    // 34 Cast Successful
-
-    PROC_FLAG_2_SUCCESSFUL_DISPEL               = 0x00000010,    // 36 Successful dispel
-
-    PROC_FLAG_2_DO_EMOTE                        = 0x00000040     // 38 Do Emote
+    PROC_FLAG_2_TARGET_DIES                     = 0x00000001,
+    PROC_FLAG_2_KNOCKBACK                       = 0x00000002,
+    PROC_FLAG_2_CAST_SUCCESSFUL                 = 0x00000004
 };
 
 DEFINE_ENUM_FLAG(ProcFlags2);
@@ -289,8 +289,7 @@ enum ProcFlagsHit : uint32
     PROC_HIT_REFLECT             = 0x0000800,
     PROC_HIT_INTERRUPT           = 0x0001000,
     PROC_HIT_FULL_BLOCK          = 0x0002000,
-    PROC_HIT_DISPEL              = 0x0004000,
-    PROC_HIT_MASK_ALL            = 0x0007FFF
+    PROC_HIT_MASK_ALL            = 0x0003FFF
 };
 
 DEFINE_ENUM_FLAG(ProcFlagsHit);
@@ -365,7 +364,7 @@ namespace std
     template<>
     struct hash<SpellGroup>
     {
-        size_t operator()(SpellGroup const& group) const noexcept
+        size_t operator()(SpellGroup const& group) const
         {
             return hash<uint32>()(uint32(group));
         }
@@ -593,36 +592,14 @@ typedef std::unordered_map<uint32, SpellLearnSkillNode> SpellLearnSkillMap;
 
 struct SpellLearnSpellNode
 {
-    uint32 SourceSpell;
     uint32 Spell;
     uint32 OverridesSpell;
     bool Active;                    // show in spellbook or not
     bool AutoLearned;               // This marks the spell as automatically learned from another source that - will only be used for unlearning
 };
 
-enum class SpellOtherImmunity : uint8
-{
-    None        = 0x0,
-    AoETarget   = 0x1,
-    ChainTarget = 0x2
-};
-
-DEFINE_ENUM_FLAG(SpellOtherImmunity)
-
-struct CreatureImmunities
-{
-    std::bitset<MAX_SPELL_SCHOOL> School;
-    std::bitset<DISPEL_MAX> DispelType;
-    std::bitset<MAX_MECHANIC> Mechanic;
-    std::vector<SpellEffectName> Effect;
-    std::vector<AuraType> Aura;
-    EnumFlag<SpellOtherImmunity> Other = SpellOtherImmunity::None;
-};
-
 typedef std::multimap<uint32, SpellLearnSpellNode> SpellLearnSpellMap;
 typedef std::pair<SpellLearnSpellMap::const_iterator, SpellLearnSpellMap::const_iterator> SpellLearnSpellMapBounds;
-
-typedef std::multimap<uint32, SpellLearnSpellNode const*> SpellLearnedBySpellMap;
 
 typedef std::multimap<uint32, SkillLineAbilityEntry const*> SkillLineAbilityMap;
 typedef std::pair<SkillLineAbilityMap::const_iterator, SkillLineAbilityMap::const_iterator> SkillLineAbilityMapBounds;
@@ -645,7 +622,7 @@ struct PetDefaultSpellsEntry
 // < 0 for petspelldata id, > 0 for creature_id
 typedef std::map<int32, PetDefaultSpellsEntry> PetDefaultSpellsMap;
 
-typedef std::unordered_map<std::pair<SpellLinkedType, uint32>, std::vector<int32>> SpellLinkedMap;
+typedef std::unordered_map<int32, std::vector<int32>> SpellLinkedMap;
 
 bool IsPrimaryProfessionSkill(uint32 skill);
 
@@ -730,7 +707,6 @@ class TC_GAME_API SpellMgr
         SpellLearnSpellMapBounds GetSpellLearnSpellMapBounds(uint32 spell_id) const;
         bool IsSpellLearnSpell(uint32 spell_id) const;
         bool IsSpellLearnToSpell(uint32 spell_id1, uint32 spell_id2) const;
-        Trinity::IteratorPair<SpellLearnedBySpellMap::const_iterator> GetSpellLearnedBySpellMapBounds(uint32 learnedSpellId) const;
 
         // Spell target coordinates
         SpellTargetPosition const* GetSpellTargetPosition(uint32 spell_id, SpellEffIndex effIndex) const;
@@ -762,7 +738,7 @@ class TC_GAME_API SpellMgr
         SpellEnchantProcEntry const* GetSpellEnchantProcEvent(uint32 enchId) const;
         bool IsArenaAllowedEnchancment(uint32 ench_id) const;
 
-        std::vector<int32> const* GetSpellLinked(SpellLinkedType type, uint32 spell_id) const;
+        std::vector<int32> const* GetSpellLinked(int32 spell_id) const;
 
         PetLevelupSpellSet const* GetPetLevelupSpellList(uint32 petFamily) const;
         PetDefaultSpellsEntry const* GetPetDefaultSpellsEntry(int32 id) const;
@@ -773,9 +749,6 @@ class TC_GAME_API SpellMgr
         SpellAreaForQuestMapBounds GetSpellAreaForQuestEndMapBounds(uint32 quest_id) const;
         SpellAreaForAuraMapBounds GetSpellAreaForAuraMapBounds(uint32 spell_id) const;
         SpellAreaForAreaMapBounds GetSpellAreaForAreaMapBounds(uint32 area_id) const;
-
-        // Immunities
-        static CreatureImmunities const* GetCreatureImmunities(int32 creatureImmunitiesId);
 
         // SpellInfo object management
         SpellInfo const* GetSpellInfo(uint32 spellId, Difficulty difficulty) const;
@@ -826,7 +799,6 @@ class TC_GAME_API SpellMgr
         void LoadSpellInfoSpellSpecificAndAuraState();
         void LoadSpellInfoDiminishing();
         void LoadSpellInfoImmunities();
-        void LoadSpellInfoTargetCaps();
         void LoadSpellTotemModel();
 
     private:
@@ -836,7 +808,6 @@ class TC_GAME_API SpellMgr
         SpellRequiredMap           mSpellReq;
         SpellLearnSkillMap         mSpellLearnSkills;
         SpellLearnSpellMap         mSpellLearnSpells;
-        SpellLearnedBySpellMap     mSpellLearnedBySpells;
         SpellTargetPositionMap     mSpellTargetPositions;
         SpellSpellGroupMap         mSpellSpellGroup;
         SpellGroupSpellMap         mSpellGroupSpell;

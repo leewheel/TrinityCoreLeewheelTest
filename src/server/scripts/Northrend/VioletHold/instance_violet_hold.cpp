@@ -23,10 +23,10 @@
 #include "Map.h"
 #include "MotionMaster.h"
 #include "Player.h"
-#include "ScriptMgr.h"
 #include "TaskScheduler.h"
+#include "ScriptMgr.h"
 #include "TemporarySummon.h"
-#include "WaypointDefines.h"
+#include <sstream>
 
 /*
  * TODO:
@@ -70,94 +70,70 @@ Position const PortalIntroPositions[PortalIntroPositionsSize] = // sniff
 
 uint32 const EncouterPortalsCount = PortalPositionsSize + PortalElitePositionsSize;
 
-WaypointPath const MoraggPath = // sniff
+uint32 const MoraggPathSize = 3;
+Position const MoraggPath[MoraggPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1893.895f, 728.1261f, 47.75016f },
-        { 1, 1892.997f, 738.4987f, 47.66684f },
-        { 2, 1889.76f,  758.1089f, 47.66684f }
-    },
-    WaypointMoveType::Walk
+    { 1893.895f, 728.1261f, 47.75016f },
+    { 1892.997f, 738.4987f, 47.66684f },
+    { 1889.76f,  758.1089f, 47.66684f }
 };
 
-WaypointPath const ErekemPath = // sniff
+uint32 const ErekemPathSize = 3;
+Position const ErekemPath[ErekemPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1871.456f, 871.0361f, 43.41524f },
-        { 1, 1874.948f, 859.5452f, 43.33349f },
-        { 2, 1877.245f, 851.967f,  43.3335f, 4.921828f }
-    },
-    WaypointMoveType::Walk
+    { 1871.456f, 871.0361f, 43.41524f },
+    { 1874.948f, 859.5452f, 43.33349f },
+    { 1877.245f, 851.967f,  43.3335f  }
 };
 
-WaypointPath const ErekemGuardLeftPath = // sniff
+uint32 const ErekemGuardLeftPathSize = 3;
+Position const ErekemGuardLeftPath[ErekemGuardLeftPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1853.752f, 862.4528f, 43.41614f },
-        { 1, 1866.931f, 854.577f,  43.3335f  },
-        { 2, 1872.973f, 850.7875f, 43.3335f  }
-    },
-    WaypointMoveType::Walk
+    { 1853.752f, 862.4528f, 43.41614f },
+    { 1866.931f, 854.577f,  43.3335f  },
+    { 1872.973f, 850.7875f, 43.3335f  }
 };
 
-WaypointPath const ErekemGuardRightPath = // sniff
+uint32 const ErekemGuardRightPathSize = 3;
+Position const ErekemGuardRightPath[ErekemGuardRightPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1892.418f, 872.2831f, 43.41563f },
-        { 1, 1885.639f, 859.0245f, 43.3335f  },
-        { 2, 1882.432f, 852.2423f, 43.3335f  }
-    },
-    WaypointMoveType::Walk
+    { 1892.418f, 872.2831f, 43.41563f },
+    { 1885.639f, 859.0245f, 43.3335f  },
+    { 1882.432f, 852.2423f, 43.3335f  }
 };
 
-WaypointPath const IchoronPath = // sniff
+uint32 const IchoronPathSize = 5;
+Position const IchoronPath[IchoronPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1942.041f, 749.5228f, 30.95229f },
-        { 1, 1930.571f, 762.9065f, 31.98814f },
-        { 2, 1923.657f, 770.6718f, 34.07256f },
-        { 3, 1910.631f, 784.4096f, 37.09015f },
-        { 4, 1906.595f, 788.3828f, 37.99429f }
-    },
-    WaypointMoveType::Walk
+    { 1942.041f, 749.5228f, 30.95229f },
+    { 1930.571f, 762.9065f, 31.98814f },
+    { 1923.657f, 770.6718f, 34.07256f },
+    { 1910.631f, 784.4096f, 37.09015f },
+    { 1906.595f, 788.3828f, 37.99429f }
 };
 
-WaypointPath const LavanthorPath = // sniff
+uint32 const LavanthorPathSize = 3;
+Position const LavanthorPath[LavanthorPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1844.557f, 748.7083f, 38.74205f },
-        { 1, 1854.618f, 761.5295f, 38.65631f },
-        { 2, 1862.17f,  773.2255f, 38.74879f }
-    },
-    WaypointMoveType::Walk
+    { 1844.557f, 748.7083f, 38.74205f },
+    { 1854.618f, 761.5295f, 38.65631f },
+    { 1862.17f,  773.2255f, 38.74879f }
 };
 
-WaypointPath const XevozzPath = // sniff
+uint32 const XevozzPathSize = 3;
+Position const XevozzPath[XevozzPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1908.417f, 845.8502f, 38.71947f },
-        { 1, 1905.557f, 841.3157f, 38.65529f },
-        { 2, 1899.453f, 832.533f,  38.70752f }
-    },
-    WaypointMoveType::Walk
+    { 1908.417f, 845.8502f, 38.71947f },
+    { 1905.557f, 841.3157f, 38.65529f },
+    { 1899.453f, 832.533f,  38.70752f }
 };
 
-WaypointPath const ZuramatPath = // sniff
+uint32 const ZuramatPathSize = 3;
+Position const ZuramatPath[ZuramatPathSize] = // sniff
 {
-    POINT_INTRO,
-    {
-        { 0, 1934.151f, 860.9463f, 47.29499f },
-        { 1, 1927.085f, 852.1342f, 47.19214f },
-        { 2, 1923.226f, 847.3297f, 47.15541f }
-    },
-    WaypointMoveType::Walk
+    { 1934.151f, 860.9463f, 47.29499f },
+    { 1927.085f, 852.1342f, 47.19214f },
+    { 1923.226f, 847.3297f, 47.15541f }
 };
 
 enum Yells
@@ -214,13 +190,6 @@ MinionData const minionData[] =
     { 0,                0           } // END
 };
 
-DungeonEncounterData const encounters[] =
-{
-    { DATA_1ST_BOSS, {{ 2019 }} },
-    { DATA_2ND_BOSS, {{ 2018 }} },
-    { DATA_CYANIGOSA, {{ 2020 }} }
-};
-
 class instance_violet_hold : public InstanceMapScript
 {
     public:
@@ -228,15 +197,15 @@ class instance_violet_hold : public InstanceMapScript
 
         struct instance_violet_hold_InstanceMapScript : public InstanceScript
         {
-            instance_violet_hold_InstanceMapScript(InstanceMap* map) : InstanceScript(map),
-                FirstBossId(*this, "FirstBossId", 0),
-                SecondBossId(*this, "SecondBossId", 0)
+            instance_violet_hold_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
             {
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadObjectData(creatureData, gameObjectData);
                 LoadMinionData(minionData);
-                LoadDungeonEncounterData(encounters);
+
+                FirstBossId         = 0;
+                SecondBossId        = 0;
 
                 DoorIntegrity       = 100;
                 WaveCount           = 0;
@@ -358,6 +327,14 @@ class instance_violet_hold : public InstanceMapScript
 
                 switch (type)
                 {
+                    case DATA_1ST_BOSS:
+                        if (state == DONE)
+                            UpdateEncounterStateForKilledCreature(NPC_EREKEM, nullptr);
+                        break;
+                    case DATA_2ND_BOSS:
+                        if (state == DONE)
+                            UpdateEncounterStateForKilledCreature(NPC_MORAGG, nullptr);
+                        break;
                     case DATA_CYANIGOSA:
                         if (state == DONE)
                             SetData(DATA_MAIN_EVENT_STATE, DONE);
@@ -423,10 +400,7 @@ class instance_violet_hold : public InstanceMapScript
                             DoUpdateWorldState(WORLD_STATE_VH_SHOW, 1);
 
                             WaveCount = 1;
-                            Scheduler.Async([this]
-                            {
-                                AddWave();
-                            });
+                            Scheduler.Async(std::bind(&instance_violet_hold_InstanceMapScript::AddWave, this));
 
                             for (uint8 i = 0; i < ActivationCrystalCount; ++i)
                                 if (GameObject* crystal = instance->GetGameObject(ActivationCrystalGUIDs[i]))
@@ -578,7 +552,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* moragg = GetCreature(DATA_MORAGG))
-                                    moragg->GetMotionMaster()->MovePath(MoraggPath, false);
+                                    moragg->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, MoraggPath, MoraggPathSize, true);
 
                                 task.Schedule(Seconds(8), [this](TaskContext /*task*/)
                                 {
@@ -600,12 +574,12 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(5), [this](TaskContext task)
                             {
                                 if (Creature* erekem = GetCreature(DATA_EREKEM))
-                                    erekem->GetMotionMaster()->MovePath(ErekemPath, false);
+                                    erekem->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemPath, ErekemPathSize, true);
 
                                 if (Creature* guard = instance->GetCreature(GetGuidData(DATA_EREKEM_GUARD_1)))
-                                    guard->GetMotionMaster()->MovePath(ErekemGuardLeftPath, false);
+                                    guard->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemGuardLeftPath, ErekemGuardLeftPathSize, true);
                                 if (Creature* guard = instance->GetCreature(GetGuidData(DATA_EREKEM_GUARD_2)))
-                                    guard->GetMotionMaster()->MovePath(ErekemGuardRightPath, false);
+                                    guard->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemGuardRightPath, ErekemGuardRightPathSize, true);
 
                                 task.Schedule(Seconds(6), [this](TaskContext task)
                                 {
@@ -639,7 +613,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* ichoron = GetCreature(DATA_ICHORON))
-                                    ichoron->GetMotionMaster()->MovePath(IchoronPath, false);
+                                    ichoron->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, IchoronPath, IchoronPathSize, true);
 
                                 task.Schedule(Seconds(14), [this](TaskContext /*task*/)
                                 {
@@ -661,7 +635,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* lavanthor = GetCreature(DATA_LAVANTHOR))
-                                    lavanthor->GetMotionMaster()->MovePath(LavanthorPath, false);
+                                    lavanthor->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, LavanthorPath, LavanthorPathSize, true);
 
                                 task.Schedule(Seconds(8), [this](TaskContext /*task*/)
                                 {
@@ -688,7 +662,7 @@ class instance_violet_hold : public InstanceMapScript
                                 task.Schedule(Seconds(4), [this](TaskContext task)
                                 {
                                     if (Creature* xevozz = GetCreature(DATA_XEVOZZ))
-                                        xevozz->GetMotionMaster()->MovePath(XevozzPath, false);
+                                        xevozz->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, XevozzPath, XevozzPathSize, true);
 
                                     task.Schedule(Seconds(4), [this](TaskContext /*task*/)
                                     {
@@ -714,7 +688,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(6), [this](TaskContext task)
                             {
                                 if (Creature* zuramat = GetCreature(DATA_ZURAMAT))
-                                    zuramat->GetMotionMaster()->MovePath(ZuramatPath, false);
+                                    zuramat->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ZuramatPath, ZuramatPathSize, true);
 
                                 task.Schedule(Seconds(4), [this](TaskContext /*task*/)
                                 {
@@ -818,6 +792,17 @@ class instance_violet_hold : public InstanceMapScript
                         SpawnPortal();
                         break;
                 }
+            }
+
+            void WriteSaveDataMore(std::ostringstream& data) override
+            {
+                data << FirstBossId << ' ' << SecondBossId;
+            }
+
+            void ReadSaveDataMore(std::istringstream& data) override
+            {
+                data >> FirstBossId;
+                data >> SecondBossId;
             }
 
             bool CheckWipe() const
@@ -958,8 +943,8 @@ class instance_violet_hold : public InstanceMapScript
             static uint8 const ActivationCrystalCount = 5;
             ObjectGuid ActivationCrystalGUIDs[ActivationCrystalCount];
 
-            PersistentInstanceScriptValue<uint32> FirstBossId;
-            PersistentInstanceScriptValue<uint32> SecondBossId;
+            uint32 FirstBossId;
+            uint32 SecondBossId;
 
             uint8 DoorIntegrity;
             uint8 WaveCount;

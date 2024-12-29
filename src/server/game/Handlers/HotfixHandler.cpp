@@ -60,18 +60,7 @@ void WorldSession::HandleDBQueryBulk(WorldPackets::Hotfix::DBQueryBulk& dbQuery)
 
 void WorldSession::SendAvailableHotfixes()
 {
-    WorldPackets::Hotfix::AvailableHotfixes availableHotfixes;
-    availableHotfixes.VirtualRealmAddress = GetVirtualRealmAddress();
-
-    for (auto const& [pushId, push] : sDB2Manager.GetHotfixData())
-    {
-        if (!(push.AvailableLocalesMask & (1 << GetSessionDbcLocale())))
-            continue;
-
-        availableHotfixes.Hotfixes.insert(push.Records.front().ID);
-    }
-
-    SendPacket(availableHotfixes.Write());
+    SendPacket(WorldPackets::Hotfix::AvailableHotfixes(realm.Id.GetAddress(), sDB2Manager.GetHotfixData()).Write());
 }
 
 void WorldSession::HandleHotfixRequest(WorldPackets::Hotfix::HotfixRequest& hotfixQuery)
@@ -81,14 +70,13 @@ void WorldSession::HandleHotfixRequest(WorldPackets::Hotfix::HotfixRequest& hotf
     hotfixQueryResponse.Hotfixes.reserve(hotfixQuery.Hotfixes.size());
     for (int32 hotfixId : hotfixQuery.Hotfixes)
     {
-        if (DB2Manager::HotfixPush const* hotfixRecords = Trinity::Containers::MapGetValuePtr(hotfixes, hotfixId))
+        if (std::vector<DB2Manager::HotfixRecord> const* hotfixRecords = Trinity::Containers::MapGetValuePtr(hotfixes, hotfixId))
         {
-            for (DB2Manager::HotfixRecord const& hotfixRecord : hotfixRecords->Records)
+            for (DB2Manager::HotfixRecord const& hotfixRecord : *hotfixRecords)
             {
-                if (!(hotfixRecord.AvailableLocalesMask & (1 << GetSessionDbcLocale())))
-                    continue;
+                hotfixQueryResponse.Hotfixes.emplace_back();
 
-                WorldPackets::Hotfix::HotfixConnect::HotfixData& hotfixData = hotfixQueryResponse.Hotfixes.emplace_back();
+                WorldPackets::Hotfix::HotfixConnect::HotfixData& hotfixData = hotfixQueryResponse.Hotfixes.back();
                 hotfixData.Record = hotfixRecord;
                 if (hotfixRecord.HotfixStatus == DB2Manager::HotfixRecord::Status::Valid)
                 {

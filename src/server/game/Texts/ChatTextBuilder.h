@@ -20,10 +20,7 @@
 
 #include "Common.h"
 #include "ChatPackets.h"
-#include "MiscPackets.h"
 #include "SharedDefines.h"
-
-#include <memory>
 #include <string>
 
 class Player;
@@ -42,17 +39,14 @@ namespace Trinity
         std::string Text;
         uint32 AchievementId;
         LocaleConstant Locale;
-        uint32 PlayerConditionID;
 
     public:
         // caches
         WorldPackets::Chat::Chat UntranslatedPacket;
         mutable Optional<WorldPackets::Chat::Chat> TranslatedPacket;
-        Optional<WorldPackets::Chat::Emote> EmotePacket;
-        std::unique_ptr<WorldPackets::ServerPacket> SoundPacket;
 
         ChatPacketSender(ChatMsg chatType, ::Language language, WorldObject const* sender, WorldObject const* receiver, std::string message,
-            uint32 achievementId = 0, LocaleConstant locale = LOCALE_enUS, uint32 broadcastTextId = 0, uint16 emoteId = 0, uint32 soundKitId = 0, SoundKitPlayType soundKitPlayType = SoundKitPlayType::Normal, uint32 playerConditionId = 0);
+            uint32 achievementId = 0, LocaleConstant locale = LOCALE_enUS);
 
         void operator()(Player const* player) const;
     };
@@ -109,8 +103,8 @@ namespace Trinity
     class CreatureTextTextBuilder
     {
         public:
-            CreatureTextTextBuilder(WorldObject const* obj, WorldObject const* speaker, uint8 gender, ChatMsg msgtype, uint8 textGroup, uint32 id, Language language, WorldObject const* target, uint32 broadcastTextId, uint16 emoteId, uint32 soundKitId, SoundKitPlayType soundKitPlayType, uint32 playerConditionId)
-                : _source(obj), _talker(speaker), _gender(gender), _msgType(msgtype), _textGroup(textGroup), _textId(id), _language(language), _target(target), _broadcastTextId(broadcastTextId), _emoteId(emoteId), _soundKitId(soundKitId), _soundKitPlayType(soundKitPlayType), _playerConditionId(playerConditionId) { }
+            CreatureTextTextBuilder(WorldObject const* obj, WorldObject const* speaker, uint8 gender, ChatMsg msgtype, uint8 textGroup, uint32 id, Language language, WorldObject const* target)
+                : _source(obj), _talker(speaker), _gender(gender), _msgType(msgtype), _textGroup(textGroup), _textId(id), _language(language), _target(target) { }
 
             ChatPacketSender* operator()(LocaleConstant locale) const;
 
@@ -123,11 +117,6 @@ namespace Trinity
             uint32 _textId;
             Language _language;
             WorldObject const* _target;
-            uint32 _broadcastTextId;
-            uint16 _emoteId;
-            uint32 _soundKitId;
-            SoundKitPlayType _soundKitPlayType;
-            uint32 _playerConditionId;
     };
 }
 // namespace Trinity

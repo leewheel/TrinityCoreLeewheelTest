@@ -56,9 +56,7 @@ enum BlastmasterEmi
     SAY_BLASTMASTER_18  = 18,
     SAY_BLASTMASTER_19  = 19,
 
-    SAY_GRUBBIS         = 0,
-
-    PATH_ESCORT_BLASTMASTER_EMI = 63986,
+    SAY_GRUBBIS         = 0
 };
 
 const Position SpawnPosition[] =
@@ -135,8 +133,7 @@ public:
         {
             if (gossipListId == 0)
             {
-                LoadPath(PATH_ESCORT_BLASTMASTER_EMI);
-                Start(true, player->GetGUID());
+                Start(true, false, player->GetGUID());
 
                 me->SetFaction(player->GetFaction());
                 SetData(1, 0);
@@ -488,7 +485,10 @@ public:
                 } else uiTimer -= uiDiff;
             }
 
-            UpdateVictim();
+            if (!UpdateVictim())
+                return;
+
+            DoMeleeAttackIfReady();
         }
 
         void JustSummoned(Creature* summon) override
@@ -525,6 +525,14 @@ public:
             if (Unit* summon = me->ToTempSummon()->GetSummonerUnit())
                 if (Creature* creature = summon->ToCreature())
                     creature->AI()->SetData(2, 1);
+        }
+
+        void UpdateAI(uint32 /*diff*/) override
+        {
+            if (!UpdateVictim())
+                return;
+
+            DoMeleeAttackIfReady();
         }
 
         void JustDied(Unit* /*killer*/) override

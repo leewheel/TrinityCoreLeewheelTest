@@ -137,7 +137,6 @@ public:
             }
             player->RemoveActiveQuest(quest->GetQuestId(), false);
             player->RemoveRewardedQuest(quest->GetQuestId());
-            player->DespawnPersonalSummonsForQuest(quest->GetQuestId());
 
             sScriptMgr->OnQuestStatusChange(player, quest->GetQuestId());
             sScriptMgr->OnQuestStatusChange(player, quest, oldStatus, QUEST_STATUS_NONE);
@@ -169,9 +168,17 @@ public:
                 }
                 break;
             }
-            case QUEST_OBJECTIVE_CURRENCY:
+            case QUEST_OBJECTIVE_MONSTER:
             {
-                player->ModifyCurrency(obj.ObjectID, obj.Amount, CurrencyGainSource::Cheat);
+                if (CreatureTemplate const* creatureInfo = sObjectMgr->GetCreatureTemplate(obj.ObjectID))
+                    for (uint16 z = 0; z < obj.Amount; ++z)
+                        player->KilledMonster(creatureInfo, ObjectGuid::Empty);
+                break;
+            }
+            case QUEST_OBJECTIVE_GAMEOBJECT:
+            {
+                for (uint16 z = 0; z < obj.Amount; ++z)
+                    player->KillCreditGO(obj.ObjectID);
                 break;
             }
             case QUEST_OBJECTIVE_MIN_REPUTATION:
@@ -195,11 +202,13 @@ public:
                 player->ModifyMoney(obj.Amount);
                 break;
             }
-            case QUEST_OBJECTIVE_PROGRESS_BAR:
-                // do nothing
+            case QUEST_OBJECTIVE_PLAYERKILLS:
+            {
+                for (uint16 z = 0; z < obj.Amount; ++z)
+                    player->KilledPlayerCredit(ObjectGuid::Empty);
                 break;
+            }
             default:
-                player->UpdateQuestObjectiveProgress(static_cast<QuestObjectiveType>(obj.Type), obj.ObjectID, obj.Amount);
                 break;
         }
     }
@@ -215,7 +224,7 @@ public:
         }
 
         // If player doesn't have the quest
-        if ((player->GetQuestStatus(quest->GetQuestId()) == QUEST_STATUS_NONE && !quest->HasFlag(QUEST_FLAGS_TRACKING_EVENT))
+        if ((player->GetQuestStatus(quest->GetQuestId()) == QUEST_STATUS_NONE && !quest->HasFlag(QUEST_FLAGS_TRACKING))
             || DisableMgr::IsDisabledFor(DISABLE_TYPE_QUEST, quest->GetQuestId(), nullptr))
         {
             handler->PSendSysMessage(LANG_COMMAND_QUEST_NOTFOUND, quest->GetQuestId());

@@ -17,7 +17,6 @@
 
 #include "icecrown_citadel.h"
 #include "CellImpl.h"
-#include "Containers.h"
 #include "CreatureTextMgr.h"
 #include "GridNotifiersImpl.h"
 #include "InstanceScript.h"
@@ -419,7 +418,7 @@ public:
                     continue;
             }
 
-            if (Creature* passenger = _transport->SummonPassenger(_slotInfo[i].Entry, SelectSpawnPoint(), TEMPSUMMON_CORPSE_TIMED_DESPAWN, nullptr, 15s))
+            if (Creature* passenger = _transport->SummonPassenger(_slotInfo[i].Entry, SelectSpawnPoint(), TEMPSUMMON_CORPSE_TIMED_DESPAWN, nullptr, 15000))
             {
                 _controlledSlots[i] = passenger->GetGUID();
                 _respawnCooldowns[i] = time_t(0);
@@ -633,7 +632,7 @@ protected:
     {
         if (Instance->GetBossState(DATA_ICECROWN_GUNSHIP_BATTLE) != IN_PROGRESS)
         {
-            EnterEvadeMode(EvadeReason::Other);
+            EnterEvadeMode(EVADE_REASON_OTHER);
             return false;
         }
 
@@ -647,7 +646,7 @@ protected:
         }
         else if (me->GetThreatManager().IsThreatListEmpty())
         {
-            EnterEvadeMode(EvadeReason::Other);
+            EnterEvadeMode(EVADE_REASON_OTHER);
             return false;
         }
 
@@ -1033,10 +1032,10 @@ struct npc_high_overlord_saurfang_igb : public ScriptedAI
                     _controller.SummonCreatures(SLOT_MARINE_1, Is25ManRaid() ? SLOT_MARINE_4 : SLOT_MARINE_2);
                     _controller.SummonCreatures(SLOT_SERGEANT_1, Is25ManRaid() ? SLOT_SERGEANT_2 : SLOT_SERGEANT_1);
                     if (Transport* orgrimsHammer = dynamic_cast<Transport*>(me->GetTransport()))
-                        orgrimsHammer->SummonPassenger(NPC_TELEPORT_PORTAL, OrgrimsHammerTeleportPortal, TEMPSUMMON_TIMED_DESPAWN, nullptr, 21s);
+                        orgrimsHammer->SummonPassenger(NPC_TELEPORT_PORTAL, OrgrimsHammerTeleportPortal, TEMPSUMMON_TIMED_DESPAWN, nullptr, 21000);
 
                     if (Transport* skybreaker = ObjectAccessor::GetTransport(*me, _instance->GetGuidData(DATA_ICECROWN_GUNSHIP_BATTLE)))
-                        skybreaker->SummonPassenger(NPC_TELEPORT_EXIT, SkybreakerTeleportExit, TEMPSUMMON_TIMED_DESPAWN, nullptr, 23s);
+                        skybreaker->SummonPassenger(NPC_TELEPORT_EXIT, SkybreakerTeleportExit, TEMPSUMMON_TIMED_DESPAWN, nullptr, 23000);
 
                     _events.ScheduleEvent(EVENT_ADDS_BOARD_YELL, 6s);
                     _events.ScheduleEvent(EVENT_ADDS, 1min);
@@ -1076,13 +1075,12 @@ struct npc_high_overlord_saurfang_igb : public ScriptedAI
             }
         }
 
-        if (!me->IsWithinMeleeRange(me->GetVictim()))
+        if (me->IsWithinMeleeRange(me->GetVictim()))
+            DoMeleeAttackIfReady();
+        else if (me->isAttackReady())
         {
-            if (me->isAttackReady())
-            {
-                DoCastVictim(SPELL_RENDING_THROW);
-                me->resetAttackTimer();
-            }
+            DoCastVictim(SPELL_RENDING_THROW);
+            me->resetAttackTimer();
         }
     }
 
@@ -1294,10 +1292,10 @@ struct npc_muradin_bronzebeard_igb : public ScriptedAI
                     _controller.SummonCreatures(SLOT_MARINE_1, Is25ManRaid() ? SLOT_MARINE_4 : SLOT_MARINE_2);
                     _controller.SummonCreatures(SLOT_SERGEANT_1, Is25ManRaid() ? SLOT_SERGEANT_2 : SLOT_SERGEANT_1);
                     if (Transport* skybreaker = dynamic_cast<Transport*>(me->GetTransport()))
-                        skybreaker->SummonPassenger(NPC_TELEPORT_PORTAL, SkybreakerTeleportPortal, TEMPSUMMON_TIMED_DESPAWN, nullptr, 21s);
+                        skybreaker->SummonPassenger(NPC_TELEPORT_PORTAL, SkybreakerTeleportPortal, TEMPSUMMON_TIMED_DESPAWN, nullptr, 21000);
 
                     if (Transport* orgrimsHammer = ObjectAccessor::GetTransport(*me, _instance->GetGuidData(DATA_ICECROWN_GUNSHIP_BATTLE)))
-                        orgrimsHammer->SummonPassenger(NPC_TELEPORT_EXIT, OrgrimsHammerTeleportExit, TEMPSUMMON_TIMED_DESPAWN, nullptr, 23s);
+                        orgrimsHammer->SummonPassenger(NPC_TELEPORT_EXIT, OrgrimsHammerTeleportExit, TEMPSUMMON_TIMED_DESPAWN, nullptr, 23000);
 
                     _events.ScheduleEvent(EVENT_ADDS_BOARD_YELL, 6s);
                     _events.ScheduleEvent(EVENT_ADDS, 1min);
@@ -1337,13 +1335,12 @@ struct npc_muradin_bronzebeard_igb : public ScriptedAI
             }
         }
 
-        if (!me->IsWithinMeleeRange(me->GetVictim()))
+        if (me->IsWithinMeleeRange(me->GetVictim()))
+            DoMeleeAttackIfReady();
+        else if (me->isAttackReady())
         {
-            if (me->isAttackReady())
-            {
-                DoCastVictim(SPELL_RENDING_THROW);
-                me->resetAttackTimer();
-            }
+            DoCastVictim(SPELL_RENDING_THROW);
+            me->resetAttackTimer();
         }
     }
 
@@ -1486,6 +1483,8 @@ struct npc_gunship_boarding_addAI : public gunship_npc_AI
 
         if (!HasAttackablePlayerNearby())
             TriggerBurningPitch();
+
+        DoMeleeAttackIfReady();
     }
 
     bool CanAIAttack(Unit const* target) const override
@@ -1563,6 +1562,8 @@ struct npc_gunship_boarding_leader : public npc_gunship_boarding_addAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -1727,10 +1728,12 @@ struct npc_gunship_cannon : public PassiveAI
 // 68721 - Rocket Pack
 class spell_igb_rocket_pack : public AuraScript
 {
+    PrepareAuraScript(spell_igb_rocket_pack);
+
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_ROCKET_PACK_DAMAGE, SPELL_ROCKET_BURST })
-            && ValidateSpellEffect({ { SPELL_ROCKET_PACK_DAMAGE, EFFECT_0 } });
+            && !sSpellMgr->AssertSpellInfo(SPELL_ROCKET_PACK_DAMAGE, DIFFICULTY_NONE)->GetEffects().empty();
     }
 
     void HandlePeriodic(AuraEffect const* /*aurEff*/)
@@ -1759,6 +1762,8 @@ class spell_igb_rocket_pack : public AuraScript
 // 70348 - Rocket Pack Useable
 class spell_igb_rocket_pack_useable : public AuraScript
 {
+    PrepareAuraScript(spell_igb_rocket_pack_useable);
+
     bool Load() override
     {
         return GetOwner()->GetInstanceScript() != nullptr;
@@ -1797,6 +1802,8 @@ class spell_igb_rocket_pack_useable : public AuraScript
 // 70121 - On Orgrim's Hammer Deck
 class spell_igb_on_gunship_deck : public AuraScript
 {
+    PrepareAuraScript(spell_igb_on_gunship_deck);
+
 public:
     spell_igb_on_gunship_deck()
     {
@@ -1838,10 +1845,12 @@ private:
 // 69487 - Overheat
 class spell_igb_periodic_trigger_with_power_cost : public AuraScript
 {
+    PrepareAuraScript(spell_igb_periodic_trigger_with_power_cost);
+
     void HandlePeriodicTick(AuraEffect const* aurEff)
     {
         PreventDefaultAction();
-        GetTarget()->CastSpell(GetTarget(), aurEff->GetSpellEffectInfo().TriggerSpell, TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST);
+        GetTarget()->CastSpell(GetTarget(), aurEff->GetSpellEffectInfo().TriggerSpell, TriggerCastFlags(TRIGGERED_FULL_MASK & ~TRIGGERED_IGNORE_POWER_AND_REAGENT_COST));
     }
 
     void Register() override
@@ -1853,6 +1862,8 @@ class spell_igb_periodic_trigger_with_power_cost : public AuraScript
 // 69399, 70172 - Cannon Blast
 class spell_igb_cannon_blast : public SpellScript
 {
+    PrepareSpellScript(spell_igb_cannon_blast);
+
     bool Load() override
     {
         return GetCaster()->GetTypeId() == TYPEID_UNIT;
@@ -1878,6 +1889,15 @@ class spell_igb_cannon_blast : public SpellScript
 // 69402, 70175 - Incinerating Blast
 class spell_igb_incinerating_blast : public SpellScript
 {
+    PrepareSpellScript(spell_igb_incinerating_blast);
+
+public:
+    spell_igb_incinerating_blast()
+    {
+        _energyLeft = 0;
+    }
+
+private:
     void StoreEnergy()
     {
         _energyLeft = GetCaster()->GetPower(POWER_ENERGY) - 10;
@@ -1888,24 +1908,26 @@ class spell_igb_incinerating_blast : public SpellScript
         GetCaster()->SetPower(POWER_ENERGY, 0);
     }
 
-    void CalculateDamage(SpellEffectInfo const& /*spellEffectInfo*/, Unit const* /*victim*/, int32& /*damage*/, int32& flatMod, float& /*pctMod*/) const
+    void CalculateDamage(SpellEffIndex /*effIndex*/)
     {
-        flatMod += _energyLeft * _energyLeft * 8;
+        SetEffectValue(GetEffectValue() + _energyLeft * _energyLeft * 8);
     }
 
     void Register() override
     {
         OnCast += SpellCastFn(spell_igb_incinerating_blast::StoreEnergy);
         AfterCast += SpellCastFn(spell_igb_incinerating_blast::RemoveEnergy);
-        CalcDamage += SpellCalcDamageFn(spell_igb_incinerating_blast::CalculateDamage);
+        OnEffectLaunchTarget += SpellEffectFn(spell_igb_incinerating_blast::CalculateDamage, EFFECT_1, SPELL_EFFECT_SCHOOL_DAMAGE);
     }
 
-    int32 _energyLeft = 0;
+    uint32 _energyLeft;
 };
 
 // 69487 - Overheat
 class spell_igb_overheat : public AuraScript
 {
+    PrepareAuraScript(spell_igb_overheat);
+
     bool Load() override
     {
         if (GetAura()->GetType() != UNIT_AURA_TYPE)
@@ -1950,6 +1972,8 @@ class spell_igb_overheat : public AuraScript
 // 69705 - Below Zero
 class spell_igb_below_zero : public SpellScript
 {
+    PrepareSpellScript(spell_igb_below_zero);
+
     void RemovePassengers(SpellMissInfo missInfo)
     {
         if (missInfo != SPELL_MISS_NONE)
@@ -1967,6 +1991,8 @@ class spell_igb_below_zero : public SpellScript
 // 70104 - Teleport to Enemy Ship
 class spell_igb_teleport_to_enemy_ship : public SpellScript
 {
+    PrepareSpellScript(spell_igb_teleport_to_enemy_ship);
+
     void RelocateTransportOffset(SpellEffIndex /*effIndex*/)
     {
         WorldLocation const* dest = GetHitDest();
@@ -1989,6 +2015,8 @@ class spell_igb_teleport_to_enemy_ship : public SpellScript
 // 70397, 70403 - Burning Pitch
 class spell_igb_burning_pitch_selector : public SpellScript
 {
+    PrepareSpellScript(spell_igb_burning_pitch_selector);
+
     void FilterTargets(std::list<WorldObject*>& targets)
     {
         uint32 team = HORDE;
@@ -2026,6 +2054,8 @@ class spell_igb_burning_pitch_selector : public SpellScript
 // 71335, 71339 - Burning Pitch
 class spell_igb_burning_pitch : public SpellScript
 {
+    PrepareSpellScript(spell_igb_burning_pitch);
+
     void HandleDummy(SpellEffIndex effIndex)
     {
         PreventHitDefaultEffect(effIndex);
@@ -2044,6 +2074,8 @@ class spell_igb_burning_pitch : public SpellScript
 // 69678, 70609 - Rocket Artillery
 class spell_igb_rocket_artillery : public SpellScript
 {
+    PrepareSpellScript(spell_igb_rocket_artillery);
+
     void SelectRandomTarget(std::list<WorldObject*>& targets)
     {
         if (!targets.empty())
@@ -2070,6 +2102,8 @@ class spell_igb_rocket_artillery : public SpellScript
 // 69679 - Rocket Artillery
 class spell_igb_rocket_artillery_explosion : public SpellScript
 {
+    PrepareSpellScript(spell_igb_rocket_artillery_explosion);
+
     void DamageGunship(SpellEffIndex /*effIndex*/)
     {
         if (InstanceScript* instance = GetCaster()->GetInstanceScript())
@@ -2089,6 +2123,8 @@ class spell_igb_rocket_artillery_explosion : public SpellScript
 // 67335 - Gunship Fall Teleport
 class spell_igb_gunship_fall_teleport : public SpellScript
 {
+    PrepareSpellScript(spell_igb_gunship_fall_teleport);
+
     bool Load() override
     {
         return GetCaster()->GetInstanceScript() != nullptr;
@@ -2118,6 +2154,8 @@ class spell_igb_gunship_fall_teleport : public SpellScript
 // 70331 - Check for Players
 class spell_igb_check_for_players : public SpellScript
 {
+    PrepareSpellScript(spell_igb_check_for_players);
+
 public:
     spell_igb_check_for_players()
     {
@@ -2160,6 +2198,8 @@ private:
 // 72340 - Teleport Players on Victory
 class spell_igb_teleport_players_on_victory : public SpellScript
 {
+    PrepareSpellScript(spell_igb_teleport_players_on_victory);
+
     bool Load() override
     {
         return GetCaster()->GetInstanceScript() != nullptr;
@@ -2183,6 +2223,8 @@ class spell_igb_teleport_players_on_victory : public SpellScript
 // 71201 - Battle Experience - proc should never happen, handled in script
 class spell_igb_battle_experience_check : public AuraScript
 {
+    PrepareAuraScript(spell_igb_battle_experience_check);
+
     bool CheckProc(ProcEventInfo& /*eventInfo*/)
     {
         return false;

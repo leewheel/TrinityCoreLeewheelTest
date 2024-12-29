@@ -21,6 +21,7 @@ Category: Tanaris, ZulFarrak
 */
 
 #include "ScriptMgr.h"
+#include "InstanceScript.h"
 #include "ScriptedCreature.h"
 #include "zulfarrak.h"
 
@@ -54,7 +55,7 @@ public:
 
     struct boss_zum_rahAI : public BossAI
     {
-        boss_zum_rahAI(Creature* creature) : BossAI(creature, BOSS_WITCH_DOCTOR_ZUM_RAH)
+        boss_zum_rahAI(Creature* creature) : BossAI(creature, DATA_ZUM_RAH)
         {
             Initialize();
         }
@@ -68,17 +69,20 @@ public:
 
         void Reset() override
         {
-            _Reset();
             me->SetFaction(FACTION_FRIENDLY); // areatrigger sets faction to enemy
             Initialize();
         }
 
-        void JustEngagedWith(Unit* who) override
+        void JustEngagedWith(Unit* /*who*/) override
         {
-            _JustEngagedWith(who);
             Talk(SAY_SANCT_INVADE);
             events.ScheduleEvent(EVENT_SHADOW_BOLT, 1s);
             events.ScheduleEvent(EVENT_SHADOWBOLT_VOLLEY, 10s);
+        }
+
+        void JustDied(Unit* /*killer*/) override
+        {
+            instance->SetData(DATA_ZUM_RAH, DONE);
         }
 
         void KilledUnit(Unit* /*victim*/) override
@@ -136,6 +140,8 @@ public:
                 _heal30 = true;
                 events.ScheduleEvent(EVENT_HEALING_WAVE, 3s);
             }
+
+            DoMeleeAttackIfReady();
         }
 
         private:

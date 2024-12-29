@@ -82,6 +82,10 @@ class boss_mal_ganis : public CreatureScript
                     if (_defeated)
                         return;
                     _defeated = true;
+
+                    // @todo hack most likely
+                    if (InstanceMap* map = instance->instance->ToInstanceMap())
+                        map->PermBindAllPlayers();
                 }
             }
 
@@ -167,6 +171,8 @@ class boss_mal_ganis : public CreatureScript
                     if (me->HasUnitState(UNIT_STATE_CASTING))
                         return;
                 }
+
+                DoMeleeAttackIfReady();
             }
 
             void KilledUnit(Unit* victim) override

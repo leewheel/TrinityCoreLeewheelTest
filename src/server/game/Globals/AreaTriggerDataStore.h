@@ -24,11 +24,8 @@
 
 class AreaTriggerTemplate;
 class AreaTriggerCreateProperties;
-enum Difficulty : uint8;
 struct AreaTriggerId;
 struct AreaTriggerSpawn;
-
-typedef AreaTriggerId AreaTriggerCreatePropertiesId;
 
 class TC_GAME_API AreaTriggerDataStore
 {
@@ -36,10 +33,10 @@ public:
     void LoadAreaTriggerTemplates();
     void LoadAreaTriggerSpawns();
 
-    std::set<ObjectGuid::LowType> const* GetAreaTriggersForMapAndCell(uint32 mapId, Difficulty difficulty, uint32 cellId) const;
+    std::set<ObjectGuid::LowType> const* GetAreaTriggersForMapAndCell(uint32 mapId, uint32 cellId) const;
     AreaTriggerSpawn const* GetAreaTriggerSpawn(ObjectGuid::LowType spawnId) const;
     AreaTriggerTemplate const* GetAreaTriggerTemplate(AreaTriggerId const& areaTriggerId) const;
-    AreaTriggerCreateProperties const* GetAreaTriggerCreateProperties(AreaTriggerCreatePropertiesId const& areaTriggerCreatePropertiesId) const;
+    AreaTriggerCreateProperties const* GetAreaTriggerCreateProperties(uint32 areaTriggerCreatePropertiesId) const;
 
     static AreaTriggerDataStore* Instance();
 };

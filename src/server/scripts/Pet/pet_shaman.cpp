@@ -63,6 +63,8 @@ struct npc_pet_shaman_earth_elemental : public ScriptedAI
             DoCastVictim(SPELL_SHAMAN_ANGEREDEARTH);
             _events.ScheduleEvent(EVENT_SHAMAN_ANGEREDEARTH, 5s, 20s);
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -111,6 +113,8 @@ struct npc_pet_shaman_fire_elemental : public ScriptedAI
                     break;
             }
         }
+
+        DoMeleeAttackIfReady();
     }
 
 private:

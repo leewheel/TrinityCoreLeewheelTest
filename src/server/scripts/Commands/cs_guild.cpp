@@ -143,6 +143,8 @@ public:
             return false;
 
         targetGuild->Disband();
+        delete targetGuild;
+
         return true;
     }
 
@@ -190,7 +192,7 @@ public:
             return false;
 
         CharacterDatabaseTransaction trans(nullptr);
-        targetGuild->DeleteMember(trans, targetGuid, false, true);
+        targetGuild->DeleteMember(trans, targetGuid, false, true, true);
         return true;
     }
 
@@ -261,19 +263,19 @@ public:
         return true;
     }
 
-    static bool HandleGuildInfoCommand(ChatHandler* handler, Optional<Variant<ObjectGuid::LowType, std::string_view>> const& guildIdentifier)
+    static bool HandleGuildInfoCommand(ChatHandler* handler, char const* args)
     {
         Guild* guild = nullptr;
 
-        if (guildIdentifier)
+        if (args && args[0] != '\0')
         {
-            if (ObjectGuid::LowType const* guid = std::get_if<ObjectGuid::LowType>(&*guildIdentifier))
-                guild = sGuildMgr->GetGuildById(*guid);
+            if (isNumeric(args))
+                guild = sGuildMgr->GetGuildById(strtoull(args, nullptr, 10));
             else
-                guild = sGuildMgr->GetGuildByName(guildIdentifier->get<std::string_view>());
+                guild = sGuildMgr->GetGuildByName(args);
         }
-        else if (Optional<PlayerIdentifier> target = PlayerIdentifier::FromTargetOrSelf(handler); target && target->IsConnected())
-            guild = target->GetConnectedPlayer()->GetGuild();
+        else if (Player* target = handler->getSelectedPlayerOrSelf())
+            guild = target->GetGuild();
 
         if (!guild)
             return false;

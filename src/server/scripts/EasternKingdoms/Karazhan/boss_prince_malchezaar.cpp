@@ -23,7 +23,6 @@ SDCategory: Karazhan
 EndScriptData */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "karazhan.h"
 #include "InstanceScript.h"
 #include "ObjectAccessor.h"
@@ -159,7 +158,7 @@ public:
             if (spellInfo->Id == SPELL_INFERNAL_RELAY)
             {
                 me->SetDisplayId(me->GetNativeDisplayId());
-                me->SetUninteractible(true);
+                me->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                 HellfireTimer = 4000;
                 CleanupTimer = 170000;
             }
@@ -249,7 +248,6 @@ public:
                 positions.push_back(&InfernalPoints[i]);
 
             instance->HandleGameObject(instance->GetGuidData(DATA_GO_NETHER_DOOR), true);
-            instance->SetBossState(DATA_MALCHEZZAR, NOT_STARTED);
         }
 
         void KilledUnit(Unit* /*victim*/) override
@@ -270,7 +268,6 @@ public:
                 positions.push_back(&InfernalPoints[i]);
 
             instance->HandleGameObject(instance->GetGuidData(DATA_GO_NETHER_DOOR), true);
-            instance->SetBossState(DATA_MALCHEZZAR, DONE);
         }
 
         void JustEngagedWith(Unit* /*who*/) override
@@ -278,7 +275,6 @@ public:
             Talk(SAY_AGGRO);
 
             instance->HandleGameObject(instance->GetGuidData(DATA_GO_NETHER_DOOR), false); // Open the door leading further in
-            instance->SetBossState(DATA_MALCHEZZAR, IN_PROGRESS);
         }
 
         void InfernalCleanup()
@@ -453,7 +449,7 @@ public:
                         Creature* axe = me->SummonCreature(MALCHEZARS_AXE, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, 1s);
                         if (axe)
                         {
-                            axe->SetUninteractible(true);
+                            axe->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
                             axe->SetFaction(me->GetFaction());
                             axes[i] = axe->GetGUID();
                             if (target)
@@ -549,6 +545,30 @@ public:
                     ShadowNovaTimer = 5000;
                     EnfeebleResetTimer = 9000;
                 } else EnfeebleTimer -= diff;
+            }
+
+            if (phase == 2)
+                DoMeleeAttacksIfReady();
+            else
+                DoMeleeAttackIfReady();
+        }
+
+        void DoMeleeAttacksIfReady()
+        {
+            if (me->IsWithinMeleeRange(me->GetVictim()) && !me->IsNonMeleeSpellCast(false))
+            {
+                //Check for base attack
+                if (me->isAttackReady() && me->GetVictim())
+                {
+                    me->AttackerStateUpdate(me->GetVictim());
+                    me->resetAttackTimer();
+                }
+                //Check for offhand attack
+                if (me->isAttackReady(OFF_ATTACK) && me->GetVictim())
+                {
+                    me->AttackerStateUpdate(me->GetVictim(), OFF_ATTACK);
+                    me->resetAttackTimer(OFF_ATTACK);
+                }
             }
         }
 

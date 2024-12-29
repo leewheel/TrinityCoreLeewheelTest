@@ -162,6 +162,8 @@ class boss_watchkeeper_gargolmar : public CreatureScript
                         yelledForHeal = true;
                     }
                 }
+
+                DoMeleeAttackIfReady();
             }
 
             private:

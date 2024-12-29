@@ -200,16 +200,14 @@ bool WMORoot::ConvertToVMAPRootWmo(FILE* pOutfile)
     fwrite(&nVectors,sizeof(nVectors), 1, pOutfile); // will be filled later
     fwrite(&nGroups, 4, 1, pOutfile);
     fwrite(&RootWMOID, 4, 1, pOutfile);
-    ModelFlags tcFlags = ModelFlags::None;
-    fwrite(&tcFlags, sizeof(ModelFlags), 1, pOutfile);
     return true;
 }
 
 WMOGroup::WMOGroup(const std::string &filename) :
-    filename(filename), MPY2(nullptr), MOVX(nullptr), MOVT(nullptr), MOBA(nullptr), MobaEx(nullptr),
+    filename(filename), MOPY(nullptr), MOVX(nullptr), MOVT(nullptr), MOBA(nullptr), MobaEx(nullptr),
     hlq(nullptr), LiquEx(nullptr), LiquBytes(nullptr), groupName(0), descGroupName(0), mogpFlags(0),
     moprIdx(0), moprNItems(0), nBatchA(0), nBatchB(0), nBatchC(0), fogIdx(0),
-    groupLiquid(0), groupWMOID(0), moba_size(0), LiquEx_size(0),
+    groupLiquid(0), groupWMOID(0), mopy_size(0), moba_size(0), LiquEx_size(0),
     nVertices(0), nTriangles(0), liquflags(0)
 {
     memset(bbcorn1, 0, sizeof(bbcorn1));
@@ -249,10 +247,7 @@ bool WMOGroup::open(WMORoot* rootWMO)
             f.read(&nBatchC, 4);
             f.read(&fogIdx, 4);
             f.read(&groupLiquid, 4);
-            f.read(&groupWMOID, 4);
-            f.read(&mogpFlags2, 4);
-            f.read(&parentOrFirstChildSplitGroupIndex, 2);
-            f.read(&nextSplitChildGroupIndex, 2);
+            f.read(&groupWMOID,4);
 
             // according to WoW.Dev Wiki:
             if (rootWMO->flags & 4)
@@ -267,17 +262,10 @@ bool WMOGroup::open(WMORoot* rootWMO)
         }
         else if (!strcmp(fourcc,"MOPY"))
         {
-            MPY2 = std::make_unique<uint16[]>(size);
-            std::unique_ptr<uint8[]> MOPY = std::make_unique<uint8[]>(size);
+            MOPY = new char[size];
+            mopy_size = size;
             nTriangles = (int)size / 2;
-            f.read(MOPY.get(), size);
-            std::copy_n(MOPY.get(), size, MPY2.get());
-        }
-        else if (!strcmp(fourcc,"MPY2"))
-        {
-            MPY2 = std::make_unique<uint16[]>(size / 2);
-            nTriangles = (int)size / 4;
-            f.read(MPY2.get(), size);
+            f.read(MOPY, size);
         }
         else if (!strcmp(fourcc,"MOVI"))
         {
@@ -452,15 +440,15 @@ int WMOGroup::ConvertToVMAPGroupWmo(FILE* output, bool preciseVectorData)
         delete [] MobaEx;
 
         //-------INDX------------------------------------
-        //-------MOPY/MPY2--------
+        //-------MOPY--------
         std::unique_ptr<uint32[]> MovxEx = std::make_unique<uint32[]>(nTriangles*3); // "worst case" size...
         std::unique_ptr<int32[]> IndexRenum = std::make_unique<int32[]>(nVertices);
         std::fill_n(IndexRenum.get(), nVertices, -1);
         for (int i=0; i<nTriangles; ++i)
         {
             // Skip no collision triangles
-            bool isRenderFace = (MPY2[2 * i] & WMO_MATERIAL_RENDER) && !(MPY2[2 * i] & WMO_MATERIAL_DETAIL);
-            bool isCollision = MPY2[2 * i] & WMO_MATERIAL_COLLISION || isRenderFace;
+            bool isRenderFace = (MOPY[2 * i] & WMO_MATERIAL_RENDER) && !(MOPY[2 * i] & WMO_MATERIAL_DETAIL);
+            bool isCollision = MOPY[2 * i] & WMO_MATERIAL_COLLISION || isRenderFace;
 
             if (!isCollision)
                 continue;
@@ -575,6 +563,7 @@ bool WMOGroup::ShouldSkip(WMORoot const* root) const
 
 WMOGroup::~WMOGroup()
 {
+    delete [] MOPY;
     delete [] MOVT;
     delete [] MOBA;
     delete hlq;
@@ -591,12 +580,13 @@ void MapObject::Extract(ADT::MODF const& mapObjDef, char const* WmoInstName, boo
 
     //-----------add_in _dir_file----------------
 
-    std::string tempname = Trinity::StringFormat("{}/{}", szWorkDirWmo, WmoInstName);
-    FILE* input = fopen(tempname.c_str(), "r+b");
+    char tempname[512];
+    sprintf(tempname, "%s/%s", szWorkDirWmo, WmoInstName);
+    FILE* input = fopen(tempname, "r+b");
 
     if (!input)
     {
-        printf("WMOInstance::WMOInstance: couldn't open %s\n", tempname.c_str());
+        printf("WMOInstance::WMOInstance: couldn't open %s\n", tempname);
         return;
     }
 
@@ -622,13 +612,14 @@ void MapObject::Extract(ADT::MODF const& mapObjDef, char const* WmoInstName, boo
     float scale = 1.0f;
     if (mapObjDef.Flags & 0x4)
         scale = mapObjDef.Scale / 1024.0f;
-    uint32 uniqueId = GenerateUniqueObjectId(mapObjDef.UniqueId, 0, true);
+    uint32 uniqueId = GenerateUniqueObjectId(mapObjDef.UniqueId, 0);
     uint8 flags = MOD_HAS_BOUND;
     uint8 nameSet = mapObjDef.NameSet;
     if (mapID != originalMapId)
         flags |= MOD_PARENT_SPAWN;
 
-    //write Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+    //write mapID, Flags, NameSet, UniqueId, Pos, Rot, Scale, Bound_lo, Bound_hi, name
+    fwrite(&mapID, sizeof(uint32), 1, pDirfile);
     fwrite(&flags, sizeof(uint8), 1, pDirfile);
     fwrite(&nameSet, sizeof(uint8), 1, pDirfile);
     fwrite(&uniqueId, sizeof(uint32), 1, pDirfile);

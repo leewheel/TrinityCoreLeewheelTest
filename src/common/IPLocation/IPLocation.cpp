@@ -16,17 +16,20 @@
  */
 
 #include "IPLocation.h"
-#include "BigNumber.h"
+#include "Common.h"
 #include "Config.h"
 #include "Errors.h"
 #include "IpAddress.h"
 #include "Log.h"
-#include "Util.h"
-#include <algorithm>
 #include <fstream>
 
-IpLocationStore::IpLocationStore() = default;
-IpLocationStore::~IpLocationStore() = default;
+IpLocationStore::IpLocationStore()
+{
+}
+
+IpLocationStore::~IpLocationStore()
+{
+}
 
 void IpLocationStore::Load()
 {
@@ -55,21 +58,6 @@ void IpLocationStore::Load()
     std::string ipTo;
     std::string countryCode;
     std::string countryName;
-    BigNumber bnParser;
-    BigNumber ipv4Max(0xFFFFFFFF);
-    BigNumber ipv6MappedMask(0xFFFF);
-    ipv6MappedMask <<= 32;
-
-    auto parseStringToIPv6 = [&](std::string const& str) -> Optional<std::array<uint8, 16>>
-    {
-        bnParser.SetDecStr(str);
-        if (!bnParser.SetDecStr(str))
-            return {};
-        // convert ipv4 to ipv6 v4 mapped value
-        if (bnParser <= ipv4Max)
-            bnParser += ipv6MappedMask;
-        return bnParser.ToByteArray<16>(false);
-    };
 
     while (databaseFile.good())
     {
@@ -84,33 +72,23 @@ void IpLocationStore::Load()
             break;
 
         // Remove new lines and return
-        std::erase_if(countryName, [](char c) { return c == '\r' || c == '\n'; });
+        countryName.erase(std::remove(countryName.begin(), countryName.end(), '\r'), countryName.end());
+        countryName.erase(std::remove(countryName.begin(), countryName.end(), '\n'), countryName.end());
 
         // Remove quotation marks
-        std::erase(ipFrom, '"');
-        std::erase(ipTo, '"');
-        std::erase(countryCode, '"');
-        std::erase(countryName, '"');
-
-        if (countryCode == "-")
-            continue;
+        ipFrom.erase(std::remove(ipFrom.begin(), ipFrom.end(), '"'), ipFrom.end());
+        ipTo.erase(std::remove(ipTo.begin(), ipTo.end(), '"'), ipTo.end());
+        countryCode.erase(std::remove(countryCode.begin(), countryCode.end(), '"'), countryCode.end());
+        countryName.erase(std::remove(countryName.begin(), countryName.end(), '"'), countryName.end());
 
         // Convert country code to lowercase
-        strToLower(countryCode);
+        std::transform(countryCode.begin(), countryCode.end(), countryCode.begin(), ::tolower);
 
-        Optional<std::array<uint8, 16>> from = parseStringToIPv6(ipFrom);
-        if (!from)
-            continue;
-
-        Optional<std::array<uint8, 16>> to = parseStringToIPv6(ipTo);
-        if (!to)
-            continue;
-
-        _ipLocationStore.emplace_back(*from, *to, std::move(countryCode), std::move(countryName));
+        _ipLocationStore.emplace_back(uint32(atoul(ipFrom.c_str())), uint32(atoul(ipTo.c_str())), std::move(countryCode), std::move(countryName));
     }
 
-    std::ranges::sort(_ipLocationStore, {}, &IpLocationRecord::IpFrom);
-    ASSERT(std::ranges::is_sorted(_ipLocationStore, [](IpLocationRecord const& a, IpLocationRecord const& b) { return a.IpFrom < b.IpTo; }),
+    std::sort(_ipLocationStore.begin(), _ipLocationStore.end(), [](IpLocationRecord const& a, IpLocationRecord const& b) { return a.IpFrom < b.IpFrom; });
+    ASSERT(std::is_sorted(_ipLocationStore.begin(), _ipLocationStore.end(), [](IpLocationRecord const& a, IpLocationRecord const& b) { return a.IpFrom < b.IpTo; }),
         "Overlapping IP ranges detected in database file");
 
     databaseFile.close();
@@ -120,24 +98,12 @@ void IpLocationStore::Load()
 
 IpLocationRecord const* IpLocationStore::GetLocationRecord(std::string const& ipAddress) const
 {
-    boost::system::error_code error;
-    boost::asio::ip::address address = Trinity::Net::make_address(ipAddress, error);
-    if (error)
-        return nullptr;
-
-    std::array<uint8, 16> bytes = [&]() -> std::array<uint8, 16>
-    {
-        if (address.is_v6())
-            return address.to_v6().to_bytes();
-        if (address.is_v4())
-            return Trinity::Net::make_address_v6(Trinity::Net::v4_mapped, address.to_v4()).to_bytes();
-        return {};
-    }();
-    auto itr = std::ranges::upper_bound(_ipLocationStore, bytes, {}, &IpLocationRecord::IpTo);
+    uint32 ip = Trinity::Net::address_to_uint(Trinity::Net::make_address_v4(ipAddress));
+    auto itr = std::upper_bound(_ipLocationStore.begin(), _ipLocationStore.end(), ip, [](uint32 ip, IpLocationRecord const& loc) { return ip < loc.IpTo; });
     if (itr == _ipLocationStore.end())
         return nullptr;
 
-    if (bytes < itr->IpFrom)
+    if (ip < itr->IpFrom)
         return nullptr;
 
     return &(*itr);

@@ -26,12 +26,14 @@
 #include "SpellMgr.h"
 #include "TotemPackets.h"
 
-Totem::Totem(SummonPropertiesEntry const* properties, Unit* owner) : Minion(properties, owner, false), m_type(TOTEM_PASSIVE), m_duration(0ms)
+Totem::Totem(SummonPropertiesEntry const* properties, Unit* owner) : Minion(properties, owner, false)
 {
     m_unitTypeMask |= UNIT_MASK_TOTEM;
+    m_duration = 0;
+    m_type = TOTEM_PASSIVE;
 }
 
-void Totem::Update(uint32 diff)
+void Totem::Update(uint32 time)
 {
     if (!GetOwner()->IsAlive() || !IsAlive())
     {
@@ -39,31 +41,27 @@ void Totem::Update(uint32 diff)
         return;
     }
 
-    if (m_duration <= Milliseconds(diff))
+    if (m_duration <= time)
     {
         UnSummon();                                         // remove self
         return;
     }
+    else
+        m_duration -= time;
 
-    m_duration -= Milliseconds(diff);
-
-    Creature::Update(diff);
+    Creature::Update(time);
 }
 
-void Totem::InitStats(WorldObject* summoner, Milliseconds duration)
+void Totem::InitStats(uint32 duration)
 {
     // client requires SMSG_TOTEM_CREATED to be sent before adding to world and before removing old totem
     if (Player* owner = GetOwner()->ToPlayer())
     {
-        int32 slot = m_Properties->Slot;
-        if (slot == SUMMON_SLOT_ANY_TOTEM)
-            slot = FindUsableTotemSlot(owner);
-
-        if (slot >= SUMMON_SLOT_TOTEM && slot < MAX_TOTEM_SLOT)
+        if (m_Properties->Slot >= SUMMON_SLOT_TOTEM && m_Properties->Slot < MAX_TOTEM_SLOT)
         {
             WorldPackets::Totem::TotemCreated data;
             data.Totem = GetGUID();
-            data.Slot = slot - SUMMON_SLOT_TOTEM;
+            data.Slot = m_Properties->Slot - SUMMON_SLOT_TOTEM;
             data.Duration = duration;
             data.SpellID = m_unitData->CreatedBySpell;
             owner->SendDirectMessage(data.Write());
@@ -74,10 +72,10 @@ void Totem::InitStats(WorldObject* summoner, Milliseconds duration)
             SetDisplayId(totemDisplayId);
         else
             TC_LOG_DEBUG("misc", "Totem with entry {}, owned by player {}, does not have a specialized model for spell {} and race {}. Set to default.",
-                         GetEntry(), owner->GetGUID().ToString(), *m_unitData->CreatedBySpell, EnumUtils::ToTitle(Races(owner->GetRace())));
+                         GetEntry(), owner->GetGUID().ToString().c_str(), *m_unitData->CreatedBySpell, EnumUtils::ToTitle(Races(owner->GetRace())));
     }
 
-    Minion::InitStats(summoner, duration);
+    Minion::InitStats(duration);
 
     // Get spell cast by totem
     if (SpellInfo const* totemSpell = sSpellMgr->GetSpellInfo(GetSpell(), GetMap()->GetDifficultyID()))
@@ -87,7 +85,7 @@ void Totem::InitStats(WorldObject* summoner, Milliseconds duration)
     m_duration = duration;
 }
 
-void Totem::InitSummon(WorldObject* /*summoner*/)
+void Totem::InitSummon()
 {
     if (m_type == TOTEM_PASSIVE && GetSpell())
         CastSpell(this, GetSpell(), true);

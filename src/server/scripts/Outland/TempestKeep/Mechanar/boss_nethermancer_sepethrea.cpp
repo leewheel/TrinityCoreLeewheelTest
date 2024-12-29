@@ -134,6 +134,8 @@ struct boss_nethermancer_sepethrea : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 
@@ -191,6 +193,8 @@ struct npc_raging_flames : public ScriptedAI
             return;
 
         _scheduler.Update(diff);
+
+        DoMeleeAttackIfReady();
     }
 
 private:
@@ -200,6 +204,8 @@ private:
 // 35268, 39346 - Inferno
 class spell_nethermancer_sepethrea_inferno : public AuraScript
 {
+    PrepareAuraScript(spell_nethermancer_sepethrea_inferno);
+
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_INFERNO_DAMAGE });

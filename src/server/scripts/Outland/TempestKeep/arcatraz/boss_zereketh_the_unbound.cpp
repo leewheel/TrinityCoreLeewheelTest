@@ -106,6 +106,8 @@ struct boss_zereketh_the_unbound : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
+
+        DoMeleeAttackIfReady();
     }
 };
 

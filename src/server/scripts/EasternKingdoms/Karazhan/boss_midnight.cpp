@@ -23,7 +23,6 @@ SDCategory: Karazhan
 EndScriptData */
 
 #include "ScriptMgr.h"
-#include "Containers.h"
 #include "karazhan.h"
 #include "MotionMaster.h"
 #include "ObjectAccessor.h"
@@ -219,7 +218,8 @@ public:
             if (!UpdateVictim() && _phase != PHASE_NONE)
                 return;
 
-            scheduler.Update(diff);
+            scheduler.Update(diff,
+                std::bind(&BossAI::DoMeleeAttackIfReady, this));
         }
 
         void SpellHit(WorldObject* /*caster*/, SpellInfo const* spellInfo) override
@@ -367,7 +367,8 @@ public:
             if (!UpdateVictim() || _phase == PHASE_MOUNTED)
                 return;
 
-            scheduler.Update(diff);
+            scheduler.Update(diff,
+                std::bind(&BossAI::DoMeleeAttackIfReady, this));
         }
 
         private:

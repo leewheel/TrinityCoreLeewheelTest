@@ -191,7 +191,10 @@ class boss_skeram : public CreatureScript
                 }
 
                 if (me->IsWithinMeleeRange(me->GetVictim()))
+                {
                     events.RescheduleEvent(EVENT_EARTH_SHOCK, 2s);
+                    DoMeleeAttackIfReady();
+                }
             }
 
         private:
@@ -213,6 +216,8 @@ class spell_skeram_arcane_explosion : public SpellScriptLoader
 
         class spell_skeram_arcane_explosion_SpellScript : public SpellScript
         {
+            PrepareSpellScript(spell_skeram_arcane_explosion_SpellScript);
+
             void FilterTargets(std::list<WorldObject*>& targets)
             {
                 targets.remove_if([](WorldObject* object) -> bool
@@ -247,6 +252,8 @@ public:
 
     class spell_skeram_true_fulfillment_SpellScript : public SpellScript
     {
+        PrepareSpellScript(spell_skeram_true_fulfillment_SpellScript);
+
         bool Validate(SpellInfo const* /*spellInfo*/) override
         {
             return ValidateSpellInfo({ SPELL_TRUE_FULFILLMENT_2, SPELL_GENERIC_DISMOUNT });

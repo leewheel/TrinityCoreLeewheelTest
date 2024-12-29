@@ -18,13 +18,14 @@
 #include "MapTree.h"
 #include "Errors.h"
 #include "Log.h"
-#include "Memory.h"
 #include "Metric.h"
 #include "ModelInstance.h"
 #include "VMapDefinitions.h"
 #include "VMapManager2.h"
 #include "WorldModel.h"
+#include <iomanip>
 #include <limits>
+#include <sstream>
 #include <string>
 
 using G3D::Vector3;
@@ -34,7 +35,7 @@ namespace VMAP
     class MapRayCallback
     {
         public:
-            MapRayCallback(ModelInstance const* val, ModelIgnoreFlags ignoreFlags) : prims(val), hit(false), flags(ignoreFlags) { }
+            MapRayCallback(ModelInstance* val, ModelIgnoreFlags ignoreFlags) : prims(val), hit(false), flags(ignoreFlags) { }
             bool operator()(const G3D::Ray& ray, uint32 entry, float& distance, bool pStopAtFirstHit = true)
             {
                 bool result = prims[entry].intersectRay(ray, distance, pStopAtFirstHit, flags);
@@ -44,45 +45,82 @@ namespace VMAP
             }
             bool didHit() { return hit; }
         protected:
-            ModelInstance const* prims;
+            ModelInstance* prims;
             bool hit;
             ModelIgnoreFlags flags;
+    };
+
+    class AreaInfoCallback
+    {
+        public:
+            AreaInfoCallback(ModelInstance* val) : prims(val) { }
+            void operator()(Vector3 const& point, uint32 entry)
+            {
+#ifdef VMAP_DEBUG
+                TC_LOG_DEBUG("maps", "AreaInfoCallback: trying to intersect '{}'", prims[entry].name.c_str());
+#endif
+                prims[entry].intersectPoint(point, aInfo);
+            }
+
+            ModelInstance* prims;
+            AreaInfo aInfo;
     };
 
     class LocationInfoCallback
     {
         public:
-            LocationInfoCallback(ModelInstance const* val, LocationInfo& info) : prims(val), locInfo(info), result(false) { }
+            LocationInfoCallback(ModelInstance* val, LocationInfo& info) : prims(val), locInfo(info), result(false) { }
             void operator()(Vector3 const& point, uint32 entry)
             {
 #ifdef VMAP_DEBUG
-                TC_LOG_DEBUG("maps", "LocationInfoCallback: trying to intersect '{}'", prims[entry].name);
+                TC_LOG_DEBUG("maps", "LocationInfoCallback: trying to intersect '{}'", prims[entry].name.c_str());
 #endif
                 if (prims[entry].GetLocationInfo(point, locInfo))
                     result = true;
             }
 
-            ModelInstance const* prims;
+            ModelInstance* prims;
             LocationInfo& locInfo;
             bool result;
     };
 
     //=========================================================
 
-    std::string getTileFileName(uint32 mapID, uint32 tileX, uint32 tileY, std::string_view extension)
+    std::string StaticMapTree::getTileFileName(uint32 mapID, uint32 tileX, uint32 tileY)
     {
-        return Trinity::StringFormat("{:04}/{:04}_{:02}_{:02}.{}", mapID, mapID, tileY, tileX, extension);
+        std::stringstream tilefilename;
+        tilefilename.fill('0');
+        tilefilename << std::setw(4) << mapID << '_';
+        //tilefilename << std::setw(2) << tileX << '_' << std::setw(2) << tileY << ".vmtile";
+        tilefilename << std::setw(2) << tileY << '_' << std::setw(2) << tileX << ".vmtile";
+        return tilefilename.str();
+    }
+
+    bool StaticMapTree::getAreaInfo(Vector3& pos, uint32& flags, int32& adtId, int32& rootId, int32& groupId) const
+    {
+        AreaInfoCallback intersectionCallBack(iTreeValues);
+        iTree.intersectPoint(pos, intersectionCallBack);
+        if (intersectionCallBack.aInfo.result)
+        {
+            flags = intersectionCallBack.aInfo.flags;
+            adtId = intersectionCallBack.aInfo.adtId;
+            rootId = intersectionCallBack.aInfo.rootId;
+            groupId = intersectionCallBack.aInfo.groupId;
+            pos.z = intersectionCallBack.aInfo.ground_Z;
+            return true;
+        }
+        return false;
     }
 
     bool StaticMapTree::GetLocationInfo(Vector3 const& pos, LocationInfo& info) const
     {
-        LocationInfoCallback intersectionCallBack(iTreeValues.data(), info);
+        LocationInfoCallback intersectionCallBack(iTreeValues, info);
         iTree.intersectPoint(pos, intersectionCallBack);
         return intersectionCallBack.result;
     }
 
     StaticMapTree::StaticMapTree(uint32 mapID, std::string const& basePath)
-        : iMapID(mapID), iBasePath(basePath)
+        : iMapID(mapID), iTreeValues(nullptr), iNTreeValues(0), iBasePath(basePath)
     {
         if (iBasePath.length() > 0 && iBasePath[iBasePath.length() - 1] != '/' && iBasePath[iBasePath.length() - 1] != '\\')
         {
@@ -92,7 +130,10 @@ namespace VMAP
 
     //=========================================================
     //! Make sure to call unloadMap() to unregister acquired model references before destroying
-    StaticMapTree::~StaticMapTree() = default;
+    StaticMapTree::~StaticMapTree()
+    {
+        delete[] iTreeValues;
+    }
 
     //=========================================================
     /**
@@ -103,7 +144,7 @@ namespace VMAP
     bool StaticMapTree::getIntersectionTime(const G3D::Ray& pRay, float& pMaxDist, bool pStopAtFirstHit, ModelIgnoreFlags ignoreFlags) const
     {
         float distance = pMaxDist;
-        MapRayCallback intersectionCallBack(iTreeValues.data(), ignoreFlags);
+        MapRayCallback intersectionCallBack(iTreeValues, ignoreFlags);
         iTree.intersectRay(pRay, intersectionCallBack, distance, pStopAtFirstHit);
         if (intersectionCallBack.didHit())
             pMaxDist = distance;
@@ -194,34 +235,21 @@ namespace VMAP
         return(height);
     }
 
-    struct TileFileOpenResult
-    {
-        using FileDeleter = decltype(Trinity::unique_ptr_deleter<FILE*, &::fclose>());
-
-        std::string Name;
-        std::unique_ptr<FILE, FileDeleter> TileFile;
-        std::unique_ptr<FILE, FileDeleter> SpawnIndicesFile;
-        int32 UsedMapId;
-
-        explicit operator bool() const { return TileFile && SpawnIndicesFile; }
-    };
-
-    TileFileOpenResult OpenMapTileFile(std::string const& basePath, uint32 mapID, uint32 tileX, uint32 tileY, VMapManager2* vm)
+    StaticMapTree::TileFileOpenResult StaticMapTree::OpenMapTileFile(std::string const& basePath, uint32 mapID, uint32 tileX, uint32 tileY, VMapManager2* vm)
     {
         TileFileOpenResult result;
-        result.Name = basePath + getTileFileName(mapID, tileX, tileY, "vmtile");
-        result.TileFile.reset(fopen(result.Name.c_str(), "rb"));
-        result.SpawnIndicesFile.reset(fopen((basePath + getTileFileName(mapID, tileX, tileY, "vmtileidx")).c_str(), "rb"));
+        result.Name = basePath + getTileFileName(mapID, tileX, tileY);
+        result.File = fopen(result.Name.c_str(), "rb");
         result.UsedMapId = mapID;
-        if (!result.TileFile)
+        if (!result.File)
         {
             int32 parentMapId = vm->getParentMapId(mapID);
             while (parentMapId != -1)
             {
-                result.Name = basePath + getTileFileName(parentMapId, tileX, tileY, "vmtile");
-                result.TileFile.reset(fopen(result.Name.c_str(), "rb"));
+                result.Name = basePath + getTileFileName(parentMapId, tileX, tileY);
+                result.File = fopen(result.Name.c_str(), "rb");
                 result.UsedMapId = parentMapId;
-                if (result.TileFile)
+                if (result.File)
                     break;
 
                 parentMapId = vm->getParentMapId(uint32(parentMapId));
@@ -239,53 +267,98 @@ namespace VMAP
             basePath.push_back('/');
         std::string fullname = basePath + VMapManager2::getMapFileName(mapID);
 
-        auto rf = Trinity::make_unique_ptr_with_deleter<&::fclose>(fopen(fullname.c_str(), "rb"));
+        LoadResult result = LoadResult::Success;
+
+        FILE* rf = fopen(fullname.c_str(), "rb");
         if (!rf)
             return LoadResult::FileNotFound;
 
         char chunk[8];
-        if (!readChunk(rf.get(), chunk, VMAP_MAGIC, 8))
+        if (!readChunk(rf, chunk, VMAP_MAGIC, 8))
+        {
+            fclose(rf);
             return LoadResult::VersionMismatch;
-
-        TileFileOpenResult fileResult = OpenMapTileFile(basePath, mapID, tileX, tileY, vm);
-        if (!fileResult)
+        }
+        FILE* tf = OpenMapTileFile(basePath, mapID, tileX, tileY, vm).File;
+        if (!tf)
+        {
+            fclose(rf);
             return LoadResult::FileNotFound;
-
-        if (!readChunk(fileResult.TileFile.get(), chunk, VMAP_MAGIC, 8))
-            return LoadResult::VersionMismatch;
-
-        return LoadResult::Success;
+        }
+        else
+        {
+            std::string tilefile = basePath + getTileFileName(mapID, tileX, tileY);
+            FILE* tf = fopen(tilefile.c_str(), "rb");
+            if (!tf)
+                result = LoadResult::FileNotFound;
+            else
+            {
+                if (!readChunk(tf, chunk, VMAP_MAGIC, 8))
+                    result = LoadResult::VersionMismatch;
+                fclose(tf);
+            }
+        }
+        fclose(rf);
+        return result;
     }
 
     //=========================================================
 
     LoadResult StaticMapTree::InitMap(std::string const& fname)
     {
-        TC_LOG_DEBUG("maps", "StaticMapTree::InitMap() : initializing StaticMapTree '{}'", fname);
+        TC_LOG_DEBUG("maps", "StaticMapTree::InitMap() : initializing StaticMapTree '{}'", fname.c_str());
         std::string fullname = iBasePath + fname;
-        auto rf = Trinity::make_unique_ptr_with_deleter<&::fclose>(fopen(fullname.c_str(), "rb"));
+        FILE* rf = fopen(fullname.c_str(), "rb");
         if (!rf)
             return LoadResult::FileNotFound;
 
+        LoadResult result = LoadResult::Success;
         char chunk[8];
 
-        if (!readChunk(rf.get(), chunk, VMAP_MAGIC, 8))
-            return LoadResult::VersionMismatch;
+        if (!readChunk(rf, chunk, VMAP_MAGIC, 8))
+            result = LoadResult::VersionMismatch;
 
-        if (!readChunk(rf.get(), chunk, "NODE", 4)
-            || !iTree.readFromFile(rf.get()))
-            return LoadResult::ReadFromFileFailed;
+        if (result == LoadResult::Success &&
+            readChunk(rf, chunk, "NODE", 4) &&
+            iTree.readFromFile(rf))
+        {
+            iNTreeValues = iTree.primCount();
+            iTreeValues = new ModelInstance[iNTreeValues];
+            result = LoadResult::Success;
+        }
 
-        iTreeValues.resize(iTree.primCount());
+        if (result == LoadResult::Success)
+        {
+            result = readChunk(rf, chunk, "SIDX", 4) ? LoadResult::Success : LoadResult::ReadFromFileFailed;
+            uint32 spawnIndicesSize = 0;
+            uint32 spawnId;
+            if (result == LoadResult::Success && fread(&spawnIndicesSize, sizeof(uint32), 1, rf) != 1)
+                result = LoadResult::ReadFromFileFailed;
+            for (uint32 i = 0; i < spawnIndicesSize && result == LoadResult::Success; ++i)
+            {
+                if (fread(&spawnId, sizeof(uint32), 1, rf) == 1)
+                    iSpawnIndices[spawnId] = i;
+                else
+                    result = LoadResult::ReadFromFileFailed;
+            }
+        }
 
-        return LoadResult::Success;
+        fclose(rf);
+        return result;
     }
 
     //=========================================================
 
-    void StaticMapTree::UnloadMap()
+    void StaticMapTree::UnloadMap(VMapManager2* vm)
     {
-        iTreeValues.clear();
+        for (std::pair<uint32 const, uint32>& iLoadedSpawn : iLoadedSpawns)
+        {
+            for (uint32 refCount = 0; refCount < iLoadedSpawn.second; ++refCount)
+                vm->releaseModelInstance(iTreeValues[iLoadedSpawn.first].getWorldModel()->GetName());
+
+            iTreeValues[iLoadedSpawn.first].setUnloaded();
+        }
+        iLoadedSpawns.clear();
         iLoadedTiles.clear();
     }
 
@@ -293,7 +366,7 @@ namespace VMAP
 
     LoadResult StaticMapTree::LoadMapTile(uint32 tileX, uint32 tileY, VMapManager2* vm)
     {
-        if (iTreeValues.empty())
+        if (!iTreeValues)
         {
             TC_LOG_ERROR("misc", "StaticMapTree::LoadMapTile() : tree has not been initialized [{}, {}]", tileX, tileY);
             return LoadResult::ReadFromFileFailed;
@@ -301,70 +374,71 @@ namespace VMAP
         LoadResult result = LoadResult::FileNotFound;
 
         TileFileOpenResult fileResult = OpenMapTileFile(iBasePath, iMapID, tileX, tileY, vm);
-        if (fileResult)
+        if (fileResult.File)
         {
             char chunk[8];
 
             result = LoadResult::Success;
-            if (!readChunk(fileResult.TileFile.get(), chunk, VMAP_MAGIC, 8))
-                result = LoadResult::VersionMismatch;
-            if (!readChunk(fileResult.SpawnIndicesFile.get(), chunk, VMAP_MAGIC, 8))
+            if (!readChunk(fileResult.File, chunk, VMAP_MAGIC, 8))
                 result = LoadResult::VersionMismatch;
             uint32 numSpawns = 0;
-            if (result == LoadResult::Success && fread(&numSpawns, sizeof(uint32), 1, fileResult.TileFile.get()) != 1)
-                result = LoadResult::ReadFromFileFailed;
-            uint32 numSpawnIndices = 0;
-            if (result == LoadResult::Success && fread(&numSpawnIndices, sizeof(uint32), 1, fileResult.SpawnIndicesFile.get()) != 1)
-                result = LoadResult::ReadFromFileFailed;
-            if (numSpawns != numSpawnIndices)
+            if (result == LoadResult::Success && fread(&numSpawns, sizeof(uint32), 1, fileResult.File) != 1)
                 result = LoadResult::ReadFromFileFailed;
             for (uint32 i = 0; i < numSpawns && result == LoadResult::Success; ++i)
             {
                 // read model spawns
                 ModelSpawn spawn;
-                if (ModelSpawn::readFromFile(fileResult.TileFile.get(), spawn))
+                if (ModelSpawn::readFromFile(fileResult.File, spawn))
                 {
                     // acquire model instance
-                    std::shared_ptr<WorldModel> model = vm->acquireModelInstance(iBasePath, spawn.name);
+                    WorldModel* model = vm->acquireModelInstance(iBasePath, spawn.name, spawn.flags);
                     if (!model)
                         TC_LOG_ERROR("misc", "StaticMapTree::LoadMapTile() : could not acquire WorldModel pointer [{}, {}]", tileX, tileY);
 
                     // update tree
-                    uint32 referencedVal = 0;
-                    if (fread(&referencedVal, sizeof(uint32), 1, fileResult.SpawnIndicesFile.get()) != 1)
+                    auto spawnIndex = iSpawnIndices.find(spawn.ID);
+                    if (spawnIndex != iSpawnIndices.end())
                     {
-                        TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element (spawn {}) referenced in tile {} by map {}", spawn.ID, fileResult.Name, iMapID);
-                        result = LoadResult::ReadFromFileFailed;
-                        continue;
-                    }
+                        uint32 referencedVal = spawnIndex->second;
+                        if (!iLoadedSpawns.count(referencedVal))
+                        {
+                            if (referencedVal >= iNTreeValues)
+                            {
+                                TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element ({}/{}) referenced in tile {}", referencedVal, iNTreeValues, fileResult.Name.c_str());
+                                continue;
+                            }
 
-                    if (referencedVal >= iTreeValues.size())
-                    {
-                        TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element ({}/{}) referenced in tile {}", referencedVal, iTreeValues.size(), fileResult.Name);
-                        result = LoadResult::ReadFromFileFailed;
-                        continue;
-                    }
-
-                    if (!iTreeValues[referencedVal].getWorldModel())
-                        iTreeValues[referencedVal] = ModelInstance(spawn, std::move(model));
+                            iTreeValues[referencedVal] = ModelInstance(spawn, model);
+                            iLoadedSpawns[referencedVal] = 1;
+                        }
+                        else
+                        {
+                            ++iLoadedSpawns[referencedVal];
 #ifdef VMAP_DEBUG
-                    else
-                    {
-                        if (iTreeValues[referencedVal].ID != spawn.ID)
-                            TC_LOG_DEBUG("maps", "StaticMapTree::LoadMapTile() : trying to load wrong spawn in node");
-                        else if (iTreeValues[referencedVal].name != spawn.name)
-                            TC_LOG_DEBUG("maps", "StaticMapTree::LoadMapTile() : name collision on GUID={}", spawn.ID);
-                    }
+                            if (iTreeValues[referencedVal].ID != spawn.ID)
+                                TC_LOG_DEBUG("maps", "StaticMapTree::LoadMapTile() : trying to load wrong spawn in node");
+                            else if (iTreeValues[referencedVal].name != spawn.name)
+                                TC_LOG_DEBUG("maps", "StaticMapTree::LoadMapTile() : name collision on GUID={}", spawn.ID);
 #endif
-                    iTreeValues[referencedVal].AddTileReference();
+                        }
+                    }
+                    else if (int32(iMapID) == fileResult.UsedMapId)
+                    {
+                        // unknown parent spawn might appear in because it overlaps multiple tiles
+                        // in case the original tile is swapped but its neighbour is now (adding this spawn)
+                        // we want to not mark it as loading error and just skip that model
+                        TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element (spawn {}) referenced in tile {} by map {}", spawn.ID, fileResult.Name.c_str(), iMapID);
+                        result = LoadResult::ReadFromFileFailed;
+                    }
                 }
                 else
                 {
-                    TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : cannot read model from file (spawn index {}) referenced in tile {} by map {}", i, fileResult.Name, iMapID);
+                    TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : cannot read model from file (spawn index {}) referenced in tile {} by map {}", i, fileResult.Name.c_str(), iMapID);
                     result = LoadResult::ReadFromFileFailed;
                 }
             }
             iLoadedTiles[packTileID(tileX, tileY)] = true;
+            fclose(fileResult.File);
         }
         else
             iLoadedTiles[packTileID(tileX, tileY)] = false;
@@ -387,48 +461,43 @@ namespace VMAP
         if (tile->second) // file associated with tile
         {
             TileFileOpenResult fileResult = OpenMapTileFile(iBasePath, iMapID, tileX, tileY, vm);
-            if (fileResult)
+            if (fileResult.File)
             {
                 bool result = true;
                 char chunk[8];
-                if (!readChunk(fileResult.TileFile.get(), chunk, VMAP_MAGIC, 8))
+                if (!readChunk(fileResult.File, chunk, VMAP_MAGIC, 8))
                     result = false;
                 uint32 numSpawns;
-                if (fread(&numSpawns, sizeof(uint32), 1, fileResult.TileFile.get()) != 1)
-                    result = false;
-                uint32 numSpawnIndices = 0;
-                if (result && fread(&numSpawnIndices, sizeof(uint32), 1, fileResult.SpawnIndicesFile.get()) != 1)
-                    result = false;
-                if (numSpawns != numSpawnIndices)
+                if (fread(&numSpawns, sizeof(uint32), 1, fileResult.File) != 1)
                     result = false;
                 for (uint32 i = 0; i < numSpawns && result; ++i)
                 {
                     // read model spawns
                     ModelSpawn spawn;
-                    if (!ModelSpawn::readFromFile(fileResult.TileFile.get(), spawn))
-                        break;
-
-                    // update tree
-                    uint32 referencedNode = 0;
-                    if (fread(&referencedNode, sizeof(uint32), 1, fileResult.SpawnIndicesFile.get()) != 1)
+                    result = ModelSpawn::readFromFile(fileResult.File, spawn);
+                    if (result)
                     {
-                        TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element (spawn {}) referenced in tile {} by map {}", spawn.ID, fileResult.Name, iMapID);
-                        result = false;
-                        continue;
-                    }
+                        // release model instance
+                        vm->releaseModelInstance(spawn.name);
 
-                    if (referencedNode >= iTreeValues.size())
-                    {
-                        TC_LOG_ERROR("maps", "StaticMapTree::LoadMapTile() : invalid tree element ({}/{}) referenced in tile {}", referencedNode, iTreeValues.size(), fileResult.Name);
-                        result = false;
-                        continue;
+                        // update tree
+                        auto spawnIndex = iSpawnIndices.find(spawn.ID);
+                        if (spawnIndex != iSpawnIndices.end())
+                        {
+                            uint32 referencedNode = spawnIndex->second;
+                            if (!iLoadedSpawns.count(referencedNode))
+                                TC_LOG_ERROR("misc", "StaticMapTree::UnloadMapTile() : trying to unload non-referenced model '{}' (ID:{})", spawn.name.c_str(), spawn.ID);
+                            else if (--iLoadedSpawns[referencedNode] == 0)
+                            {
+                                iTreeValues[referencedNode].setUnloaded();
+                                iLoadedSpawns.erase(referencedNode);
+                            }
+                        }
+                        else if (int32(iMapID) == fileResult.UsedMapId) // logic documented in StaticMapTree::LoadMapTile
+                            result = false;
                     }
-
-                    if (!iTreeValues[referencedNode].getWorldModel())
-                        TC_LOG_ERROR("misc", "StaticMapTree::UnloadMapTile() : trying to unload non-referenced model '{}' (ID:{})", spawn.name, spawn.ID);
-                    else if (!iTreeValues[referencedNode].RemoveTileReference())
-                        iTreeValues[referencedNode].setUnloaded();
                 }
+                fclose(fileResult.File);
             }
         }
         iLoadedTiles.erase(tile);
@@ -438,7 +507,7 @@ namespace VMAP
 
     void StaticMapTree::getModelInstances(ModelInstance*& models, uint32& count)
     {
-        models = iTreeValues.data();
-        count = iTreeValues.size();
+        models = iTreeValues;
+        count = iNTreeValues;
     }
 }

@@ -30,11 +30,9 @@
 #include "MotionMaster.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
-#include "SmartEnum.h"
 #include "SpellHistory.h"
 #include "TemporarySummon.h"
 #include "Vehicle.h"
-#include <queue>
 
 std::unordered_map<std::pair<uint32, Difficulty>, AISpellInfoType> UnitAI::AISpellInfo;
 AISpellInfoType* GetAISpellInfo(uint32 spellId, Difficulty difficulty)
@@ -72,18 +70,21 @@ void CreatureAI::OnCharmed(bool isNew)
         me->LastCharmerGUID.Clear();
 
         if (!me->IsInCombat())
-            EnterEvadeMode(EvadeReason::NoHostiles);
+            EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
     }
 
     UnitAI::OnCharmed(isNew);
 }
 
-void CreatureAI::DoZoneInCombat(Creature* creature)
+void CreatureAI::DoZoneInCombat(Creature* creature /*= nullptr*/)
 {
+    if (!creature)
+        creature = me;
+
     Map* map = creature->GetMap();
     if (!map->IsDungeon()) // use IsDungeon instead of Instanceable, in case battlegrounds will be instantiated
     {
-        TC_LOG_ERROR("scripts.ai", "CreatureAI::DoZoneInCombat: call for map that isn't an instance ({})", creature->GetGUID().ToString());
+        TC_LOG_ERROR("scripts.ai", "CreatureAI::DoZoneInCombat: call for map that isn't an instance ({})", creature->GetGUID().ToString().c_str());
         return;
     }
 
@@ -172,6 +173,7 @@ static bool ShouldFollowOnSpawn(SummonPropertiesEntry const* properties)
             return true;
         case SUMMON_CATEGORY_WILD:
         case SUMMON_CATEGORY_ALLY:
+        case SUMMON_CATEGORY_UNK:
             if (properties->GetFlags().HasFlag(SummonPropertiesFlags::JoinSummonerSpawnGroup))
                 return true;
             switch (SummonTitle(properties->Title))
@@ -220,7 +222,7 @@ void CreatureAI::EnterEvadeMode(EvadeReason why)
     if (!_EnterEvadeMode(why))
         return;
 
-    TC_LOG_DEBUG("scripts.ai", "CreatureAI::EnterEvadeMode: entering evade mode (why: {}) ({})", EnumUtils::ToConstant(why), me->GetGUID().ToString());
+    TC_LOG_DEBUG("scripts.ai", "CreatureAI::EnterEvadeMode: entering evade mode (why: {}) ({})", why, me->GetGUID().ToString().c_str());
 
     if (!me->GetVehicle()) // otherwise me will be in evade mode forever
     {
@@ -262,7 +264,7 @@ bool CreatureAI::UpdateVictim()
     }
     else if (!me->IsInCombat())
     {
-        EnterEvadeMode(EvadeReason::NoHostiles);
+        EnterEvadeMode(EVADE_REASON_NO_HOSTILES);
         return false;
     }
     else if (me->GetVictim())
@@ -275,7 +277,7 @@ void CreatureAI::EngagementStart(Unit* who)
 {
     if (_isEngaged)
     {
-        TC_LOG_ERROR("scripts.ai", "CreatureAI::EngagementStart called even though creature is already engaged. Creature debug info:\n{}", me->GetDebugInfo());
+        TC_LOG_ERROR("scripts.ai", "CreatureAI::EngagementStart called even though creature is already engaged. Creature debug info:\n{}", me->GetDebugInfo().c_str());
         return;
     }
     _isEngaged = true;
@@ -287,7 +289,7 @@ void CreatureAI::EngagementOver()
 {
     if (!_isEngaged)
     {
-        TC_LOG_DEBUG("scripts.ai", "CreatureAI::EngagementOver called even though creature is not currently engaged. Creature debug info:\n{}", me->GetDebugInfo());
+        TC_LOG_DEBUG("scripts.ai", "CreatureAI::EngagementOver called even though creature is not currently engaged. Creature debug info:\n{}", me->GetDebugInfo().c_str());
         return;
     }
     _isEngaged = false;
@@ -306,13 +308,10 @@ bool CreatureAI::_EnterEvadeMode(EvadeReason /*why*/)
         return false;
     }
 
-    if (me->IsStateRestoredOnEvade())
-        me->RemoveAurasOnEvade();
+    me->RemoveAurasOnEvade();
 
     me->CombatStop(true);
-    if (!me->IsTapListNotClearedOnEvade())
-        me->SetTappedBy(nullptr);
-
+    me->SetLootRecipient(nullptr);
     me->ResetPlayerDamageReq();
     me->SetLastDamagedTime(0);
     me->SetCannotReachTarget(false);
@@ -324,22 +323,7 @@ bool CreatureAI::_EnterEvadeMode(EvadeReason /*why*/)
     return true;
 }
 
-void CreatureAI::AttackStart(Unit* victim)
-{
-    if (victim && me->Attack(victim, true))
-    {
-        // Clear distracted state on attacking
-        if (me->HasUnitState(UNIT_STATE_DISTRACTED))
-        {
-            me->ClearUnitState(UNIT_STATE_DISTRACTED);
-            me->GetMotionMaster()->Clear();
-        }
-
-        me->StartDefaultCombatMovement(victim);
-    }
-}
-
-Optional<QuestGiverStatus> CreatureAI::GetDialogStatus(Player const* /*player*/)
+Optional<QuestGiverStatus> CreatureAI::GetDialogStatus(Player* /*player*/)
 {
     return {};
 }
@@ -413,7 +397,7 @@ int32 CreatureAI::VisualizeBoundary(Seconds duration, Unit* owner, bool fill) co
                 point->SetUnitFlag(UNIT_FLAG_STUNNED);
                 point->SetImmuneToAll(true);
                 if (!hasOutOfBoundsNeighbor)
-                    point->SetUninteractible(true);
+                    point->SetUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
             }
         }
 
@@ -455,7 +439,7 @@ bool CreatureAI::CheckInRoom()
         return true;
     else
     {
-        EnterEvadeMode(EvadeReason::Boundary);
+        EnterEvadeMode(EVADE_REASON_BOUNDARY);
         return false;
     }
 }

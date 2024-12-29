@@ -22,7 +22,6 @@
 #include "Optional.h"
 #include <numeric>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace Trinity
@@ -101,7 +100,7 @@ struct GenericBaseEncoding
         return s;
     }
 
-    static Optional<std::vector<uint8>> Decode(std::string_view data)
+    static Optional<std::vector<uint8>> Decode(std::string const& data)
     {
         auto it = data.begin(), end = data.end();
         if (it == end)

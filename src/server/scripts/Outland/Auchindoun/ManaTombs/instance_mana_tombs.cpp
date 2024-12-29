@@ -17,16 +17,7 @@
 
 #include "ScriptMgr.h"
 #include "InstanceScript.h"
-#include "Unit.h"
 #include "mana_tombs.h"
-
-DungeonEncounterData const encounters[] =
-{
-    { DATA_PANDEMONIUS, {{ 1900 }} },
-    { DATA_TAVAROK, {{ 1901 }} },
-    { DATA_NEXUSPRINCE_SHAFFAR, {{ 1899 }} },
-    { DATA_YOR, {{ 250 }} }
-};
 
 class instance_mana_tombs : public InstanceMapScript
 {
@@ -39,13 +30,6 @@ class instance_mana_tombs : public InstanceMapScript
             {
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
-                LoadDungeonEncounterData(encounters);
-            }
-
-            void OnUnitDeath(Unit* unit) override
-            {
-                if (unit->GetEntry() == NPC_TAVAROK)
-                    SetBossState(DATA_TAVAROK, DONE);
             }
         };
 

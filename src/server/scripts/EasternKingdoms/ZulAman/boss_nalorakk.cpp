@@ -95,6 +95,8 @@ class boss_nalorakk : public CreatureScript
                     }
                 }
                 */
+
+                DoMeleeAttackIfReady();
             }
         };
 

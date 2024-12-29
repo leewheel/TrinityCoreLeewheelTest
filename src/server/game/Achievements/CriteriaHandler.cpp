@@ -30,7 +30,6 @@
 #include "Group.h"
 #include "InstanceScript.h"
 #include "Item.h"
-#include "ItemBonusMgr.h"
 #include "LanguageMgr.h"
 #include "Log.h"
 #include "Map.h"
@@ -49,7 +48,6 @@
 #include "World.h"
 #include "WorldSession.h"
 #include "WorldStateMgr.h"
-#include "WowTime.h"
 
 bool CriteriaData::IsValid(Criteria const* criteria)
 {
@@ -363,7 +361,7 @@ bool CriteriaData::Meets(uint32 criteriaId, Player const* source, WorldObject co
         case CRITERIA_DATA_TYPE_T_TEAM:
             if (!target || target->GetTypeId() != TYPEID_PLAYER)
                 return false;
-            return target->ToPlayer()->GetTeam() == ::Team(Team.Team);
+            return target->ToPlayer()->GetTeam() == Team.Team;
         case CRITERIA_DATA_TYPE_S_DRUNK:
             return Player::GetDrunkenstateByValue(source->GetDrunkValue()) >= DrunkenState(Drunk.State);
         case CRITERIA_DATA_TYPE_HOLIDAY:
@@ -376,7 +374,7 @@ bool CriteriaData::Meets(uint32 criteriaId, Player const* source, WorldObject co
             if (!bg)
                 return false;
 
-            uint32 score = bg->GetTeamScore(bg->GetPlayerTeam(source->GetGUID()) == ALLIANCE ? TEAM_HORDE : TEAM_ALLIANCE);
+            uint32 score = bg->GetTeamScore(bg->GetPlayerTeam(source->GetGUID()) == TEAM_ALLIANCE ? TEAM_HORDE : TEAM_ALLIANCE);
             return score >= BattlegroundScore.Min && score <= BattlegroundScore.Max;
         }
         case CRITERIA_DATA_TYPE_INSTANCE_SCRIPT:
@@ -477,486 +475,456 @@ void CriteriaHandler::UpdateCriteria(CriteriaType type, uint64 miscValue1 /*= 0*
     if (referencePlayer->IsGameMaster() || referencePlayer->GetSession()->HasPermission(rbac::RBAC_PERM_CANNOT_EARN_ACHIEVEMENTS))
     {
         TC_LOG_DEBUG("criteria", "CriteriaHandler::UpdateCriteria: [Player {} {}] {}, {} ({}), {}, {}, {}",
-            referencePlayer->GetName(), referencePlayer->IsGameMaster() ? "GM mode on" : "disallowed by RBAC",
-            GetOwnerInfo(), CriteriaMgr::GetCriteriaTypeString(type), uint32(type), miscValue1, miscValue2, miscValue3);
+            referencePlayer->GetName().c_str(), referencePlayer->IsGameMaster() ? "GM mode on" : "disallowed by RBAC",
+            GetOwnerInfo().c_str(), CriteriaMgr::GetCriteriaTypeString(type), uint32(type), miscValue1, miscValue2, miscValue3);
         return;
     }
 
     TC_LOG_DEBUG("criteria", "CriteriaHandler::UpdateCriteria({}, {}, {}, {}, {}) {}",
-        CriteriaMgr::GetCriteriaTypeString(type), uint32(type), miscValue1, miscValue2, miscValue3, GetOwnerInfo());
+        CriteriaMgr::GetCriteriaTypeString(type), uint32(type), miscValue1, miscValue2, miscValue3, GetOwnerInfo().c_str());
 
     CriteriaList const& criteriaList = GetCriteriaByType(type, uint32(miscValue1));
     for (Criteria const* criteria : criteriaList)
-        UpdateCriteria(criteria, miscValue1, miscValue2, miscValue3, ref, referencePlayer);
-}
-
-void CriteriaHandler::UpdateCriteria(Criteria const* criteria, uint64 miscValue1, uint64 miscValue2, uint64 miscValue3, WorldObject const* ref, Player* referencePlayer)
-{
-    CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
-    if (!CanUpdateCriteria(criteria, trees, miscValue1, miscValue2, miscValue3, ref, referencePlayer))
-        return;
-
-    // requirements not found in the dbc
-    if (CriteriaDataSet const* data = sCriteriaMgr->GetCriteriaDataSet(criteria))
-        if (!data->Meets(referencePlayer, ref, uint32(miscValue1), uint32(miscValue2)))
-            return;
-
-    switch (CriteriaType(criteria->Entry->Type))
     {
-        // std. case: increment at 1
-        case CriteriaType::WinBattleground:
-        case CriteriaType::TotalRespecs:
-        case CriteriaType::LoseDuel:
-        case CriteriaType::ItemsPostedAtAuction:
-        case CriteriaType::AuctionsWon:    /* FIXME: for online player only currently */
-        case CriteriaType::RollAnyNeed:
-        case CriteriaType::RollAnyGreed:
-        case CriteriaType::AbandonAnyQuest:
-        case CriteriaType::BuyTaxi:
-        case CriteriaType::AcceptSummon:
-        case CriteriaType::LootAnyItem:
-        case CriteriaType::ObtainAnyItem:
-        case CriteriaType::DieAnywhere:
-        case CriteriaType::CompleteDailyQuest:
-        case CriteriaType::ParticipateInBattleground:
-        case CriteriaType::DieOnMap:
-        case CriteriaType::DieInInstance:
-        case CriteriaType::KilledByCreature:
-        case CriteriaType::KilledByPlayer:
-        case CriteriaType::DieFromEnviromentalDamage:
-        case CriteriaType::BeSpellTarget:
-        case CriteriaType::GainAura:
-        case CriteriaType::CastSpell:
-        case CriteriaType::LandTargetedSpellOnTarget:
-        case CriteriaType::WinAnyRankedArena:
-        case CriteriaType::UseItem:
-        case CriteriaType::RollNeed:
-        case CriteriaType::RollGreed:
-        case CriteriaType::DoEmote:
-        case CriteriaType::UseGameobject:
-        case CriteriaType::CatchFishInFishingHole:
-        case CriteriaType::WinDuel:
-        case CriteriaType::DeliverKillingBlowToClass:
-        case CriteriaType::DeliverKillingBlowToRace:
-        case CriteriaType::TrackedWorldStateUIModified:
-        case CriteriaType::EarnHonorableKill:
-        case CriteriaType::KillPlayer:
-        case CriteriaType::DeliveredKillingBlow:
-        case CriteriaType::PVPKillInArea:
-        case CriteriaType::WinArena: // This also behaves like CriteriaType::WinAnyRankedArena
-        case CriteriaType::ParticipateInArena:
-        case CriteriaType::PlayerTriggerGameEvent:
-        case CriteriaType::Login:
-        case CriteriaType::AnyoneTriggerGameEventScenario:
-        case CriteriaType::DefeatDungeonEncounterWhileElegibleForLoot:
-        case CriteriaType::CompleteAnyScenario:
-        case CriteriaType::CompleteScenario:
-        case CriteriaType::BattlePetReachLevel:
-        case CriteriaType::ActivelyEarnPetLevel:
-        case CriteriaType::DefeatDungeonEncounter:
-        case CriteriaType::PlaceGarrisonBuilding:
-        case CriteriaType::ActivateAnyGarrisonBuilding:
-        case CriteriaType::LearnAnyHeirloom:
-        case CriteriaType::LearnAnyTransmog:
-        case CriteriaType::HonorLevelIncrease:
-        case CriteriaType::PrestigeLevelIncrease:
-        case CriteriaType::LearnAnyTransmogInSlot:
-        case CriteriaType::CompleteAnyReplayQuest:
-        case CriteriaType::BuyItemsFromVendors:
-        case CriteriaType::SellItemsToVendors:
-        case CriteriaType::ReachMaxLevel:
-        case CriteriaType::LearnTaxiNode:
-            SetCriteriaProgress(criteria, 1, referencePlayer, PROGRESS_ACCUMULATE);
-            break;
-        // std case: increment at miscValue1
-        case CriteriaType::MoneyEarnedFromSales:
-        case CriteriaType::MoneySpentOnRespecs:
-        case CriteriaType::MoneyEarnedFromQuesting:
-        case CriteriaType::MoneySpentOnTaxis:
-        case CriteriaType::MoneySpentAtBarberShop:
-        case CriteriaType::MoneySpentOnPostage:
-        case CriteriaType::MoneyLootedFromCreatures:
-        case CriteriaType::MoneyEarnedFromAuctions:/* FIXME: for online player only currently */
-        case CriteriaType::TotalDamageTaken:
-        case CriteriaType::TotalHealReceived:
-        case CriteriaType::CompletedLFGDungeon:
-        case CriteriaType::CompletedLFGDungeonWithStrangers:
-        case CriteriaType::DamageDealt:
-        case CriteriaType::HealingDone:
-        case CriteriaType::EarnArtifactXPForAzeriteItem:
-        case CriteriaType::GainLevels:
-        case CriteriaType::EarnArtifactXP:
-            SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_ACCUMULATE);
-            break;
-        case CriteriaType::KillCreature:
-        case CriteriaType::KillAnyCreature:
-        case CriteriaType::GetLootByType:
-        case CriteriaType::AcquireItem:
-        case CriteriaType::LootItem:
-        case CriteriaType::CurrencyGained:
-            SetCriteriaProgress(criteria, miscValue2, referencePlayer, PROGRESS_ACCUMULATE);
-            break;
-        // std case: high value at miscValue1
-        case CriteriaType::HighestAuctionBid:
-        case CriteriaType::HighestAuctionSale: /* FIXME: for online player only currently */
-        case CriteriaType::HighestDamageDone:
-        case CriteriaType::HighestDamageTaken:
-        case CriteriaType::HighestHealCast:
-        case CriteriaType::HighestHealReceived:
-        case CriteriaType::AnyArtifactPowerRankPurchased:
-        case CriteriaType::AzeriteLevelReached:
-        case CriteriaType::ReachRenownLevel:
-            SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_HIGHEST);
-            break;
-        case CriteriaType::ReachLevel:
-            SetCriteriaProgress(criteria, referencePlayer->GetLevel(), referencePlayer);
-            break;
-        case CriteriaType::SkillRaised:
-            if (uint32 skillvalue = referencePlayer->GetBaseSkillValue(criteria->Entry->Asset.SkillID))
-                SetCriteriaProgress(criteria, skillvalue, referencePlayer);
-            break;
-        case CriteriaType::AchieveSkillStep:
-            if (uint32 maxSkillvalue = referencePlayer->GetPureMaxSkillValue(criteria->Entry->Asset.SkillID))
-                SetCriteriaProgress(criteria, maxSkillvalue, referencePlayer);
-            break;
-        case CriteriaType::CompleteQuestsCount:
-            SetCriteriaProgress(criteria, referencePlayer->GetRewardedQuestCount(), referencePlayer);
-            break;
-        case CriteriaType::CompleteAnyDailyQuestPerDay:
+        CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
+        if (!CanUpdateCriteria(criteria, trees, miscValue1, miscValue2, miscValue3, ref, referencePlayer))
+            continue;
+
+        // requirements not found in the dbc
+        if (CriteriaDataSet const* data = sCriteriaMgr->GetCriteriaDataSet(criteria))
+            if (!data->Meets(referencePlayer, ref, uint32(miscValue1), uint32(miscValue2)))
+                continue;
+
+        switch (type)
         {
-            time_t nextDailyResetTime = sWorld->GetNextDailyQuestsResetTime();
-            CriteriaProgress *progress = GetCriteriaProgress(criteria);
-
-            if (!miscValue1) // Login case.
-            {
-                // reset if player missed one day.
-                if (progress && progress->Date < (nextDailyResetTime - 2 * DAY))
-                    SetCriteriaProgress(criteria, 0, referencePlayer, PROGRESS_SET);
-                return;
-            }
-
-            ProgressType progressType;
-            if (!progress)
-                // 1st time. Start count.
-                progressType = PROGRESS_SET;
-            else if (progress->Date < (nextDailyResetTime - 2 * DAY))
-                // last progress is older than 2 days. Player missed 1 day => Restart count.
-                progressType = PROGRESS_SET;
-            else if (progress->Date < (nextDailyResetTime - DAY))
-                // last progress is between 1 and 2 days. => 1st time of the day.
-                progressType = PROGRESS_ACCUMULATE;
-            else
-                // last progress is within the day before the reset => Already counted today.
-                return;
-
-            SetCriteriaProgress(criteria, 1, referencePlayer, progressType);
-            break;
-        }
-        case CriteriaType::CompleteQuestsInZone:
-        {
-            if (miscValue1)
-            {
+            // std. case: increment at 1
+            case CriteriaType::WinBattleground:
+            case CriteriaType::TotalRespecs:
+            case CriteriaType::LoseDuel:
+            case CriteriaType::ItemsPostedAtAuction:
+            case CriteriaType::AuctionsWon:    /* FIXME: for online player only currently */
+            case CriteriaType::RollAnyNeed:
+            case CriteriaType::RollAnyGreed:
+            case CriteriaType::AbandonAnyQuest:
+            case CriteriaType::BuyTaxi:
+            case CriteriaType::AcceptSummon:
+            case CriteriaType::LootAnyItem:
+            case CriteriaType::ObtainAnyItem:
+            case CriteriaType::DieAnywhere:
+            case CriteriaType::CompleteDailyQuest:
+            case CriteriaType::ParticipateInBattleground:
+            case CriteriaType::DieOnMap:
+            case CriteriaType::DieInInstance:
+            case CriteriaType::KilledByCreature:
+            case CriteriaType::KilledByPlayer:
+            case CriteriaType::DieFromEnviromentalDamage:
+            case CriteriaType::BeSpellTarget:
+            case CriteriaType::GainAura:
+            case CriteriaType::CastSpell:
+            case CriteriaType::LandTargetedSpellOnTarget:
+            case CriteriaType::WinAnyRankedArena:
+            case CriteriaType::UseItem:
+            case CriteriaType::RollNeed:
+            case CriteriaType::RollGreed:
+            case CriteriaType::DoEmote:
+            case CriteriaType::UseGameobject:
+            case CriteriaType::CatchFishInFishingHole:
+            case CriteriaType::WinDuel:
+            case CriteriaType::DeliverKillingBlowToClass:
+            case CriteriaType::DeliverKillingBlowToRace:
+            case CriteriaType::TrackedWorldStateUIModified:
+            case CriteriaType::EarnHonorableKill:
+            case CriteriaType::KillPlayer:
+            case CriteriaType::DeliveredKillingBlow:
+            case CriteriaType::PVPKillInArea:
+            case CriteriaType::WinArena: // This also behaves like CriteriaType::WinAnyRankedArena
+            case CriteriaType::PlayerTriggerGameEvent:
+            case CriteriaType::Login:
+            case CriteriaType::AnyoneTriggerGameEventScenario:
+            case CriteriaType::BattlePetReachLevel:
+            case CriteriaType::ActivelyEarnPetLevel:
+            case CriteriaType::PlaceGarrisonBuilding:
+            case CriteriaType::ActivateAnyGarrisonBuilding:
+            case CriteriaType::HonorLevelIncrease:
+            case CriteriaType::PrestigeLevelIncrease:
+            case CriteriaType::LearnAnyTransmogInSlot:
+            case CriteriaType::CollectTransmogSetFromGroup:
+            case CriteriaType::CompleteAnyReplayQuest:
+            case CriteriaType::BuyItemsFromVendors:
+            case CriteriaType::SellItemsToVendors:
+            case CriteriaType::EnterTopLevelArea:
                 SetCriteriaProgress(criteria, 1, referencePlayer, PROGRESS_ACCUMULATE);
-            }
-            else // login case
-            {
-                uint32 counter = 0;
-
-                RewardedQuestSet const& rewQuests = referencePlayer->getRewardedQuests();
-                for (uint32 rewQuest : rewQuests)
-                {
-                    Quest const* quest = sObjectMgr->GetQuestTemplate(rewQuest);
-                    if (quest && quest->GetZoneOrSort() >= 0 && quest->GetZoneOrSort() == criteria->Entry->Asset.ZoneID)
-                        ++counter;
-                }
-                SetCriteriaProgress(criteria, counter, referencePlayer, PROGRESS_HIGHEST);
-            }
-            break;
-        }
-        case CriteriaType::MaxDistFallenWithoutDying:
-            // miscValue1 is the ingame fallheight*100 as stored in dbc
-            SetCriteriaProgress(criteria, miscValue1, referencePlayer);
-            break;
-        case CriteriaType::EarnAchievement:
-        case CriteriaType::CompleteQuest:
-        case CriteriaType::LearnOrKnowSpell:
-        case CriteriaType::RevealWorldMapOverlay:
-        case CriteriaType::GotHaircut:
-        case CriteriaType::EquipItemInSlot:
-        case CriteriaType::EquipItem:
-        case CriteriaType::EnterAreaTriggerWithActionSet:
-        case CriteriaType::LeaveAreaTriggerWithActionSet:
-        case CriteriaType::LearnedNewPet:
-        case CriteriaType::EnterArea:
-        case CriteriaType::LeaveArea:
-        case CriteriaType::RecruitGarrisonFollower:
-        case CriteriaType::LearnHeirloom:
-        case CriteriaType::ActivelyReachLevel:
-        case CriteriaType::CollectTransmogSetFromGroup:
-        case CriteriaType::EnterTopLevelArea:
-        case CriteriaType::LeaveTopLevelArea:
-            SetCriteriaProgress(criteria, 1, referencePlayer);
-            break;
-        case CriteriaType::BankSlotsPurchased:
-            SetCriteriaProgress(criteria, referencePlayer->GetBankBagSlotCount(), referencePlayer);
-            break;
-        case CriteriaType::ReputationGained:
-        {
-            int32 reputation = referencePlayer->GetReputationMgr().GetReputation(criteria->Entry->Asset.FactionID);
-            if (reputation > 0)
-                SetCriteriaProgress(criteria, reputation, referencePlayer);
-            break;
-        }
-        case CriteriaType::TotalExaltedFactions:
-            SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetExaltedFactionCount(), referencePlayer);
-            break;
-        case CriteriaType::LearnSpellFromSkillLine:
-        case CriteriaType::LearnTradeskillSkillLine:
-        {
-            uint32 spellCount = 0;
-            for (auto& [spellId, _] : referencePlayer->GetSpellMap())
-            {
-                SkillLineAbilityMapBounds bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
-                for (SkillLineAbilityMap::const_iterator skillIter = bounds.first; skillIter != bounds.second; ++skillIter)
-                {
-                    if (skillIter->second->SkillLine == uint32(criteria->Entry->Asset.SkillID))
-                    {
-                        // do not add couter twice if by any chance skill is listed twice in dbc (eg. skill 777 and spell 22717)
-                        ++spellCount;
-                        break;
-                    }
-                }
-            }
-            SetCriteriaProgress(criteria, spellCount, referencePlayer);
-            break;
-        }
-        case CriteriaType::TotalReveredFactions:
-            SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetReveredFactionCount(), referencePlayer);
-            break;
-        case CriteriaType::TotalHonoredFactions:
-            SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetHonoredFactionCount(), referencePlayer);
-            break;
-        case CriteriaType::TotalFactionsEncountered:
-            SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetVisibleFactionCount(), referencePlayer);
-            break;
-        case CriteriaType::HonorableKills:
-            SetCriteriaProgress(criteria, referencePlayer->m_activePlayerData->LifetimeHonorableKills, referencePlayer);
-            break;
-        case CriteriaType::MostMoneyOwned:
-            SetCriteriaProgress(criteria, referencePlayer->GetMoney(), referencePlayer, PROGRESS_HIGHEST);
-            break;
-        case CriteriaType::EarnAchievementPoints:
-            if (!miscValue1)
-                return;
-            SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_ACCUMULATE);
-            break;
-        case CriteriaType::EarnPersonalArenaRating:
-        {
-            uint32 reqTeamType = criteria->Entry->Asset.TeamType;
-
-            if (miscValue1)
-            {
-                if (miscValue2 != reqTeamType)
-                    return;
-
+                break;
+            // std case: increment at miscValue1
+            case CriteriaType::MoneyEarnedFromSales:
+            case CriteriaType::MoneySpentOnRespecs:
+            case CriteriaType::MoneyEarnedFromQuesting:
+            case CriteriaType::MoneySpentOnTaxis:
+            case CriteriaType::MoneySpentAtBarberShop:
+            case CriteriaType::MoneySpentOnPostage:
+            case CriteriaType::MoneyLootedFromCreatures:
+            case CriteriaType::MoneyEarnedFromAuctions:/* FIXME: for online player only currently */
+            case CriteriaType::TotalDamageTaken:
+            case CriteriaType::TotalHealReceived:
+            case CriteriaType::CompletedLFGDungeonWithStrangers:
+            case CriteriaType::DamageDealt:
+            case CriteriaType::HealingDone:
+            case CriteriaType::EarnArtifactXPForAzeriteItem:
+                SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_ACCUMULATE);
+                break;
+            case CriteriaType::KillCreature:
+            case CriteriaType::KillAnyCreature:
+            case CriteriaType::GetLootByType:
+            case CriteriaType::AcquireItem:
+            case CriteriaType::LootItem:
+            case CriteriaType::CurrencyGained:
+                SetCriteriaProgress(criteria, miscValue2, referencePlayer, PROGRESS_ACCUMULATE);
+                break;
+            // std case: high value at miscValue1
+            case CriteriaType::HighestAuctionBid:
+            case CriteriaType::HighestAuctionSale: /* FIXME: for online player only currently */
+            case CriteriaType::HighestDamageDone:
+            case CriteriaType::HighestDamageTaken:
+            case CriteriaType::HighestHealCast:
+            case CriteriaType::HighestHealReceived:
+            case CriteriaType::AzeriteLevelReached:
                 SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_HIGHEST);
-            }
-            else // login case
+                break;
+            case CriteriaType::ReachLevel:
+                SetCriteriaProgress(criteria, referencePlayer->GetLevel(), referencePlayer);
+                break;
+            case CriteriaType::SkillRaised:
+                if (uint32 skillvalue = referencePlayer->GetBaseSkillValue(criteria->Entry->Asset.SkillID))
+                    SetCriteriaProgress(criteria, skillvalue, referencePlayer);
+                break;
+            case CriteriaType::AchieveSkillStep:
+                if (uint32 maxSkillvalue = referencePlayer->GetPureMaxSkillValue(criteria->Entry->Asset.SkillID))
+                    SetCriteriaProgress(criteria, maxSkillvalue, referencePlayer);
+                break;
+            case CriteriaType::CompleteQuestsCount:
+                SetCriteriaProgress(criteria, referencePlayer->GetRewardedQuestCount(), referencePlayer);
+                break;
+            case CriteriaType::CompleteAnyDailyQuestPerDay:
             {
-                for (uint8 arena_slot = 0; arena_slot < MAX_ARENA_SLOT; ++arena_slot)
+                time_t nextDailyResetTime = sWorld->GetNextDailyQuestsResetTime();
+                CriteriaProgress *progress = GetCriteriaProgress(criteria);
+
+                if (!miscValue1) // Login case.
                 {
-                    uint32 teamId = referencePlayer->GetArenaTeamId(arena_slot);
-                    if (!teamId)
-                        continue;
+                    // reset if player missed one day.
+                    if (progress && progress->Date < (nextDailyResetTime - 2 * DAY))
+                        SetCriteriaProgress(criteria, 0, referencePlayer, PROGRESS_SET);
+                    continue;
+                }
 
-                    ArenaTeam* team = sArenaTeamMgr->GetArenaTeamById(teamId);
-                    if (!team || team->GetType() != reqTeamType)
-                        continue;
+                ProgressType progressType;
+                if (!progress)
+                    // 1st time. Start count.
+                    progressType = PROGRESS_SET;
+                else if (progress->Date < (nextDailyResetTime - 2 * DAY))
+                    // last progress is older than 2 days. Player missed 1 day => Restart count.
+                    progressType = PROGRESS_SET;
+                else if (progress->Date < (nextDailyResetTime - DAY))
+                    // last progress is between 1 and 2 days. => 1st time of the day.
+                    progressType = PROGRESS_ACCUMULATE;
+                else
+                    // last progress is within the day before the reset => Already counted today.
+                    continue;
 
-                    if (ArenaTeamMember const* member = team->GetMember(referencePlayer->GetGUID()))
+                SetCriteriaProgress(criteria, 1, referencePlayer, progressType);
+                break;
+            }
+            case CriteriaType::CompleteQuestsInZone:
+            {
+                if (miscValue1)
+                {
+                    SetCriteriaProgress(criteria, 1, referencePlayer, PROGRESS_ACCUMULATE);
+                }
+                else // login case
+                {
+                    uint32 counter = 0;
+
+                    RewardedQuestSet const& rewQuests = referencePlayer->getRewardedQuests();
+                    for (uint32 rewQuest : rewQuests)
                     {
-                        SetCriteriaProgress(criteria, member->PersonalRating, referencePlayer, PROGRESS_HIGHEST);
-                        break;
+                        Quest const* quest = sObjectMgr->GetQuestTemplate(rewQuest);
+                        if (quest && quest->GetZoneOrSort() >= 0 && quest->GetZoneOrSort() == criteria->Entry->Asset.ZoneID)
+                            ++counter;
+                    }
+                    SetCriteriaProgress(criteria, counter, referencePlayer, PROGRESS_HIGHEST);
+                }
+                break;
+            }
+            case CriteriaType::MaxDistFallenWithoutDying:
+                // miscValue1 is the ingame fallheight*100 as stored in dbc
+                SetCriteriaProgress(criteria, miscValue1, referencePlayer);
+                break;
+            case CriteriaType::CompleteQuest:
+            case CriteriaType::LearnOrKnowSpell:
+            case CriteriaType::RevealWorldMapOverlay:
+            case CriteriaType::GotHaircut:
+            case CriteriaType::EquipItemInSlot:
+            case CriteriaType::EquipItem:
+            case CriteriaType::EarnAchievement:
+            case CriteriaType::RecruitGarrisonFollower:
+            case CriteriaType::LearnedNewPet:
+            case CriteriaType::ActivelyReachLevel:
+                SetCriteriaProgress(criteria, 1, referencePlayer);
+                break;
+            case CriteriaType::BankSlotsPurchased:
+                SetCriteriaProgress(criteria, referencePlayer->GetBankBagSlotCount(), referencePlayer);
+                break;
+            case CriteriaType::ReputationGained:
+            {
+                int32 reputation = referencePlayer->GetReputationMgr().GetReputation(criteria->Entry->Asset.FactionID);
+                if (reputation > 0)
+                    SetCriteriaProgress(criteria, reputation, referencePlayer);
+                break;
+            }
+            case CriteriaType::TotalExaltedFactions:
+                SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetExaltedFactionCount(), referencePlayer);
+                break;
+            case CriteriaType::LearnSpellFromSkillLine:
+            case CriteriaType::LearnTradeskillSkillLine:
+            {
+                uint32 spellCount = 0;
+                for (auto& [spellId, _] : referencePlayer->GetSpellMap())
+                {
+                    SkillLineAbilityMapBounds bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
+                    for (SkillLineAbilityMap::const_iterator skillIter = bounds.first; skillIter != bounds.second; ++skillIter)
+                    {
+                        if (skillIter->second->SkillLine == int32(criteria->Entry->Asset.SkillID))
+                        {
+                            // do not add couter twice if by any chance skill is listed twice in dbc (eg. skill 777 and spell 22717)
+                            ++spellCount;
+                            break;
+                        }
                     }
                 }
+                SetCriteriaProgress(criteria, spellCount, referencePlayer);
+                break;
             }
-            break;
+            case CriteriaType::TotalReveredFactions:
+                SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetReveredFactionCount(), referencePlayer);
+                break;
+            case CriteriaType::TotalHonoredFactions:
+                SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetHonoredFactionCount(), referencePlayer);
+                break;
+            case CriteriaType::TotalFactionsEncountered:
+                SetCriteriaProgress(criteria, referencePlayer->GetReputationMgr().GetVisibleFactionCount(), referencePlayer);
+                break;
+            case CriteriaType::HonorableKills:
+                SetCriteriaProgress(criteria, referencePlayer->m_activePlayerData->LifetimeHonorableKills, referencePlayer);
+                break;
+            case CriteriaType::MostMoneyOwned:
+                SetCriteriaProgress(criteria, referencePlayer->GetMoney(), referencePlayer, PROGRESS_HIGHEST);
+                break;
+            case CriteriaType::EarnAchievementPoints:
+                if (!miscValue1)
+                    continue;
+                SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_ACCUMULATE);
+                break;
+            case CriteriaType::EarnPersonalArenaRating:
+            {
+                uint32 reqTeamType = criteria->Entry->Asset.TeamType;
+
+                if (miscValue1)
+                {
+                    if (miscValue2 != reqTeamType)
+                        continue;
+
+                    SetCriteriaProgress(criteria, miscValue1, referencePlayer, PROGRESS_HIGHEST);
+                }
+                else // login case
+                {
+                    for (uint8 arena_slot = 0; arena_slot < MAX_ARENA_SLOT; ++arena_slot)
+                    {
+                        uint32 teamId = referencePlayer->GetArenaTeamId(arena_slot);
+                        if (!teamId)
+                            continue;
+
+                        ArenaTeam* team = sArenaTeamMgr->GetArenaTeamById(teamId);
+                        if (!team || team->GetType() != reqTeamType)
+                            continue;
+
+                        if (ArenaTeamMember const* member = team->GetMember(referencePlayer->GetGUID()))
+                        {
+                            SetCriteriaProgress(criteria, member->PersonalRating, referencePlayer, PROGRESS_HIGHEST);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            case CriteriaType::UniquePetsOwned:
+                SetCriteriaProgress(criteria, referencePlayer->GetSession()->GetBattlePetMgr()->GetPetUniqueSpeciesCount(), referencePlayer);
+                break;
+            case CriteriaType::GuildAttainedLevel:
+                SetCriteriaProgress(criteria, miscValue1, referencePlayer);
+                break;
+            // FIXME: not triggered in code as result, need to implement
+            case CriteriaType::RunInstance:
+            case CriteriaType::ParticipateInArena:
+            case CriteriaType::EarnTeamArenaRating:
+            case CriteriaType::EarnTitle:
+            case CriteriaType::MoneySpentOnGuildRepair:
+            case CriteriaType::CreatedItemsByCastingSpell:
+            case CriteriaType::FishInAnyPool:
+            case CriteriaType::GuildBankTabsPurchased:
+            case CriteriaType::EarnGuildAchievementPoints:
+            case CriteriaType::WinAnyBattleground:
+            case CriteriaType::EarnBattlegroundRating:
+            case CriteriaType::GuildTabardCreated:
+            case CriteriaType::CompleteQuestsCountForGuild:
+            case CriteriaType::HonorableKillsForGuild:
+            case CriteriaType::KillAnyCreatureForGuild:
+            case CriteriaType::CompleteAnyResearchProject:
+            case CriteriaType::CompleteGuildChallenge:
+            case CriteriaType::CompleteAnyGuildChallenge:
+            case CriteriaType::CompletedLFRDungeon:
+            case CriteriaType::AbandonedLFRDungeon:
+            case CriteriaType::KickInitiatorInLFRDungeon:
+            case CriteriaType::KickVoterInLFRDungeon:
+            case CriteriaType::KickTargetInLFRDungeon:
+            case CriteriaType::GroupedTankLeftEarlyInLFRDungeon:
+            case CriteriaType::CompleteAnyScenario:
+            case CriteriaType::CompleteScenario:
+            case CriteriaType::AccountObtainPetThroughBattle:
+            case CriteriaType::WinPetBattle:
+            case CriteriaType::PlayerObtainPetThroughBattle:
+            case CriteriaType::EnterArea:
+            case CriteriaType::LeaveArea:
+            case CriteriaType::DefeatDungeonEncounter:
+            case CriteriaType::ActivateGarrisonBuilding:
+            case CriteriaType::UpgradeGarrison:
+            case CriteriaType::StartAnyGarrisonMissionWithFollowerType:
+            case CriteriaType::SucceedAnyGarrisonMissionWithFollowerType:
+            case CriteriaType::SucceedGarrisonMission:
+            case CriteriaType::RecruitAnyGarrisonFollower:
+            case CriteriaType::LearnAnyGarrisonBlueprint:
+            case CriteriaType::CollectGarrisonShipment:
+            case CriteriaType::ItemLevelChangedForGarrisonFollower:
+            case CriteriaType::LevelChangedForGarrisonFollower:
+            case CriteriaType::LearnToy:
+            case CriteriaType::LearnAnyToy:
+            case CriteriaType::LearnAnyHeirloom:
+            case CriteriaType::FindResearchObject:
+            case CriteriaType::ExhaustAnyResearchSite:
+            case CriteriaType::CompleteInternalCriteria:
+            case CriteriaType::CompleteAnyChallengeMode:
+            case CriteriaType::KilledAllUnitsInSpawnRegion:
+            case CriteriaType::CompleteChallengeMode:
+            case CriteriaType::CreatedItemsByCastingSpellWithLimit:
+            case CriteriaType::BattlePetAchievementPointsEarned:
+            case CriteriaType::ReleasedSpirit:
+            case CriteriaType::AccountKnownPet:
+            case CriteriaType::DefeatDungeonEncounterWhileElegibleForLoot:
+            case CriteriaType::CompletedLFGDungeon:
+            case CriteriaType::KickInitiatorInLFGDungeon:
+            case CriteriaType::KickVoterInLFGDungeon:
+            case CriteriaType::KickTargetInLFGDungeon:
+            case CriteriaType::AbandonedLFGDungeon:
+            case CriteriaType::GroupedTankLeftEarlyInLFGDungeon:
+            case CriteriaType::EnterAreaTriggerWithActionSet:
+            case CriteriaType::StartGarrisonMission:
+            case CriteriaType::QualityUpgradedForGarrisonFollower:
+            case CriteriaType::EarnArtifactXP:
+            case CriteriaType::AnyArtifactPowerRankPurchased:
+            case CriteriaType::CompleteResearchGarrisonTalent:
+            case CriteriaType::RecruitAnyGarrisonTroop:
+            case CriteriaType::CompleteAnyWorldQuest:
+            case CriteriaType::ParagonLevelIncreaseWithFaction:
+            case CriteriaType::PlayerHasEarnedHonor:
+            case CriteriaType::ChooseRelicTalent:
+            case CriteriaType::AccountHonorLevelReached:
+            case CriteriaType::MythicPlusCompleted:
+            case CriteriaType::SocketAnySoulbindConduit:
+            case CriteriaType::ObtainAnyItemWithCurrencyValue:
+            case CriteriaType::EarnExpansionLevel:
+            case CriteriaType::LearnTransmog:
+            default:
+                break;                          // Not implemented yet :(
         }
-        case CriteriaType::UniquePetsOwned:
-            SetCriteriaProgress(criteria, referencePlayer->GetSession()->GetBattlePetMgr()->GetPetUniqueSpeciesCount(), referencePlayer);
-            break;
-        case CriteriaType::GuildAttainedLevel:
-            SetCriteriaProgress(criteria, miscValue1, referencePlayer);
-            break;
-        // FIXME: not triggered in code as result, need to implement
-        case CriteriaType::RunInstance:
-        case CriteriaType::EarnTeamArenaRating:
-        case CriteriaType::EarnTitle:
-        case CriteriaType::MoneySpentOnGuildRepair:
-        case CriteriaType::CreatedItemsByCastingSpell:
-        case CriteriaType::FishInAnyPool:
-        case CriteriaType::GuildBankTabsPurchased:
-        case CriteriaType::EarnGuildAchievementPoints:
-        case CriteriaType::WinAnyBattleground:
-        case CriteriaType::EarnBattlegroundRating:
-        case CriteriaType::GuildTabardCreated:
-        case CriteriaType::CompleteQuestsCountForGuild:
-        case CriteriaType::HonorableKillsForGuild:
-        case CriteriaType::KillAnyCreatureForGuild:
-        case CriteriaType::CompleteAnyResearchProject:
-        case CriteriaType::CompleteGuildChallenge:
-        case CriteriaType::CompleteAnyGuildChallenge:
-        case CriteriaType::CompletedLFRDungeon:
-        case CriteriaType::AbandonedLFRDungeon:
-        case CriteriaType::KickInitiatorInLFRDungeon:
-        case CriteriaType::KickVoterInLFRDungeon:
-        case CriteriaType::KickTargetInLFRDungeon:
-        case CriteriaType::GroupedTankLeftEarlyInLFRDungeon:
-        case CriteriaType::AccountObtainPetThroughBattle:
-        case CriteriaType::WinPetBattle:
-        case CriteriaType::PlayerObtainPetThroughBattle:
-        case CriteriaType::ActivateGarrisonBuilding:
-        case CriteriaType::UpgradeGarrison:
-        case CriteriaType::StartAnyGarrisonMissionWithFollowerType:
-        case CriteriaType::SucceedAnyGarrisonMissionWithFollowerType:
-        case CriteriaType::SucceedGarrisonMission:
-        case CriteriaType::RecruitAnyGarrisonFollower:
-        case CriteriaType::LearnAnyGarrisonBlueprint:
-        case CriteriaType::CollectGarrisonShipment:
-        case CriteriaType::ItemLevelChangedForGarrisonFollower:
-        case CriteriaType::LevelChangedForGarrisonFollower:
-        case CriteriaType::LearnToy:
-        case CriteriaType::LearnAnyToy:
-        case CriteriaType::FindResearchObject:
-        case CriteriaType::ExhaustAnyResearchSite:
-        case CriteriaType::CompleteInternalCriteria:
-        case CriteriaType::CompleteAnyChallengeMode:
-        case CriteriaType::KilledAllUnitsInSpawnRegion:
-        case CriteriaType::CompleteChallengeMode:
-        case CriteriaType::CreatedItemsByCastingSpellWithLimit:
-        case CriteriaType::BattlePetAchievementPointsEarned:
-        case CriteriaType::ReleasedSpirit:
-        case CriteriaType::AccountKnownPet:
-        case CriteriaType::KickInitiatorInLFGDungeon:
-        case CriteriaType::KickVoterInLFGDungeon:
-        case CriteriaType::KickTargetInLFGDungeon:
-        case CriteriaType::AbandonedLFGDungeon:
-        case CriteriaType::GroupedTankLeftEarlyInLFGDungeon:
-        case CriteriaType::StartGarrisonMission:
-        case CriteriaType::QualityUpgradedForGarrisonFollower:
-        case CriteriaType::CompleteResearchGarrisonTalent:
-        case CriteriaType::RecruitAnyGarrisonTroop:
-        case CriteriaType::CompleteAnyWorldQuest:
-        case CriteriaType::ParagonLevelIncreaseWithFaction:
-        case CriteriaType::PlayerHasEarnedHonor:
-        case CriteriaType::ChooseRelicTalent:
-        case CriteriaType::AccountHonorLevelReached:
-        case CriteriaType::MythicPlusCompleted:
-        case CriteriaType::SocketAnySoulbindConduit:
-        case CriteriaType::ObtainAnyItemWithCurrencyValue:
-        case CriteriaType::EarnExpansionLevel:
-        case CriteriaType::LearnTransmog:
-        default:
-            break;                          // Not implemented yet :(
-    }
 
-    for (CriteriaTree const* tree : *trees)
-    {
-        if (IsCompletedCriteriaTree(tree))
-            CompletedCriteriaTree(tree, referencePlayer);
+        for (CriteriaTree const* tree : *trees)
+        {
+            if (IsCompletedCriteriaTree(tree))
+                CompletedCriteriaTree(tree, referencePlayer);
 
-        AfterCriteriaTreeUpdate(tree, referencePlayer);
+            AfterCriteriaTreeUpdate(tree, referencePlayer);
+        }
     }
 }
 
-void CriteriaHandler::UpdateTimedCriteria(Milliseconds timeDiff)
+void CriteriaHandler::UpdateTimedCriteria(uint32 timeDiff)
 {
-    for (auto itr = _startedCriteria.begin(); itr != _startedCriteria.end();)
+    if (!_timeCriteriaTrees.empty())
     {
-        // Time is up, remove timer and reset progress
-        if (itr->second <= timeDiff)
+        for (auto itr = _timeCriteriaTrees.begin(); itr != _timeCriteriaTrees.end();)
         {
-            RemoveCriteriaProgress(sCriteriaMgr->GetCriteria(itr->first));
+            // Time is up, remove timer and reset progress
+            if (itr->second <= timeDiff)
+            {
+                CriteriaTree const* criteriaTree = sCriteriaMgr->GetCriteriaTree(itr->first);
+                if (criteriaTree->Criteria)
+                    RemoveCriteriaProgress(criteriaTree->Criteria);
 
-            itr = _startedCriteria.erase(itr);
-        }
-        else
-        {
-            itr->second -= timeDiff;
-            ++itr;
+                itr = _timeCriteriaTrees.erase(itr);
+            }
+            else
+            {
+                itr->second -= timeDiff;
+                ++itr;
+            }
         }
     }
 }
 
-void CriteriaHandler::StartCriteria(CriteriaStartEvent startEvent, uint32 entry, Milliseconds timeLost /*= Milliseconds::zero()*/)
+void CriteriaHandler::StartCriteriaTimer(CriteriaStartEvent startEvent, uint32 entry, uint32 timeLost /* = 0 */)
 {
-    CriteriaList const* criteriaList = sCriteriaMgr->GetCriteriaByStartEvent(startEvent, entry);
-    if (!criteriaList)
-        return;
-
-    for (Criteria const* criteria : *criteriaList)
+    CriteriaList const& criteriaList = sCriteriaMgr->GetTimedCriteriaByType(startEvent);
+    for (Criteria const* criteria : criteriaList)
     {
-        Milliseconds timeLimit = Milliseconds::max(); // this value is for criteria that have a start event requirement but no time limit
-        if (criteria->Entry->StartTimer)
-            timeLimit = Seconds(criteria->Entry->StartTimer);
-
-        timeLimit -= timeLost;
-
-        if (timeLimit <= Milliseconds::zero())
+        if (criteria->Entry->StartAsset != int32(entry))
             continue;
 
         CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
-        bool canStart = std::any_of(trees->begin(), trees->end(), [&](CriteriaTree const* tree)
+        bool canStart = false;
+        for (CriteriaTree const* tree : *trees)
         {
-            return !IsCompletedCriteriaTree(tree);
-        });
+            if ((_timeCriteriaTrees.find(tree->ID) == _timeCriteriaTrees.end() || criteria->Entry->GetFlags().HasFlag(CriteriaFlags::ResetOnStart)) && !IsCompletedCriteriaTree(tree))
+            {
+                // Start the timer
+                if (criteria->Entry->StartTimer * uint32(IN_MILLISECONDS) > timeLost)
+                {
+                    _timeCriteriaTrees[tree->ID] = criteria->Entry->StartTimer * IN_MILLISECONDS - timeLost;
+                    canStart = true;
+                }
+            }
+        }
 
         if (!canStart)
             continue;
-
-        auto [itr, isNew] = _startedCriteria.try_emplace(criteria->ID, timeLimit);
-        if (!isNew)
-        {
-            if (!criteria->Entry->GetFlags().HasFlag(CriteriaFlags::ResetOnStart))
-                continue;
-
-            itr->second = timeLimit;
-        }
 
         // and at client too
         SetCriteriaProgress(criteria, 0, nullptr, PROGRESS_SET);
     }
 }
 
-void CriteriaHandler::FailCriteria(CriteriaFailEvent failEvent, uint32 asset)
+void CriteriaHandler::RemoveCriteriaTimer(CriteriaStartEvent startEvent, uint32 entry)
 {
-    CriteriaList const* criteriaList = sCriteriaMgr->GetCriteriaByFailEvent(failEvent, asset);
-    if (!criteriaList)
-        return;
-
-    for (Criteria const* criteria : *criteriaList)
+    CriteriaList const& criteriaList = sCriteriaMgr->GetTimedCriteriaByType(startEvent);
+    for (Criteria const* criteria : criteriaList)
     {
-        _startedCriteria.erase(criteria->ID);
-
-        CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
-        bool allTreesFullyComplete = std::all_of(trees->begin(), trees->end(), [&](CriteriaTree const* tree)
-        {
-            CriteriaTree const* root = tree;
-            if (CriteriaTree const* parent = sCriteriaMgr->GetCriteriaTree(root->Entry->Parent))
-            {
-                do
-                {
-                    root = parent;
-                    parent = sCriteriaMgr->GetCriteriaTree(root->Entry->Parent);
-                } while (parent);
-            }
-
-            return IsCompletedCriteriaTree(root);
-        });
-
-        if (allTreesFullyComplete)
+        if (criteria->Entry->StartAsset != int32(entry))
             continue;
 
+        CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
+        // Remove the timer from all trees
+        for (CriteriaTree const* tree : *trees)
+            _timeCriteriaTrees.erase(tree->ID);
+
+        // remove progress
         RemoveCriteriaProgress(criteria);
     }
 }
@@ -972,6 +940,29 @@ CriteriaProgress* CriteriaHandler::GetCriteriaProgress(Criteria const* entry)
 
 void CriteriaHandler::SetCriteriaProgress(Criteria const* criteria, uint64 changeValue, Player* referencePlayer, ProgressType progressType)
 {
+    // Don't allow to cheat - doing timed criteria without timer active
+    CriteriaTreeList const* trees = nullptr;
+    if (criteria->Entry->StartTimer)
+    {
+        trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
+        if (!trees)
+            return;
+
+        bool hasTreeForTimed = false;
+        for (CriteriaTree const* tree : *trees)
+        {
+            auto timedIter = _timeCriteriaTrees.find(tree->ID);
+            if (timedIter != _timeCriteriaTrees.end())
+            {
+                hasTreeForTimed = true;
+                break;
+            }
+        }
+
+        if (!hasTreeForTimed)
+            return;
+    }
+
     TC_LOG_DEBUG("criteria", "CriteriaHandler::SetCriteriaProgress({}, {}) for {}", criteria->ID, changeValue, GetOwnerInfo());
 
     CriteriaProgress* progress = GetCriteriaProgress(criteria);
@@ -1020,22 +1011,20 @@ void CriteriaHandler::SetCriteriaProgress(Criteria const* criteria, uint64 chang
 
     if (criteria->Entry->StartTimer)
     {
-        auto startedItr = _startedCriteria.find(criteria->ID);
-        if (startedItr != _startedCriteria.end())
+        ASSERT(trees);
+
+        for (CriteriaTree const* tree : *trees)
         {
-            // Client expects this in packet
-            timeElapsed = duration_cast<Seconds>(Seconds(criteria->Entry->StartTimer) - startedItr->second);
-
-            // Remove the timer, we wont need it anymore
-            CriteriaTreeList const* trees = sCriteriaMgr->GetCriteriaTreesByCriteria(criteria->ID);
-
-            bool allTreesCompleted = std::all_of(trees->begin(), trees->end(), [&](CriteriaTree const* tree)
+            auto timedIter = _timeCriteriaTrees.find(tree->ID);
+            if (timedIter != _timeCriteriaTrees.end())
             {
-                return IsCompletedCriteriaTree(tree);
-            });
+                // Client expects this in packet
+                timeElapsed = Seconds(criteria->Entry->StartTimer - (timedIter->second / IN_MILLISECONDS));
 
-            if (allTreesCompleted)
-                _startedCriteria.erase(startedItr);
+                // Remove the timer, we wont need it anymore
+                if (IsCompletedCriteriaTree(tree))
+                    _timeCriteriaTrees.erase(timedIter);
+            }
         }
     }
 
@@ -1053,8 +1042,7 @@ void CriteriaHandler::RemoveCriteriaProgress(Criteria const* criteria)
 
     SendCriteriaProgressRemoved(criteria->ID);
 
-    criteriaProgress->second.Counter = 0;
-    criteriaProgress->second.Changed = true;
+    _criteriaProgress.erase(criteriaProgress);
 }
 
 bool CriteriaHandler::IsCompletedCriteriaTree(CriteriaTree const* tree)
@@ -1191,11 +1179,14 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
         case CriteriaType::BankSlotsPurchased:
         case CriteriaType::ReputationGained:
         case CriteriaType::TotalExaltedFactions:
+        case CriteriaType::GotHaircut:
+        case CriteriaType::EquipItemInSlot:
         case CriteriaType::RollNeed:
         case CriteriaType::RollGreed:
         case CriteriaType::DeliverKillingBlowToClass:
         case CriteriaType::DeliverKillingBlowToRace:
         case CriteriaType::DoEmote:
+        case CriteriaType::EquipItem:
         case CriteriaType::MoneyEarnedFromQuesting:
         case CriteriaType::MoneyLootedFromCreatures:
         case CriteriaType::UseGameobject:
@@ -1203,22 +1194,15 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
         case CriteriaType::CatchFishInFishingHole:
         case CriteriaType::LearnSpellFromSkillLine:
         case CriteriaType::WinDuel:
-        case CriteriaType::DefeatDungeonEncounterWhileElegibleForLoot:
         case CriteriaType::GetLootByType:
         case CriteriaType::LearnTradeskillSkillLine:
-        case CriteriaType::CompletedLFGDungeon:
         case CriteriaType::CompletedLFGDungeonWithStrangers:
         case CriteriaType::DeliveredKillingBlow:
         case CriteriaType::CurrencyGained:
-        case CriteriaType::CompleteAnyScenario:
-        case CriteriaType::CompleteScenario:
+        case CriteriaType::PlaceGarrisonBuilding:
         case CriteriaType::UniquePetsOwned:
         case CriteriaType::BattlePetReachLevel:
         case CriteriaType::ActivelyEarnPetLevel:
-        case CriteriaType::DefeatDungeonEncounter:
-        case CriteriaType::PlaceGarrisonBuilding:
-        case CriteriaType::LearnHeirloom:
-        case CriteriaType::LearnAnyHeirloom:
         case CriteriaType::LearnAnyTransmogInSlot:
         case CriteriaType::ParagonLevelIncreaseWithFaction:
         case CriteriaType::PlayerHasEarnedHonor:
@@ -1229,30 +1213,18 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
         case CriteriaType::CompleteAnyReplayQuest:
         case CriteriaType::BuyItemsFromVendors:
         case CriteriaType::SellItemsToVendors:
-        case CriteriaType::GainLevels:
-        case CriteriaType::ReachRenownLevel:
-        case CriteriaType::LearnTaxiNode:
+        case CriteriaType::EnterTopLevelArea:
             return progress->Counter >= requiredAmount;
         case CriteriaType::EarnAchievement:
         case CriteriaType::CompleteQuest:
         case CriteriaType::LearnOrKnowSpell:
         case CriteriaType::RevealWorldMapOverlay:
-        case CriteriaType::GotHaircut:
-        case CriteriaType::EquipItemInSlot:
-        case CriteriaType::EquipItem:
-        case CriteriaType::EnterAreaTriggerWithActionSet:
-        case CriteriaType::LeaveAreaTriggerWithActionSet:
-        case CriteriaType::LearnedNewPet:
-        case CriteriaType::EnterArea:
-        case CriteriaType::LeaveArea:
         case CriteriaType::RecruitGarrisonFollower:
+        case CriteriaType::LearnedNewPet:
         case CriteriaType::HonorLevelIncrease:
         case CriteriaType::PrestigeLevelIncrease:
         case CriteriaType::ActivelyReachLevel:
         case CriteriaType::CollectTransmogSetFromGroup:
-        case CriteriaType::ReachMaxLevel:
-        case CriteriaType::EnterTopLevelArea:
-        case CriteriaType::LeaveTopLevelArea:
             return progress->Counter >= 1;
         case CriteriaType::AchieveSkillStep:
             return progress->Counter >= (requiredAmount * 75);
@@ -1270,7 +1242,6 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
         case CriteriaType::KilledByCreature:
         case CriteriaType::KilledByPlayer:
         case CriteriaType::DieFromEnviromentalDamage:
-        case CriteriaType::ParticipateInArena:
         case CriteriaType::EarnTeamArenaRating:
         case CriteriaType::MoneyEarnedFromSales:
         case CriteriaType::MoneySpentOnRespecs:
@@ -1295,7 +1266,6 @@ bool CriteriaHandler::IsCompletedCriteria(Criteria const* criteria, uint64 requi
         case CriteriaType::AbandonAnyQuest:
         case CriteriaType::BuyTaxi:
         case CriteriaType::AcceptSummon:
-        case CriteriaType::LearnAnyTransmog:
         default:
             break;
     }
@@ -1349,10 +1319,24 @@ bool CriteriaHandler::CanUpdateCriteria(Criteria const* criteria, CriteriaTreeLi
     return true;
 }
 
-bool CriteriaHandler::ConditionsSatisfied(Criteria const* criteria, Player* /*referencePlayer*/) const
+bool CriteriaHandler::ConditionsSatisfied(Criteria const* criteria, Player* referencePlayer) const
 {
-    if (criteria->Entry->StartEvent && !_startedCriteria.contains(criteria->ID))
-        return false;
+    if (!criteria->Entry->FailEvent)
+        return true;
+
+    switch (CriteriaFailEvent(criteria->Entry->FailEvent))
+    {
+        case CriteriaFailEvent::LeaveBattleground:
+            if (!referencePlayer->InBattleground())
+                return false;
+            break;
+        case CriteriaFailEvent::ModifyPartyStatus:
+            if (referencePlayer->GetGroup())
+                return false;
+            break;
+        default:
+            break;
+    }
 
     return true;
 }
@@ -1393,7 +1377,6 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
         case CriteriaType::KillPlayer:
         case CriteriaType::TotalDamageTaken:
         case CriteriaType::TotalHealReceived:
-        case CriteriaType::CompletedLFGDungeon:
         case CriteriaType::CompletedLFGDungeonWithStrangers:
         case CriteriaType::GotHaircut:
         case CriteriaType::WinDuel:
@@ -1402,9 +1385,6 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
         case CriteriaType::CompleteAnyReplayQuest:
         case CriteriaType::BuyItemsFromVendors:
         case CriteriaType::SellItemsToVendors:
-        case CriteriaType::GainLevels:
-        case CriteriaType::LearnAnyTransmog:
-        case CriteriaType::CompleteAnyScenario:
             if (!miscValue1)
                 return false;
             break;
@@ -1526,7 +1506,6 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
         case CriteriaType::UseItem:
         case CriteriaType::LootItem:
         case CriteriaType::EquipItem:
-        case CriteriaType::LearnHeirloom:
             if (!miscValue1 || uint32(criteria->Entry->Asset.ItemID )!= miscValue1)
                 return false;
             break;
@@ -1539,7 +1518,19 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
             bool matchFound = false;
             for (uint32 j : worldOverlayEntry->AreaID)
             {
-                if (referencePlayer->HasExploredZone(j))
+                AreaTableEntry const* area = sAreaTableStore.LookupEntry(j);
+                if (!area)
+                    break;
+
+                if (area->AreaBit < 0)
+                    continue;
+
+                size_t playerIndexOffset = size_t(area->AreaBit) / PLAYER_EXPLORED_ZONES_BITS;
+                if (playerIndexOffset >= PLAYER_EXPLORED_ZONES_SIZE)
+                    continue;
+
+                uint64 mask = uint64(1) << (area->AreaBit % PLAYER_EXPLORED_ZONES_BITS);
+                if (referencePlayer->m_activePlayerData->ExploredZones[playerIndexOffset] & mask)
                 {
                     matchFound = true;
                     break;
@@ -1614,32 +1605,21 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
                 return false;
             break;
         case CriteriaType::PVPKillInArea:
-        case CriteriaType::EnterArea:
-            if (!miscValue1 || !DB2Manager::IsInArea(uint32(miscValue1), uint32(criteria->Entry->Asset.AreaID)))
-                return false;
-            break;
-        case CriteriaType::LeaveArea:
-            if (!miscValue1 || DB2Manager::IsInArea(uint32(miscValue1), uint32(criteria->Entry->Asset.AreaID)))
+        case CriteriaType::EnterTopLevelArea:
+            if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.AreaID))
                 return false;
             break;
         case CriteriaType::CurrencyGained:
-        case CriteriaType::ReachRenownLevel:
             if (!miscValue1 || !miscValue2 || int64(miscValue2) < 0
                 || miscValue1 != uint32(criteria->Entry->Asset.CurrencyID))
                 return false;
             break;
         case CriteriaType::WinArena:
-        case CriteriaType::ParticipateInArena:
             if (miscValue1 != uint32(criteria->Entry->Asset.MapID))
                 return false;
             break;
         case CriteriaType::EarnTeamArenaRating:
             return false;
-        case CriteriaType::DefeatDungeonEncounterWhileElegibleForLoot:
-        case CriteriaType::DefeatDungeonEncounter:
-            if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.DungeonEncounterID))
-                return false;
-            break;
         case CriteriaType::PlaceGarrisonBuilding:
         case CriteriaType::ActivateGarrisonBuilding:
             if (miscValue1 != uint32(criteria->Entry->Asset.GarrBuildingID))
@@ -1660,33 +1640,6 @@ bool CriteriaHandler::RequirementsSatisfied(Criteria const* criteria, uint64 mis
             break;
         case CriteriaType::ActivelyReachLevel:
             if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.PlayerLevel))
-                return false;
-            break;
-        case CriteriaType::EnterTopLevelArea:
-        case CriteriaType::LeaveTopLevelArea:
-            if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.ZoneID))
-                return false;
-            break;
-        case CriteriaType::PlayerTriggerGameEvent:
-        case CriteriaType::AnyoneTriggerGameEventScenario:
-            if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.EventID))
-                return false;
-            break;
-        case CriteriaType::CompleteScenario:
-            if (miscValue1 != uint32(criteria->Entry->Asset.ScenarioID))
-                return false;
-            break;
-        case CriteriaType::EnterAreaTriggerWithActionSet:
-        case CriteriaType::LeaveAreaTriggerWithActionSet:
-            if (!miscValue1 || miscValue1 != uint32(criteria->Entry->Asset.AreaTriggerActionSetID))
-                return false;
-            break;
-        case CriteriaType::ReachMaxLevel:
-            if (!referencePlayer->IsMaxLevel())
-                return false;
-            break;
-        case CriteriaType::LearnTaxiNode:
-            if (miscValue1 != uint32(criteria->Entry->Asset.TaxiNodesID))
                 return false;
             break;
         default:
@@ -1729,6 +1682,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
 {
     uint32 reqValue = modifier->Asset;
     uint32 secondaryAsset = modifier->SecondaryAsset;
+    int32 tertiaryAsset = modifier->TertiaryAsset;
 
     switch (ModifierTreeType(modifier->Type))
     {
@@ -1741,7 +1695,8 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerMeetsCondition: // 2
         {
-            if (!ConditionMgr::IsPlayerMeetingCondition(referencePlayer, reqValue))
+            PlayerConditionEntry const* playerCondition = sPlayerConditionStore.LookupEntry(reqValue);
+            if (!playerCondition || !ConditionMgr::IsPlayerMeetingCondition(referencePlayer, playerCondition))
                 return false;
             break;
         }
@@ -1815,7 +1770,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         case ModifierTreeType::PlayerIsInArea: // 17
         {
-            if (!DB2Manager::IsInArea(referencePlayer->GetAreaId(), reqValue))
+            uint32 zoneId, areaId;
+            referencePlayer->GetZoneAndAreaId(zoneId, areaId);
+            if (zoneId != reqValue && areaId != reqValue)
                 return false;
             break;
         }
@@ -1823,7 +1780,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         {
             if (!ref)
                 return false;
-            if (!DB2Manager::IsInArea(ref->GetAreaId(), reqValue))
+            uint32 zoneId, areaId;
+            ref->GetZoneAndAreaId(zoneId, areaId);
+            if (zoneId != reqValue && areaId != reqValue)
                 return false;
             break;
         }
@@ -1898,14 +1857,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                 return false;
             break;
         case ModifierTreeType::ClientVersionEqualOrLessThan: // 33
-        {
-            std::shared_ptr<Realm const> currentRealm = sRealmList->GetCurrentRealm();
-            if (!currentRealm)
-                return false;
-            if (reqValue < ClientBuild::GetMinorMajorBugfixVersionForBuild(currentRealm->Build))
+            if (reqValue < sRealmList->GetMinorMajorBugfixVersionForBuild(realm.Build))
                 return false;
             break;
-        }
         case ModifierTreeType::BattlePetTeamLevel: // 34
             for (WorldPackets::BattlePet::BattlePetSlot const& slot : referencePlayer->GetSession()->GetBattlePetMgr()->GetSlots())
                 if (slot.Pet.Level < reqValue)
@@ -1939,7 +1893,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         {
             uint32 zoneId = referencePlayer->GetAreaId();
             if (AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(zoneId))
-                if (areaEntry->GetFlags().HasFlag(AreaFlags::IsSubzone))
+                if (areaEntry->Flags[0] & AREA_FLAG_UNK9)
                     zoneId = areaEntry->ParentAreaID;
             if (zoneId != reqValue)
                 return false;
@@ -1951,7 +1905,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                 return false;
             uint32 zoneId = ref->GetAreaId();
             if (AreaTableEntry const* areaEntry = sAreaTableStore.LookupEntry(zoneId))
-                if (areaEntry->GetFlags().HasFlag(AreaFlags::IsSubzone))
+                if (areaEntry->Flags[0] & AREA_FLAG_UNK9)
                     zoneId = areaEntry->ParentAreaID;
             if (zoneId != reqValue)
                 return false;
@@ -2010,7 +1964,8 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             if (!ref || !ref->IsPlayer())
                 return false;
 
-            if (!ConditionMgr::IsPlayerMeetingCondition(ref->ToPlayer(), reqValue))
+            PlayerConditionEntry const* playerCondition = sPlayerConditionStore.LookupEntry(reqValue);
+            if (!playerCondition || !ConditionMgr::IsPlayerMeetingCondition(ref->ToPlayer(), playerCondition))
                 return false;
             break;
         }
@@ -2059,7 +2014,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             return false;
         case ModifierTreeType::WorldStateExpression: // 67
             if (WorldStateExpressionEntry const* worldStateExpression = sWorldStateExpressionStore.LookupEntry(reqValue))
-                return ConditionMgr::IsMeetingWorldStateExpression(referencePlayer->GetMap(), worldStateExpression);
+                return ConditionMgr::IsPlayerMeetingExpression(referencePlayer, worldStateExpression);
             return false;
         case ModifierTreeType::DungeonDifficulty: // 68
             if (referencePlayer->GetMap()->GetDifficultyID() != reqValue)
@@ -2203,8 +2158,8 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             FriendshipReputationEntry const* friendshipReputation = sFriendshipReputationStore.LookupEntry(friendshipRepReaction->FriendshipRepID);
             if (!friendshipReputation)
                 return false;
-            //if (referencePlayer->GetReputation(friendshipReputation->FactionID) < int32(friendshipRepReaction->ReactionThreshold))
-            //    return false;
+            if (referencePlayer->GetReputation(friendshipReputation->FactionID) < int32(friendshipRepReaction->ReactionThreshold))
+                return false;
             break;
         }
         case ModifierTreeType::ReputationWithFactionIsEqualOrGreaterThan: // 95
@@ -2275,12 +2230,14 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         case ModifierTreeType::TimeBetween: // 109
         {
-            WowTime from;
-            from.SetPackedTime(reqValue);
-            WowTime to;
-            to.SetPackedTime(secondaryAsset);
-
-            if (!GameTime::GetWowTime()->IsInRange(from, to))
+            ByteBuffer unpacker;
+            unpacker << reqValue;
+            time_t from = unpacker.ReadPackedTime();
+            unpacker.rpos(0);
+            unpacker.wpos(0);
+            unpacker << secondaryAsset;
+            time_t to = unpacker.ReadPackedTime();
+            if (GameTime::GetGameTime() < from || GameTime::GetGameTime() > to)
                 return false;
             break;
         }
@@ -2308,7 +2265,15 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerHasExploredArea: // 113
         {
-            if (!referencePlayer->HasExploredZone(reqValue))
+            AreaTableEntry const* areaTable = sAreaTableStore.LookupEntry(reqValue);
+            if (!areaTable)
+                return false;
+            if (areaTable->AreaBit <= 0)
+                break; // success
+            size_t playerIndexOffset = size_t(areaTable->AreaBit) / PLAYER_EXPLORED_ZONES_BITS;
+            if (playerIndexOffset >= PLAYER_EXPLORED_ZONES_SIZE)
+                break;
+            if (!(referencePlayer->m_activePlayerData->ExploredZones[playerIndexOffset] & (UI64LIT(1) << (areaTable->AreaBit % PLAYER_EXPLORED_ZONES_BITS))))
                 return false;
             break;
         }
@@ -2363,7 +2328,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         }
         case ModifierTreeType::PlayerHasTrackedCurrencyEqualOrGreaterThan: // 121
-            if (referencePlayer->GetCurrencyTrackedQuantity(reqValue) < secondaryAsset)
+            if (referencePlayer->GetTrackedCurrencyCount(reqValue) < secondaryAsset)
                 return false;
             break;
         case ModifierTreeType::PlayerMapInstanceType: // 122
@@ -2407,7 +2372,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::GarrisonMissionIsElite: // 148 NYI
         case ModifierTreeType::CurrentGarrisonBuildingLevelEqual: // 149
         case ModifierTreeType::GarrisonPlotInstanceHasBuildingThatIsReadyToActivate: // 150
+        {
             return false;
+        }
         case ModifierTreeType::BattlePetTeamWithSpeciesEqualOrGreaterThan: // 151
         {
             uint32 count = 0;
@@ -2443,8 +2410,11 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         }
         case ModifierTreeType::HasGarrisonBuildingActiveSpecialization: // 156
+            return false; // OBSOLETE
         case ModifierTreeType::HasGarrisonFollower: // 157
+        {
             return false;
+        }
         case ModifierTreeType::PlayerQuestObjectiveProgressEqual: // 158
         {
             QuestObjective const* objective = sObjectMgr->GetQuestObjective(reqValue);
@@ -2480,7 +2450,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::GarrisonFollowerItemLevelEqualOrGreaterThan: // 168
         case ModifierTreeType::GarrisonFollowerCountWithItemLevelEqualOrGreaterThan: // 169
         case ModifierTreeType::GarrisonTierEqual: // 170
+        {
             return false;
+        }
         case ModifierTreeType::InstancePlayerCountEqual: // 171
             if (referencePlayer->GetMap()->GetPlayers().getSize() != reqValue)
                 return false;
@@ -2506,9 +2478,16 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::GarrisonFollowerIsInBuilding: // 176
         case ModifierTreeType::GarrisonMissionCountLessThan: // 177 NYI
         case ModifierTreeType::GarrisonPlotInstanceCountEqualOrGreaterThan: // 178
+        {
+            return false;
+        }
         case ModifierTreeType::CurrencySource: // 179 NYI
+            return false;
         case ModifierTreeType::PlayerIsInNotOwnGarrison: // 180
         case ModifierTreeType::HasActiveGarrisonFollower: // 181
+        {
+            return false;
+        }
         case ModifierTreeType::PlayerDailyRandomValueMod_X_Equals: // 182 NYI
             return false;
         case ModifierTreeType::PlayerHasMount: // 183
@@ -2528,6 +2507,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::GarrisonFollowerIsOnAMission: // 185
         case ModifierTreeType::GarrisonMissionCountInSetLessThan: // 186 NYI
         case ModifierTreeType::GarrisonFollowerType: // 187
+        {
+            return false;
+        }
         case ModifierTreeType::PlayerUsedBoostLessThanHoursAgoRealTime: // 188 NYI
         case ModifierTreeType::PlayerUsedBoostLessThanHoursAgoGameTime: // 189 NYI
             return false;
@@ -2593,9 +2575,11 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::GarrisonTalentResearchInProgress: // 207 NYI
             return false;
         case ModifierTreeType::PlayerEquippedArtifactAppearanceSet: // 208
+        {
             return false;
+        }
         case ModifierTreeType::PlayerHasCurrencyEqual: // 209
-            if (referencePlayer->GetCurrencyQuantity(reqValue) != secondaryAsset)
+            if (referencePlayer->GetCurrency(reqValue) != secondaryAsset)
                 return false;
             break;
         case ModifierTreeType::MinimumAverageItemHighWaterMarkForSpec: // 210 NYI
@@ -2629,7 +2613,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         }
         case ModifierTreeType::ArtifactTraitUnlockedCountEqualOrGreaterThan: // 217
+        {
             return false;
+        }
         case ModifierTreeType::ParagonReputationLevelEqualOrGreaterThan: // 218
             if (referencePlayer->GetReputationMgr().GetParagonLevel(miscValue1) < int32(reqValue))
                 return false;
@@ -2654,15 +2640,15 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerHasItemWithBonusListFromTreeAndQuality: // 222
         {
-            std::vector<int32> bonusListIDs = ItemBonusMgr::GetAllBonusListsForTree(reqValue);
+            std::set<uint32> bonusListIDs = sDB2Manager.GetAllItemBonusTreeBonuses(reqValue);
             if (bonusListIDs.empty())
                 return false;
 
             bool bagScanReachedEnd = referencePlayer->ForEachItem(ItemSearchLocation::Everywhere, [&bonusListIDs](Item const* item)
             {
-                bool hasBonus = std::any_of(item->GetBonusListIDs().begin(), item->GetBonusListIDs().end(), [&bonusListIDs](int32 bonusListID)
+                bool hasBonus = std::any_of(item->m_itemData->BonusListIDs->begin(), item->m_itemData->BonusListIDs->end(), [&bonusListIDs](int32 bonusListID)
                 {
-                    return std::find(bonusListIDs.begin(), bonusListIDs.end(), bonusListID) != bonusListIDs.end();
+                    return bonusListIDs.find(bonusListID) != bonusListIDs.end();
                 });
                 return hasBonus ? ItemSearchCallbackResult::Stop : ItemSearchCallbackResult::Continue;
             });
@@ -2677,7 +2663,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::PlayerHasItemInHistoryOfProgressiveEvent: // 224 NYI
             return false;
         case ModifierTreeType::PlayerHasArtifactPowerRankCountPurchasedEqualOrGreaterThan: // 225
-                return false;
+        {
+            return false;
+        }
         case ModifierTreeType::PlayerHasBoosted: // 226
             if (referencePlayer->HasLevelBoosted())
                 return false;
@@ -2756,10 +2744,10 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(reqValue);
             if (!pvpTier)
                 return false;
-            UF::PVPInfo const* pvpInfo = referencePlayer->GetPvpInfoForBracket(pvpTier->BracketID);
-            if (!pvpInfo)
+            if (std::size_t(pvpTier->BracketID) >= referencePlayer->m_activePlayerData->PvpInfo.size())
                 return false;
-            if (pvpTier->ID != pvpInfo->PvpTierID)
+            UF::PVPInfo const& pvpInfo = referencePlayer->m_activePlayerData->PvpInfo[pvpTier->BracketID];
+            if (pvpTier->ID != pvpInfo.PvpTierID || *pvpInfo.Disqualified)
                 return false;
             break;
         }
@@ -2768,7 +2756,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::PlayerIsOnQuestInQuestline: // 236
         {
             bool isOnQuest = false;
-            if (std::vector<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue))
+            if (std::unordered_set<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue))
             {
                 isOnQuest = std::any_of(questLineQuests->begin(), questLineQuests->end(), [referencePlayer](QuestLineXQuestEntry const* questLineQuest)
                 {
@@ -2790,10 +2778,10 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerPvpTierInBracketEqualOrGreaterThan: // 239
         {
-            UF::PVPInfo const* pvpInfo = referencePlayer->GetPvpInfoForBracket(secondaryAsset);
-            if (!pvpInfo)
+            if (secondaryAsset >= referencePlayer->m_activePlayerData->PvpInfo.size())
                 return false;
-            PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(pvpInfo->PvpTierID);
+            UF::PVPInfo const& pvpInfo = referencePlayer->m_activePlayerData->PvpInfo[secondaryAsset];
+            PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(pvpInfo.PvpTierID);
             if (!pvpTier)
                 return false;
             if (pvpTier->Rank < int32(reqValue))
@@ -2802,7 +2790,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerCanAcceptQuestInQuestline: // 240
         {
-            std::vector<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
+            std::unordered_set<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
             if (!questLineQuests)
                 return false;
             bool canTakeQuest = std::any_of(questLineQuests->begin(), questLineQuests->end(), [referencePlayer](QuestLineXQuestEntry const* questLineQuest)
@@ -2817,7 +2805,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerHasCompletedQuestline: // 241
         {
-            std::vector<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
+            std::unordered_set<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
             if (!questLineQuests)
                 return false;
             for (QuestLineXQuestEntry const* questLineQuest : *questLineQuests)
@@ -2827,7 +2815,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerHasCompletedQuestlineQuestCount: // 242
         {
-            std::vector<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
+            std::unordered_set<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
             if (!questLineQuests)
                 return false;
             uint32 completedQuests = 0;
@@ -2840,7 +2828,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerHasCompletedPercentageOfQuestline: // 243
         {
-            std::vector<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
+            std::unordered_set<QuestLineXQuestEntry const*> const* questLineQuests = sDB2Manager.GetQuestsForQuestLine(reqValue);
             if (!questLineQuests || questLineQuests->empty())
                 return false;
             std::size_t completedQuests = 0;
@@ -2906,10 +2894,6 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             DB2Manager::FriendshipRepReactionSet const* friendshipReactions = sDB2Manager.GetFriendshipRepReactions(reqValue);
             if (!friendshipReactions)
                 return false;
-
-            return false;
-
-            /*
             uint32 rank = referencePlayer->GetReputationRank(friendshipReputation->FactionID);
             if (rank >= friendshipReactions->size())
                 return false;
@@ -2917,7 +2901,6 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             std::advance(itr, rank);
             if ((*itr)->ID != reqValue)
                 return false;
-            */
             break;
         }
         case ModifierTreeType::PlayerAuraStackCountEqual: // 255
@@ -2936,16 +2919,23 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             if (!ref || !ref->IsUnit() || ref->ToUnit()->GetAuraCount(secondaryAsset) < reqValue)
                 return false;
             break;
-        case ModifierTreeType::PlayerHasAzeriteEssenceRankLessThan: // 259 NYI
-        case ModifierTreeType::PlayerHasAzeriteEssenceRankEqual: // 260 NYI
-        case ModifierTreeType::PlayerHasAzeriteEssenceRankGreaterThan: // 261 NYI
+        case ModifierTreeType::PlayerHasAzeriteEssenceRankLessThan: // 259
+            return false;
+        case ModifierTreeType::PlayerHasAzeriteEssenceRankEqual: // 260
+            return false;
+        case ModifierTreeType::PlayerHasAzeriteEssenceRankGreaterThan: // 261
             return false;
         case ModifierTreeType::PlayerHasAuraWithEffectIndex: // 262
             if (!referencePlayer->GetAuraEffect(reqValue, secondaryAsset))
                 return false;
             break;
         case ModifierTreeType::PlayerLootSpecializationMatchesRole: // 263
-            return false;
+        {
+            ChrSpecializationEntry const* spec = sChrSpecializationStore.LookupEntry(referencePlayer->GetPrimarySpecialization());
+            if (!spec || spec->Role != int32(reqValue))
+                return false;
+            break;
+        }
         case ModifierTreeType::PlayerIsAtMaxExpansionLevel: // 264
             if (!referencePlayer->IsMaxLevel())
                 return false;
@@ -2959,8 +2949,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                 return false;
             break;
         }
-        case ModifierTreeType::PlayerHasAzeriteEssenceInSlotAtRankLessThan: // 266 NYI
-        case ModifierTreeType::PlayerHasAzeriteEssenceInSlotAtRankGreaterThan: // 267 NYI
+        case ModifierTreeType::PlayerHasAzeriteEssenceInSlotAtRankLessThan: // 266
+            return false;
+        case ModifierTreeType::PlayerHasAzeriteEssenceInSlotAtRankGreaterThan: // 267
             return false;
         case ModifierTreeType::PlayerLevelWithinContentTuning: // 268
         {
@@ -3013,7 +3004,8 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         }
         case ModifierTreeType::PlayerLevelWithinOrAboveLevelRange: // 274 NYI
         case ModifierTreeType::TargetLevelWithinOrAboveLevelRange: // 275 NYI
-        case ModifierTreeType::MaxJailersTowerLevelEqualOrGreaterThan: // 276 NYI
+            return false;
+        case ModifierTreeType::MaxJailersTowerLevelEqualOrGreaterThan: // 276
             return false;
         case ModifierTreeType::GroupedWithRaFRecruit: // 277
         {
@@ -3036,7 +3028,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             return false;
         }
         case ModifierTreeType::PlayerSpecialization: // 279
-            return false;
+            if (referencePlayer->GetPrimarySpecialization() != reqValue)
+                return false;
+            break;
         case ModifierTreeType::PlayerMapOrCosmeticChildMap: // 280
         {
             MapEntry const* map = referencePlayer->GetMap()->GetEntry();
@@ -3054,7 +3048,8 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::HonorGainSource: // 285 NYI
         case ModifierTreeType::JailersTowerActiveFloorIndexEqualOrGreaterThan: // 286 NYI
         case ModifierTreeType::JailersTowerActiveFloorDifficultyEqualOrGreaterThan: // 287 NYI
-        case ModifierTreeType::PlayerCovenant: // 288 NYI
+            return false;
+        case ModifierTreeType::PlayerCovenant: // 288
             return false;
         case ModifierTreeType::HasTimeEventPassed: // 289
         {
@@ -3072,18 +3067,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                     break;
                 case 123: // Shadowlands Season 1 End
                     // timestamp = unknown
-                    break;
+                    break;;
                 case 149: // Shadowlands Season 2 End
                     // timestamp = unknown
-                    break;
-                case 349: // Dragonflight Season 3 Start (pre-season)
-                    eventTimestamp = time_t(1699340400); // November 7, 2023 8:00
-                    break;
-                case 350: // Dragonflight Season 3 Start
-                    eventTimestamp = time_t(1699945200); // November 14, 2023 8:00
-                    break;
-                case 352: // Dragonflight Season 3 End
-                    // eventTimestamp = time_t(); unknown
                     break;
                 default:
                     break;
@@ -3093,7 +3079,9 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             break;
         }
         case ModifierTreeType::GarrisonHasPermanentTalent: // 290 NYI
-        case ModifierTreeType::HasActiveSoulbind: // 291 NYI
+            return false;
+        case ModifierTreeType::HasActiveSoulbind: // 291
+            return false;
         case ModifierTreeType::HasMemorizedSpell: // 292 NYI
             return false;
         case ModifierTreeType::PlayerHasAPACSubscriptionReward_2020: // 293
@@ -3105,9 +3093,10 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
         case ModifierTreeType::PlayerIsInAreaGroup: // 298
         {
             std::vector<uint32> areas = sDB2Manager.GetAreasForGroup(reqValue);
-            for (uint32 areaInGroup : areas)
-                if (DB2Manager::IsInArea(referencePlayer->GetAreaId(), areaInGroup))
-                    return true;
+            if (AreaTableEntry const* area = sAreaTableStore.LookupEntry(referencePlayer->GetAreaId()))
+                for (uint32 areaInGroup : areas)
+                    if (areaInGroup == area->ID || areaInGroup == area->ParentAreaID)
+                        return true;
             return false;
         }
         case ModifierTreeType::TargetIsInAreaGroup: // 299
@@ -3115,16 +3104,21 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             if (!ref)
                 return false;
             std::vector<uint32> areas = sDB2Manager.GetAreasForGroup(reqValue);
-            for (uint32 areaInGroup : areas)
-                if (DB2Manager::IsInArea(ref->GetAreaId(), areaInGroup))
-                    return true;
+            if (AreaTableEntry const* area = sAreaTableStore.LookupEntry(ref->GetAreaId()))
+                for (uint32 areaInGroup : areas)
+                    if (areaInGroup == area->ID || areaInGroup == area->ParentAreaID)
+                        return true;
             return false;
         }
-        case ModifierTreeType::PlayerIsInChromieTime: // 300 NYI
-        case ModifierTreeType::PlayerIsInAnyChromieTime: // 301 NYI
-        case ModifierTreeType::ItemIsAzeriteArmor: // 302 NYI
-        case ModifierTreeType::PlayerHasRuneforgePower: // 303 NYI
-        case ModifierTreeType::PlayerInChromieTimeForScaling: // 304 NYI
+        case ModifierTreeType::PlayerIsInChromieTime: // 300
+            return false;
+        case ModifierTreeType::PlayerIsInAnyChromieTime: // 301
+            return false;
+        case ModifierTreeType::ItemIsAzeriteArmor: // 302
+            return false;
+        case ModifierTreeType::PlayerHasRuneforgePower: // 303
+            return false;
+        case ModifierTreeType::PlayerInChromieTimeForScaling: // 304
             return false;
         case ModifierTreeType::IsRaFRecruit: // 305
             if (!referencePlayer->GetSession()->GetRecruiterId())
@@ -3156,7 +3150,7 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             });
             if (choiceItr == formModelData->Choices->end())
                 return false;
-            if (int32(reqValue) != formModelData->Displays[std::distance(formModelData->Choices->begin(), choiceItr)]->CreatureDisplayInfoID)
+            if (int32(reqValue) != formModelData->Displays[std::distance(formModelData->Choices->begin(), choiceItr)]->DisplayID)
                 return false;
             break;
         }
@@ -3177,8 +3171,10 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                 return false;
             break;
         }
-        case ModifierTreeType::PlayerHasWeeklyRewardsAvailable: // 313 NYI
-        case ModifierTreeType::TargetCovenant: // 314 NYI
+        case ModifierTreeType::PlayerHasWeeklyRewardsAvailable: // 313
+            return false;
+        case ModifierTreeType::TargetCovenant: // 314
+            return false;
         case ModifierTreeType::PlayerHasTBCCollectorsEdition: // 315
         case ModifierTreeType::PlayerHasWrathCollectorsEdition: // 316
             return false;
@@ -3204,19 +3200,19 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
             PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(reqValue);
             if (!pvpTier)
                 return false;
-            UF::PVPInfo const* pvpInfo = referencePlayer->GetPvpInfoForBracket(pvpTier->BracketID);
-            if (!pvpInfo)
+            if (std::size_t(pvpTier->BracketID) >= referencePlayer->m_activePlayerData->PvpInfo.size())
                 return false;
-            if (pvpTier->ID != pvpInfo->WeeklyBestWinPvpTierID)
+            UF::PVPInfo const& pvpInfo = referencePlayer->m_activePlayerData->PvpInfo[pvpTier->BracketID];
+            if (pvpTier->ID != pvpInfo.WeeklyBestWinPvpTierID || *pvpInfo.Disqualified)
                 return false;
             break;
         }
         case ModifierTreeType::PlayerBestWeeklyWinPvpTierInBracketEqualOrGreaterThan: // 325
         {
-            UF::PVPInfo const* pvpInfo = referencePlayer->GetPvpInfoForBracket(secondaryAsset);
-            if (!pvpInfo)
+            if (secondaryAsset >= referencePlayer->m_activePlayerData->PvpInfo.size())
                 return false;
-            PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(pvpInfo->WeeklyBestWinPvpTierID);
+            UF::PVPInfo const& pvpInfo = referencePlayer->m_activePlayerData->PvpInfo[secondaryAsset];
+            PvpTierEntry const* pvpTier = sPvpTierStore.LookupEntry(pvpInfo.WeeklyBestWinPvpTierID);
             if (!pvpTier)
                 return false;
             if (pvpTier->Rank < int32(reqValue))
@@ -3238,147 +3234,6 @@ bool CriteriaHandler::ModifierSatisfied(ModifierTreeEntry const* modifier, uint6
                 return ItemSearchCallbackResult::Stop;
             });
             if (bagScanReachedEnd)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerAuraWithLabelStackCountEqualOrGreaterThan: // 335
-        {
-            uint32 count = 0;
-            referencePlayer->HasAura([secondaryAsset, &count](Aura const* aura)
-            {
-                if (aura->GetSpellInfo()->HasLabel(secondaryAsset))
-                    count += aura->GetStackAmount();
-                return false;
-            });
-            if (count < reqValue)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerAuraWithLabelStackCountEqual: // 336
-        {
-            uint32 count = 0;
-            referencePlayer->HasAura([secondaryAsset, &count](Aura const* aura)
-            {
-                if (aura->GetSpellInfo()->HasLabel(secondaryAsset))
-                    count += aura->GetStackAmount();
-                return false;
-            });
-            if (count != reqValue)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerAuraWithLabelStackCountEqualOrLessThan: // 337
-        {
-            uint32 count = 0;
-            referencePlayer->HasAura([secondaryAsset, &count](Aura const* aura)
-            {
-                if (aura->GetSpellInfo()->HasLabel(secondaryAsset))
-                    count += aura->GetStackAmount();
-                return false;
-            });
-            if (count > reqValue)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerIsInCrossFactionGroup: // 338
-        {
-            Group const* group = referencePlayer->GetGroup();
-            if (!(group->GetGroupFlags() & GROUP_FLAG_CROSS_FACTION))
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerHasTraitNodeEntryInActiveConfig: // 340
-        case ModifierTreeType::PlayerHasTraitNodeEntryInActiveConfigRankGreaterOrEqualThan: // 341
-            return false;
-        case ModifierTreeType::PlayerDaysSinceLogout: // 344
-            if (GameTime::GetGameTime() - referencePlayer->m_playerData->LogoutTime < int64(reqValue) * DAY)
-                return false;
-            break;
-        case ModifierTreeType::PlayerHasPerksProgramPendingReward: // 350 NYI
-            return false;
-        case ModifierTreeType::PlayerCanUseItem: // 351
-        {
-            ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(reqValue);
-            if (!itemTemplate || !referencePlayer->CanUseItem(itemTemplate))
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerSummonedBattlePetSpecies: // 352
-            if (referencePlayer->m_playerData->CurrentBattlePetSpeciesID != int32(reqValue))
-                return false;
-            break;
-        case ModifierTreeType::PlayerSummonedBattlePetIsMaxLevel: // 353
-            if (referencePlayer->m_unitData->WildBattlePetLevel != BattlePets::MAX_BATTLE_PET_LEVEL)
-                return false;
-            break;
-        case ModifierTreeType::PlayerHasAtLeastProfPathRanks: // 355
-            return false;
-        case ModifierTreeType::PlayerHasItemTransmogrifiedToItemModifiedAppearance: // 358
-        {
-            ItemModifiedAppearanceEntry const* itemModifiedAppearance = sItemModifiedAppearanceStore.LookupEntry(reqValue);
-
-            bool bagScanReachedEnd = referencePlayer->ForEachItem(ItemSearchLocation::Inventory, [referencePlayer, itemModifiedAppearance](Item const* item)
-            {
-                if (item->GetVisibleAppearanceModId(referencePlayer) == itemModifiedAppearance->ID)
-                    return ItemSearchCallbackResult::Stop;
-
-                if (item->GetEntry() == itemModifiedAppearance->ItemID)
-                    return ItemSearchCallbackResult::Stop;
-
-                return ItemSearchCallbackResult::Continue;
-            });
-            if (bagScanReachedEnd)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerHasCompletedDungeonEncounterInDifficulty: // 366
-            if (!referencePlayer->IsLockedToDungeonEncounter(reqValue, Difficulty(secondaryAsset)))
-                return false;
-            break;
-        case ModifierTreeType::PlayerIsBetweenQuests: // 369
-        {
-            QuestStatus status = referencePlayer->GetQuestStatus(reqValue);
-            if (status == QUEST_STATUS_NONE || status == QUEST_STATUS_FAILED)
-                return false;
-            if (referencePlayer->IsQuestRewarded(secondaryAsset))
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerScenarioStepID: // 371
-        {
-            Scenario const* scenario = referencePlayer->GetScenario();
-            if (!scenario)
-                return false;
-            if (scenario->GetStep()->ID != reqValue)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerZPositionBelow: // 374
-            if (referencePlayer->GetPositionZ() >= reqValue)
-                return false;
-            break;
-        case ModifierTreeType::PlayerIsOnMapWithExpansion: // 380
-        {
-            MapEntry const* mapEntry = referencePlayer->GetMap()->GetEntry();
-            if (mapEntry->ExpansionID != reqValue)
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerHasActiveTraitSubTree: // 385
-            return false;
-        case ModifierTreeType::TargetCreatureClassificationEqual: // 389
-        {
-            Creature const* targetCreature = Object::ToCreature(ref);
-            if (!targetCreature)
-                return false;
-            if (targetCreature->GetCreatureClassification() != CreatureClassifications(reqValue))
-                return false;
-            break;
-        }
-        case ModifierTreeType::PlayerHasCompletedQuestOrIsReadyToTurnIn: // 392
-        {
-            QuestStatus status = referencePlayer->GetQuestStatus(reqValue);
-            if (status != QUEST_STATUS_COMPLETE && status != QUEST_STATUS_REWARDED)
                 return false;
             break;
         }
@@ -3855,32 +3710,6 @@ char const* CriteriaMgr::GetCriteriaTypeString(CriteriaType type)
             return "MythicPlusRatingAttained";
         case CriteriaType::SpentTalentPoint:
             return "SpentTalentPoint";
-        case CriteriaType::MythicPlusDisplaySeasonEnded:
-            return "MythicPlusDisplaySeasonEnded";
-        case CriteriaType::WinRatedSoloShuffleRound:
-            return "WinRatedSoloShuffleRound";
-        case CriteriaType::ParticipateInRatedSoloShuffleRound:
-            return "ParticipateInRatedSoloShuffleRound";
-        case CriteriaType::ReputationAmountGained:
-            return "ReputationAmountGained";
-        case CriteriaType::FulfillAnyCraftingOrder:
-            return "FulfillAnyCraftingOrder";
-        case CriteriaType::FulfillCraftingOrderType:
-            return "FulfillCraftingOrderType";
-        case CriteriaType::PerksProgramMonthComplete:
-            return "PerksProgramMonthComplete";
-        case CriteriaType::CompleteTrackingQuest:
-            return "CompleteTrackingQuest";
-        case CriteriaType::GainLevels:
-            return "GainLevels";
-        case CriteriaType::CompleteQuestsCountOnAccount:
-            return "CompleteQuestsCountOnAccount";
-        case CriteriaType::WarbandBankTabPurchased:
-            return "WarbandBankTabPurchased";
-        case CriteriaType::ReachRenownLevel:
-            return "ReachRenownLevel";
-        case CriteriaType::LearnTaxiNode:
-            return "LearnTaxiNode";
         default:
             return "MissingType";
     }
@@ -3926,13 +3755,9 @@ inline bool IsCriteriaTypeStoredByAsset(CriteriaType type)
         case CriteriaType::GainAura:
         case CriteriaType::CatchFishInFishingHole:
         case CriteriaType::LearnSpellFromSkillLine:
-        case CriteriaType::DefeatDungeonEncounterWhileElegibleForLoot:
         case CriteriaType::GetLootByType:
         case CriteriaType::LandTargetedSpellOnTarget:
         case CriteriaType::LearnTradeskillSkillLine:
-        case CriteriaType::DefeatDungeonEncounter:
-        case CriteriaType::LearnToy:
-        case CriteriaType::LearnAnyTransmog:
             return true;
         default:
             break;
@@ -3961,26 +3786,6 @@ CriteriaList const& CriteriaMgr::GetScenarioCriteriaByTypeAndScenario(CriteriaTy
         return *criteriaList;
 
     return EmptyCriteriaList;
-}
-
-std::unordered_map<int32, CriteriaList> const& CriteriaMgr::GetCriteriaByStartEvent(CriteriaStartEvent startEvent) const
-{
-    return _criteriasByStartEvent[size_t(startEvent)];
-}
-
-CriteriaList const* CriteriaMgr::GetCriteriaByStartEvent(CriteriaStartEvent startEvent, int32 asset) const
-{
-    return Trinity::Containers::MapGetValuePtr(_criteriasByStartEvent[size_t(startEvent)], asset);
-}
-
-std::unordered_map<int32, CriteriaList> const& CriteriaMgr::GetCriteriaByFailEvent(CriteriaFailEvent failEvent) const
-{
-    return _criteriasByFailEvent[size_t(failEvent)];
-}
-
-CriteriaList const* CriteriaMgr::GetCriteriaByFailEvent(CriteriaFailEvent failEvent, int32 asset) const
-{
-    return Trinity::Containers::MapGetValuePtr(_criteriasByFailEvent[size_t(failEvent)], asset);
 }
 
 CriteriaMgr::CriteriaMgr() = default;
@@ -4062,13 +3867,13 @@ void CriteriaMgr::LoadCriteriaList()
 
     std::unordered_map<uint32 /*criteriaTreeID*/, ScenarioStepEntry const*> scenarioCriteriaTreeIds;
     for (ScenarioStepEntry const* scenarioStep : sScenarioStepStore)
-        if (scenarioStep->CriteriatreeID)
-            scenarioCriteriaTreeIds[scenarioStep->CriteriatreeID] = scenarioStep;
+        if (scenarioStep->Criteriatreeid)
+            scenarioCriteriaTreeIds[scenarioStep->Criteriatreeid] = scenarioStep;
 
     std::unordered_map<uint32 /*criteriaTreeID*/, QuestObjective const*> questObjectiveCriteriaTreeIds;
-    for (auto const& [questId, quest] : sObjectMgr->GetQuestTemplates())
+    for (auto const& questTemplatePair : sObjectMgr->GetQuestTemplates())
     {
-        for (QuestObjective const& objective : quest->Objectives)
+        for (QuestObjective const& objective : questTemplatePair.second.Objectives)
         {
             if (objective.Type != QUEST_OBJECTIVE_CRITERIA_TREE)
                 continue;
@@ -4115,11 +3920,11 @@ void CriteriaMgr::LoadCriteriaList()
     uint32 questObjectiveCriterias = 0;
     for (CriteriaEntry const* criteriaEntry : sCriteriaStore)
     {
-        ASSERT(criteriaEntry->Type < AsUnderlyingType(CriteriaType::Count), "CriteriaType::Count must be greater than or equal to %u but is currently equal to %u",
+        ASSERT(criteriaEntry->Type < uint8(CriteriaType::Count), "CRITERIA_TYPE_TOTAL must be greater than or equal to %u but is currently equal to %u",
             criteriaEntry->Type + 1, uint32(CriteriaType::Count));
-        ASSERT(criteriaEntry->StartEvent < AsUnderlyingType(CriteriaStartEvent::Count), "CriteriaStartEvent::Count must be greater than or equal to %u but is currently equal to %u",
+        ASSERT(criteriaEntry->StartEvent < uint8(CriteriaStartEvent::Count), "CriteriaStartEvent::Count must be greater than or equal to %u but is currently equal to %u",
             criteriaEntry->StartEvent + 1, uint32(CriteriaStartEvent::Count));
-        ASSERT(criteriaEntry->FailEvent < AsUnderlyingType(CriteriaFailEvent::Count), "CriteriaFailEvent::Count must be greater than or equal to %u but is currently equal to %u",
+        ASSERT(criteriaEntry->FailEvent < uint8(CriteriaFailEvent::Count), "CriteriaFailEvent::Count must be greater than or equal to %u but is currently equal to %u",
             criteriaEntry->FailEvent + 1, uint32(CriteriaFailEvent::Count));
 
         auto treeItr = _criteriaTreeByCriteria.find(criteriaEntry->ID);
@@ -4206,8 +4011,8 @@ void CriteriaMgr::LoadCriteriaList()
             _questObjectiveCriteriasByType[criteriaEntry->Type].push_back(criteria);
         }
 
-        if (criteriaEntry->StartEvent)
-            _criteriasByStartEvent[criteriaEntry->StartEvent][criteriaEntry->StartAsset].push_back(criteria);
+        if (criteriaEntry->StartTimer)
+            _criteriasByTimedType[criteriaEntry->StartEvent].push_back(criteria);
 
         if (criteriaEntry->FailEvent)
             _criteriasByFailEvent[criteriaEntry->FailEvent][criteriaEntry->FailAsset].push_back(criteria);
@@ -4302,66 +4107,4 @@ ModifierTreeNode const* CriteriaMgr::GetModifierTree(uint32 modifierTreeId) cons
         return itr->second;
 
     return nullptr;
-}
-
-std::span<CriteriaType const> CriteriaMgr::GetRetroactivelyUpdateableCriteriaTypes()
-{
-    static constexpr CriteriaType Types[] =
-    {
-        CriteriaType::CompleteResearchProject,
-        CriteriaType::CompleteAnyResearchProject,
-        CriteriaType::ReachLevel,
-        CriteriaType::SkillRaised,
-        CriteriaType::CompleteQuestsCount,
-        CriteriaType::CompleteAnyDailyQuestPerDay,
-        CriteriaType::CompleteQuestsInZone,
-        CriteriaType::CompleteQuest,
-        CriteriaType::LearnOrKnowSpell,
-        CriteriaType::AcquireItem,
-        CriteriaType::EarnPersonalArenaRating,
-        CriteriaType::AchieveSkillStep,
-        CriteriaType::RevealWorldMapOverlay,
-        //CriteriaType::EarnTitle,  /*NYI*/
-        CriteriaType::BankSlotsPurchased,
-        CriteriaType::ReputationGained,
-        CriteriaType::TotalExaltedFactions,
-        //CriteriaType::CompleteQuestsInSort,  /*NYI*/
-        CriteriaType::LearnSpellFromSkillLine,
-        CriteriaType::MostMoneyOwned,
-        CriteriaType::TotalReveredFactions,
-        CriteriaType::TotalHonoredFactions,
-        CriteriaType::TotalFactionsEncountered,
-        //CriteriaType::AccountKnownPet,  /*NYI*/
-        CriteriaType::LearnTradeskillSkillLine,
-        CriteriaType::HonorableKills,
-        //CriteriaType::GuildBankTabsPurchased, /*NYI*/
-        //CriteriaType::EarnGuildAchievementPoints, /*NYI*/
-        //CriteriaType::EarnBattlegroundRating, /*NYI*/
-        //CriteriaType::GuildTabardCreated, /*NYI*/
-        CriteriaType::LearnedNewPet,
-        CriteriaType::UniquePetsOwned,
-        //CriteriaType::UpgradeGarrison, /*NYI*/
-        //CriteriaType::AcquireGarrison, /*NYI*/
-        //CriteriaType::LearnGarrisonBlueprint, /*NYI*/
-        //CriteriaType::LearnGarrisonSpecialization, /*NYI*/
-        //CriteriaType::LearnToy, /*NYI*/ // Learn Toy "{Item}"
-        //CriteriaType::LearnAnyToy, /*NYI*/ // Learn Any Toy
-        //CriteriaType::LearnTransmog, /*NYI*/
-        CriteriaType::HonorLevelIncrease,
-        //CriteriaType::AccountHonorLevelReached, /*NYI*/
-        CriteriaType::ReachMaxLevel,
-        //CriteriaType::MemorizeSpell, /*NYI*/
-        //CriteriaType::LearnTransmogIllusion, /*NYI*/
-        //CriteriaType::MythicPlusRatingAttained, /*NYI*/
-        //CriteriaType::MythicPlusDisplaySeasonEnded, /*NYI*/
-        //CriteriaType::CompleteTrackingQuest, /*NYI*/
-        //CriteriaType::WarbandBankTabPurchased, /*NYI*/
-        CriteriaType::LearnTaxiNode,
-
-        CriteriaType::EarnAchievementPoints,
-        CriteriaType::BattlePetAchievementPointsEarned,
-        CriteriaType::EarnAchievement // criteria possibly completed by retroactive scan, must be last
-    };
-
-    return Types;
 }

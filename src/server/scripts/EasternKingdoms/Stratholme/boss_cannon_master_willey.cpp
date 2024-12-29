@@ -90,9 +90,9 @@ public:
         return GetStratholmeAI<boss_cannon_master_willeyAI>(creature);
     }
 
-    struct boss_cannon_master_willeyAI : public BossAI
+    struct boss_cannon_master_willeyAI : public ScriptedAI
     {
-        boss_cannon_master_willeyAI(Creature* creature) : BossAI(creature, BOSS_WILLEY_HOPEBREAKER)
+        boss_cannon_master_willeyAI(Creature* creature) : ScriptedAI(creature)
         {
             Initialize();
         }
@@ -112,15 +112,11 @@ public:
 
         void Reset() override
         {
-            BossAI::Reset();
-
             Initialize();
         }
 
-        void JustDied(Unit* killer) override
+        void JustDied(Unit* /*killer*/) override
         {
-            BossAI::JustDied(killer);
-
             me->SummonCreature(11054, ADD_1X, ADD_1Y, ADD_1Z, ADD_1O, TEMPSUMMON_TIMED_DESPAWN, 4min);
             me->SummonCreature(11054, ADD_2X, ADD_2Y, ADD_2Z, ADD_2O, TEMPSUMMON_TIMED_DESPAWN, 4min);
             me->SummonCreature(11054, ADD_3X, ADD_3Y, ADD_3Z, ADD_3O, TEMPSUMMON_TIMED_DESPAWN, 4min);
@@ -128,6 +124,10 @@ public:
             me->SummonCreature(11054, ADD_5X, ADD_5Y, ADD_5Z, ADD_5O, TEMPSUMMON_TIMED_DESPAWN, 4min);
             me->SummonCreature(11054, ADD_7X, ADD_7Y, ADD_7Z, ADD_7O, TEMPSUMMON_TIMED_DESPAWN, 4min);
             me->SummonCreature(11054, ADD_9X, ADD_9Y, ADD_9Z, ADD_9O, TEMPSUMMON_TIMED_DESPAWN, 4min);
+        }
+
+        void JustEngagedWith(Unit* /*who*/) override
+        {
         }
 
         void UpdateAI(uint32 diff) override
@@ -224,6 +224,8 @@ public:
                 //30 seconds until we should cast this again
                 SummonRifleman_Timer = 30000;
             } else SummonRifleman_Timer -= diff;
+
+            DoMeleeAttackIfReady();
         }
     };
 

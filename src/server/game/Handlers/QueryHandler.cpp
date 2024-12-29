@@ -23,13 +23,12 @@
 #include "GameTime.h"
 #include "Item.h"
 #include "Log.h"
-#include "Map.h"
 #include "NPCHandler.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "QueryPackets.h"
-#include "RealmList.h"
+#include "Realm.h"
 #include "TerrainMgr.h"
 #include "World.h"
 
@@ -44,6 +43,20 @@ void WorldSession::BuildNameQueryData(ObjectGuid guid, WorldPackets::Query::Name
         lookupData.Result = RESPONSE_SUCCESS; // name known
     else
         lookupData.Result = RESPONSE_FAILURE; // name unknown
+}
+
+void WorldSession::HandleQueryPlayerName(WorldPackets::Query::QueryPlayerName& queryPlayerName) {
+    Player* player = ObjectAccessor::FindConnectedPlayer(queryPlayerName.Player);
+
+    WorldPackets::Query::QueryPlayerNameResponse response;
+    response.Player = queryPlayerName.Player;
+
+    if (response.Data.Initialize(queryPlayerName.Player, player))
+        response.Result = RESPONSE_SUCCESS; // name known
+    else
+        response.Result = RESPONSE_FAILURE; // name unknown
+
+    SendPacket(response.Write());
 }
 
 void WorldSession::HandleQueryPlayerNames(WorldPackets::Query::QueryPlayerNames& queryPlayerNames)
@@ -73,15 +86,11 @@ void WorldSession::HandleCreatureQuery(WorldPackets::Query::QueryCreature& packe
     if (CreatureTemplate const* ci = sObjectMgr->GetCreatureTemplate(packet.CreatureID))
     {
         TC_LOG_DEBUG("network", "WORLD: CMSG_QUERY_CREATURE '{}' - Entry: {}.", ci->Name, packet.CreatureID);
-
-        Difficulty difficulty = _player->GetMap()->GetDifficultyID();
-
-        // Cache only exists for difficulty base
-        if (sWorld->getBoolConfig(CONFIG_CACHE_DATA_QUERIES) && difficulty == DIFFICULTY_NONE)
+        if (sWorld->getBoolConfig(CONFIG_CACHE_DATA_QUERIES))
             SendPacket(&ci->QueryData[static_cast<uint32>(GetSessionDbLocaleIndex())]);
         else
         {
-            WorldPacket response = ci->BuildQueryData(GetSessionDbLocaleIndex(), difficulty);
+            WorldPacket response = ci->BuildQueryData(GetSessionDbLocaleIndex());
             SendPacket(&response);
         }
         TC_LOG_DEBUG("network", "WORLD: Sent SMSG_QUERY_CREATURE_RESPONSE");
@@ -154,9 +163,9 @@ void WorldSession::HandleQueryCorpseLocation(WorldPackets::Query::QueryCorpseLoc
                 if (std::shared_ptr<TerrainInfo> entranceTerrain = sTerrainMgr.LoadTerrain(corpseMapEntry->CorpseMapID))
                 {
                     mapID = corpseMapEntry->CorpseMapID;
-                    //x = corpseMapEntry->Corpse.X;
-                    //y = corpseMapEntry->Corpse.Y;
-                    z = entranceTerrain->GetStaticHeight(player->GetPhaseShift(), mapID, x, y, MAX_HEIGHT);
+                    x = sObjectMgr->GetMapCorpsePosition(corpseMapEntry->ID).X;
+                    y = sObjectMgr->GetMapCorpsePosition(corpseMapEntry->ID).Y;
+                    z = entranceTerrain->GetStaticHeight(player->GetPhaseShift(), x, y, MAX_HEIGHT);
                 }
             }
         }
@@ -321,16 +330,13 @@ void WorldSession::HandleQueryRealmName(WorldPackets::Query::QueryRealmName& que
     WorldPackets::Query::RealmQueryResponse realmQueryResponse;
     realmQueryResponse.VirtualRealmAddress = queryRealmName.VirtualRealmAddress;
 
-    if (std::shared_ptr<Realm const> realm = sRealmList->GetRealm(queryRealmName.VirtualRealmAddress))
+    Battlenet::RealmHandle realmHandle(queryRealmName.VirtualRealmAddress);
+    if (sObjectMgr->GetRealmName(realmHandle.Realm, realmQueryResponse.NameInfo.RealmNameActual, realmQueryResponse.NameInfo.RealmNameNormalized))
     {
         realmQueryResponse.LookupState = RESPONSE_SUCCESS;
         realmQueryResponse.NameInfo.IsInternalRealm = false;
-        realmQueryResponse.NameInfo.IsLocal = queryRealmName.VirtualRealmAddress == GetVirtualRealmAddress();
-        realmQueryResponse.NameInfo.RealmNameActual = realm->Name;
-        realmQueryResponse.NameInfo.RealmNameNormalized = realm->NormalizedName;
+        realmQueryResponse.NameInfo.IsLocal = queryRealmName.VirtualRealmAddress == realm.Id.GetAddress();
     }
     else
         realmQueryResponse.LookupState = RESPONSE_FAILURE;
-
-    SendPacket(realmQueryResponse.Write());
 }

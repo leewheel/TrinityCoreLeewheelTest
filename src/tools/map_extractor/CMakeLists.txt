@@ -12,6 +12,8 @@ CollectSourceFiles(
   ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE_SOURCES)
 
+list(APPEND PRIVATE_SOURCES ${sources_windows})
+
 add_executable(mapextractor
   ${PRIVATE_SOURCES}
 )
@@ -38,9 +40,9 @@ target_include_directories(mapextractor
     ${CMAKE_CURRENT_BINARY_DIR})
 
 set_target_properties(mapextractor
-  PROPERTIES
-    COMPILE_WARNING_AS_ERROR ${WITH_WARNINGS_AS_ERRORS}
-    FOLDER "tools")
+    PROPERTIES
+      FOLDER
+        "tools")
 
 if(UNIX)
   install(TARGETS mapextractor DESTINATION bin)
