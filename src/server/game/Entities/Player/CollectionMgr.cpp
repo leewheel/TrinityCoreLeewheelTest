@@ -85,7 +85,7 @@ namespace
     }
 }
 
-CollectionMgr::CollectionMgr(WorldSession* owner) : _owner(owner), _appearances(std::make_unique<boost::dynamic_bitset<uint32>>())
+CollectionMgr::CollectionMgr(WorldSession* owner) : _owner(owner), _appearances(std::make_unique<boost::dynamic_bitset<uint32>>()), _transmogIllusions(std::make_unique<boost::dynamic_bitset<uint32>>())
 {
 }
 
@@ -237,7 +237,11 @@ void CollectionMgr::LoadHeirlooms()
 void CollectionMgr::AddHeirloom(uint32 itemId, uint32 flags)
 {
     if (UpdateAccountHeirlooms(itemId, flags))
+    {
+        _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnHeirloom, itemId);
+        _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnAnyHeirloom, 1);
         _owner->GetPlayer()->AddHeirloom(itemId, flags);
+    }
 }
 
 void CollectionMgr::UpgradeHeirloom(uint32 itemId, int32 castItem)
@@ -322,9 +326,9 @@ void CollectionMgr::CheckHeirloomUpgrades(Item* item)
             return;
         }
 
-        auto const& bonusListIDs = item->m_itemData->BonusListIDs;
+        std::vector<int32> const& bonusListIDs = item->GetBonusListIDs();
 
-        for (uint32 bonusId : *bonusListIDs)
+        for (uint32 bonusId : bonusListIDs)
         {
             if (bonusId != itr->second.bonusId)
             {
@@ -333,7 +337,7 @@ void CollectionMgr::CheckHeirloomUpgrades(Item* item)
             }
         }
 
-        if (std::find(bonusListIDs->begin(), bonusListIDs->end(), int32(itr->second.bonusId)) == bonusListIDs->end())
+        if (std::find(bonusListIDs.begin(), bonusListIDs.end(), int32(itr->second.bonusId)) == bonusListIDs.end())
             item->AddBonuses(itr->second.bonusId);
     }
 }
@@ -391,12 +395,8 @@ bool CollectionMgr::AddMount(uint32 spellId, MountStatusFlags flags, bool factio
     _mounts.insert(MountContainer::value_type(spellId, flags));
 
     // Mount condition only applies to using it, should still learn it.
-    if (mount->PlayerConditionID)
-    {
-        PlayerConditionEntry const* playerCondition = sPlayerConditionStore.LookupEntry(mount->PlayerConditionID);
-        if (playerCondition && !ConditionMgr::IsPlayerMeetingCondition(player, playerCondition))
-            return false;
-    }
+    if (!ConditionMgr::IsPlayerMeetingCondition(player, mount->PlayerConditionID))
+        return false;
 
     if (!learned)
     {
@@ -501,6 +501,31 @@ void CollectionMgr::LoadAccountItemAppearances(PreparedQueryResult knownAppearan
             _favoriteAppearances[favoriteAppearances->Fetch()[0].GetUInt32()] = FavoriteAppearanceState::Unchanged;
         } while (favoriteAppearances->NextRow());
     }
+
+    // Static item appearances known by every player
+    static uint32 constexpr hiddenAppearanceItems[] =
+    {
+        134110, // Hidden Helm
+        134111, // Hidden Cloak
+        134112, // Hidden Shoulder
+        168659, // Hidden Chestpiece
+        142503, // Hidden Shirt
+        142504, // Hidden Tabard
+        168665, // Hidden Bracers
+        158329, // Hidden Gloves
+        143539, // Hidden Belt
+        168664  // Hidden Boots
+    };
+
+    for (uint32 hiddenItem : hiddenAppearanceItems)
+    {
+        ItemModifiedAppearanceEntry const* hiddenAppearance = sDB2Manager.GetItemModifiedAppearance(hiddenItem, 0);
+        ASSERT(hiddenAppearance);
+        if (_appearances->size() <= hiddenAppearance->ID)
+            _appearances->resize(hiddenAppearance->ID + 1);
+
+        _appearances->set(hiddenAppearance->ID);
+    }
 }
 
 void CollectionMgr::SaveAccountItemAppearances(LoginDatabaseTransaction trans)
@@ -551,7 +576,7 @@ uint32 const PlayerClassByArmorSubclass[MAX_ITEM_SUBCLASS_ARMOR] =
 {
     CLASSMASK_ALL_PLAYABLE,                                                                                                 //ITEM_SUBCLASS_ARMOR_MISCELLANEOUS
     (1 << (CLASS_PRIEST - 1)) | (1 << (CLASS_MAGE - 1)) | (1 << (CLASS_WARLOCK - 1)),                                       //ITEM_SUBCLASS_ARMOR_CLOTH
-    (1 << (CLASS_ROGUE - 1)) | (1 << (CLASS_DRUID - 1)),                                                                    //ITEM_SUBCLASS_ARMOR_LEATHER
+    (1 << (CLASS_ROGUE - 1)) | (1 << (CLASS_MONK - 1)) | (1 << (CLASS_DRUID - 1)) | (1 << (CLASS_DEMON_HUNTER - 1)),        //ITEM_SUBCLASS_ARMOR_LEATHER
     (1 << (CLASS_HUNTER - 1)) | (1 << (CLASS_SHAMAN - 1)),                                                                  //ITEM_SUBCLASS_ARMOR_MAIL
     (1 << (CLASS_WARRIOR - 1)) | (1 << (CLASS_PALADIN - 1)) | (1 << (CLASS_DEATH_KNIGHT - 1)),                              //ITEM_SUBCLASS_ARMOR_PLATE
     CLASSMASK_ALL_PLAYABLE,                                                                                                 //ITEM_SUBCLASS_ARMOR_BUCKLER
@@ -628,8 +653,7 @@ bool CollectionMgr::IsSetCompleted(uint32 transmogSetId) const
         if (transmogSlot < 0 || knownPieces[transmogSlot] == 1)
             continue;
 
-        bool hasAppearance, isTemporary;
-        std::tie(hasAppearance, isTemporary) = HasItemAppearance(transmogSetItem->ItemModifiedAppearanceID);
+        auto [hasAppearance, isTemporary] = HasItemAppearance(transmogSetItem->ItemModifiedAppearanceID);
 
         knownPieces[transmogSlot] = (hasAppearance && !isTemporary) ? 1 : 0;
     }
@@ -643,6 +667,9 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
         return false;
 
     if (itemModifiedAppearance->TransmogSourceTypeEnum == 6 || itemModifiedAppearance->TransmogSourceTypeEnum == 9)
+        return false;
+
+    if (!sItemSearchNameStore.LookupEntry(itemModifiedAppearance->ItemID))
         return false;
 
     ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(itemModifiedAppearance->ItemID);
@@ -707,10 +734,6 @@ bool CollectionMgr::CanAddAppearance(ItemModifiedAppearanceEntry const* itemModi
             return false;
     }
 
-    if (itemTemplate->GetQuality() < ITEM_QUALITY_UNCOMMON)
-        if (!itemTemplate->HasFlag(ITEM_FLAG2_IGNORE_QUALITY_FOR_ITEM_VISUAL_SOURCE) || !itemTemplate->HasFlag(ITEM_FLAG3_ACTS_AS_TRANSMOG_HIDDEN_VISUAL_OPTION))
-            return false;
-
     if (itemModifiedAppearance->ID < _appearances->size() && _appearances->test(itemModifiedAppearance->ID))
         return false;
 
@@ -739,6 +762,8 @@ void CollectionMgr::AddItemAppearance(ItemModifiedAppearanceEntry const* itemMod
         owner->RemoveConditionalTransmog(itemModifiedAppearance->ID);
         _temporaryAppearances.erase(temporaryAppearance);
     }
+
+    _owner->GetPlayer()->UpdateCriteria(CriteriaType::LearnAnyTransmog, 1);
 
     if (ItemEntry const* item = sItemStore.LookupEntry(itemModifiedAppearance->ItemID))
     {
@@ -853,4 +878,77 @@ void CollectionMgr::SendFavoriteAppearances() const
             accountTransmogUpdate.FavoriteAppearances.push_back(itr->first);
 
     _owner->SendPacket(accountTransmogUpdate.Write());
+}
+
+// @TODO: Remove
+void CollectionMgr::LoadTransmogIllusions()
+{
+}
+
+void CollectionMgr::LoadAccountTransmogIllusions(PreparedQueryResult knownTransmogIllusions)
+{
+    if (knownTransmogIllusions)
+    {
+        std::vector<uint32> blocks;
+        do
+        {
+            Field* fields = knownTransmogIllusions->Fetch();
+            uint16 blobIndex = fields[0].GetUInt16();
+            if (blobIndex >= blocks.size())
+                blocks.resize(blobIndex + 1);
+
+            blocks[blobIndex] = fields[1].GetUInt32();
+
+        } while (knownTransmogIllusions->NextRow());
+
+        _transmogIllusions->init_from_block_range(blocks.begin(), blocks.end());
+    }
+
+    // Static illusions known by every player
+    static uint16 constexpr defaultIllusions[] =
+    {
+        3, // Lifestealing
+        13, // Crusader
+        22, // Striking
+        23, // Agility
+        34, // Hide Weapon Enchant
+        43, // Beastslayer
+        44, // Titanguard
+    };
+
+    for (uint16 illusionId : defaultIllusions)
+    {
+        if (_transmogIllusions->size() <= illusionId)
+            _transmogIllusions->resize(illusionId + 1);
+
+        _transmogIllusions->set(illusionId);
+    }
+}
+
+void CollectionMgr::SaveAccountTransmogIllusions(LoginDatabaseTransaction trans)
+{
+    uint16 blockIndex = 0;
+
+    boost::to_block_range(*_transmogIllusions, DynamicBitsetBlockOutputIterator([this, &blockIndex, trans](uint32 blockValue)
+    {
+        if (blockValue) // this table is only appended/bits are set (never cleared) so don't save empty blocks
+        {
+            LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_INS_BNET_TRANSMOG_ILLUSIONS);
+            stmt->setUInt32(0, _owner->GetBattlenetAccountId());
+            stmt->setUInt16(1, blockIndex);
+            stmt->setUInt32(2, blockValue);
+            trans->Append(stmt);
+        }
+        ++blockIndex;
+    }));
+}
+
+// @TODO: Remove
+void CollectionMgr::AddTransmogIllusion(uint32 /*transmogIllusionId*/)
+{
+}
+
+bool CollectionMgr::HasTransmogIllusion(uint32 transmogIllusionId) const
+{
+    return transmogIllusionId < _transmogIllusions->size() && _transmogIllusions->test(transmogIllusionId);
 }

@@ -34,13 +34,13 @@
 
 DoorData const doorData[] =
 {
-    { GO_FIRE_BARRIER,     DATA_FELMYST,  DOOR_TYPE_PASSAGE },
-    { GO_MURUS_GATE_1,     DATA_MURU,     DOOR_TYPE_ROOM },
-    { GO_MURUS_GATE_2,     DATA_MURU,     DOOR_TYPE_PASSAGE },
-    { GO_BOSS_COLLISION_1, DATA_KALECGOS, DOOR_TYPE_ROOM },
-    { GO_BOSS_COLLISION_2, DATA_KALECGOS, DOOR_TYPE_ROOM },
-    { GO_FORCE_FIELD,      DATA_KALECGOS, DOOR_TYPE_ROOM },
-    { 0,                   0,             DOOR_TYPE_ROOM } // END
+    { GO_FIRE_BARRIER,     DATA_FELMYST,  EncounterDoorBehavior::OpenWhenDone },
+    { GO_MURUS_GATE_1,     DATA_MURU,     EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_MURUS_GATE_2,     DATA_MURU,     EncounterDoorBehavior::OpenWhenDone },
+    { GO_BOSS_COLLISION_1, DATA_KALECGOS, EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_BOSS_COLLISION_2, DATA_KALECGOS, EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_FORCE_FIELD,      DATA_KALECGOS, EncounterDoorBehavior::OpenWhenNotInProgress },
+    { 0,                   0,             EncounterDoorBehavior::OpenWhenNotInProgress } // END
 };
 
 ObjectData const creatureData[] =
@@ -66,6 +66,16 @@ BossBoundaryData const boundaries =
     { DATA_KALECGOS, new BoundaryUnionBoundary(new CircleBoundary(Position(1704.9f, 928.4f), 34.0), new RectangleBoundary(1689.2f, 1713.3f, 762.2f, 1074.8f)) }
 };
 
+DungeonEncounterData const encounters[] =
+{
+    { DATA_KALECGOS, {{ 724 }} },
+    { DATA_BRUTALLUS, {{ 725 }} },
+    { DATA_FELMYST, {{ 726 }} },
+    { DATA_EREDAR_TWINS, {{ 727 }} },
+    { DATA_MURU, {{ 728 }} },
+    { DATA_KILJAEDEN, {{ 729 }} }
+};
+
 class instance_sunwell_plateau : public InstanceMapScript
 {
     public:
@@ -80,6 +90,7 @@ class instance_sunwell_plateau : public InstanceMapScript
                 LoadDoorData(doorData);
                 LoadObjectData(creatureData, nullptr);
                 LoadBossBoundaries(boundaries);
+                LoadDungeonEncounterData(encounters);
             }
 
             Player const* GetPlayerInMap() const

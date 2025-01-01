@@ -168,21 +168,13 @@ public:
         {
             if (spellInfo->Id == SPELL_SUMMON_INFERNAL)
             {
-                me->RemoveUnitFlag(UNIT_FLAG_UNINTERACTIBLE);
+                me->SetUninteractible(false);
                 me->SetImmuneToPC(false);
                 me->RemoveAurasDueToSpell(SPELL_SPAWN_AND_PACIFY);
                 // handle by the spell below when such auras will be not removed after evade
                 me->SetDisplayId(MODEL_INFERNAL);
                 // DoCastSelf(SPELL_TRANSFORM_INFERNAL);
             }
-        }
-
-        void UpdateAI(uint32 /*diff*/) override
-        {
-            if (!UpdateVictim())
-                return;
-
-            DoMeleeAttackIfReady();
         }
 
     private:
@@ -333,8 +325,6 @@ public:
             }
             else
                 CastTimer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 };
@@ -454,8 +444,6 @@ public:
                 }
                 return;
             }
-
-            DoMeleeAttackIfReady();
         }
 
     private:
@@ -490,7 +478,9 @@ enum Earthmender
     SPELL_HEALING_WAVE          = 12491,
 
     QUEST_ESCAPE_COILSCAR       = 10451,
-    NPC_COILSKAR_ASSASSIN       = 21044
+    NPC_COILSKAR_ASSASSIN       = 21044,
+
+    PATH_ESCORT_WILDA           = 168218,
 };
 
 class npc_earthmender_wilda : public CreatureScript
@@ -635,7 +625,8 @@ public:
                 Talk(SAY_WIL_START, player);
                 me->SetFaction(FACTION_EARTHEN_RING);
 
-                Start(false, false, player->GetGUID(), quest);
+                LoadPath(PATH_ESCORT_WILDA);
+                Start(false, player->GetGUID(), quest);
             }
         }
     };
@@ -873,8 +864,6 @@ public:
                     SpellTimer3 = SpawnCast[8].Timer2 + (rand32() % 7 * 1000);//Spell Reflection
                 } else SpellTimer3 -= diff;
             }
-
-            DoMeleeAttackIfReady();
         }
 
         void JustDied(Unit* killer) override
@@ -1176,8 +1165,6 @@ public:
                     SpellTimer2 = SpawnCast[5].Timer2 + (rand32() % 7 * 13000);
                 } else SpellTimer2 -= diff;
             }
-
-            DoMeleeAttackIfReady();
         }
     };
 };
@@ -1430,11 +1417,9 @@ public:
                 }
             }
 
-        if (me->GetEntry() == NPC_ENRAGED_FIRE_SPIRIT || me->GetEntry() == NPC_ENRAGED_AIR_SPIRIT)
-            if (HealthBelowPct(35) && !me->GetAura(SPELL_ENRAGE))
-                DoCastSelf(SPELL_ENRAGE);
-
-        DoMeleeAttackIfReady();
+            if (me->GetEntry() == NPC_ENRAGED_FIRE_SPIRIT || me->GetEntry() == NPC_ENRAGED_AIR_SPIRIT)
+                if (HealthBelowPct(35) && !me->GetAura(SPELL_ENRAGE))
+                    DoCastSelf(SPELL_ENRAGE);
         }
 
         void JustDied(Unit* /*killer*/) override
@@ -1514,8 +1499,6 @@ class spell_unlocking_zuluheds_chains : public SpellScriptLoader
 
         class spell_unlocking_zuluheds_chains_SpellScript : public SpellScript
         {
-            PrepareSpellScript(spell_unlocking_zuluheds_chains_SpellScript);
-
             void HandleAfterHit()
             {
                 if (Player* caster = GetCaster()->ToPlayer())
@@ -1606,8 +1589,6 @@ enum DissensionAmongstTheRanks
 // 38224 - Illidari Agent Illusion
 class spell_shadowmoon_illidari_agent_illusion : public AuraScript
 {
-    PrepareAuraScript(spell_shadowmoon_illidari_agent_illusion);
-
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_ILLIDARI_DISGUISE_MALE, SPELL_ILLIDARI_DISGUISE_FEMALE });
@@ -1637,8 +1618,6 @@ class spell_shadowmoon_illidari_agent_illusion : public AuraScript
 // 38223 - Quest Credit: Crazed Colossus
 class spell_shadowmoon_quest_credit_crazed_colossus : public SpellScript
 {
-    PrepareSpellScript(spell_shadowmoon_quest_credit_crazed_colossus);
-
     bool Validate(SpellInfo const* spellInfo) override
     {
         return ValidateSpellInfo(

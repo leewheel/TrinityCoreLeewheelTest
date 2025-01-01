@@ -22,6 +22,8 @@
 #include "ItemPacketsCommon.h"
 #include "ObjectGuid.h"
 
+enum class PlayerInteractionType : int32;
+
 namespace WorldPackets
 {
     namespace Bank
@@ -34,6 +36,7 @@ namespace WorldPackets
             void Read() override;
 
             WorldPackets::Item::InvUpdate Inv;
+            ::BankType BankType = ::BankType::Character;
             uint8 Bag = 0;
             uint8 Slot = 0;
         };
@@ -60,40 +63,15 @@ namespace WorldPackets
             ObjectGuid Guid;
         };
 
-        class AutoBankReagent final : public ClientPacket
+        class BankerActivate final : public ClientPacket
         {
         public:
-            AutoBankReagent(WorldPacket&& packet) : ClientPacket(CMSG_AUTOBANK_REAGENT, std::move(packet)) { }
-
-            void Read() override;
-
-            WorldPackets::Item::InvUpdate Inv;
-            uint8 Slot = 0;
-            uint8 PackSlot = 0;
-        };
-
-        class AutoStoreBankReagent final : public ClientPacket
-        {
-        public:
-            AutoStoreBankReagent(WorldPacket&& packet) : ClientPacket(CMSG_AUTOSTORE_BANK_REAGENT, std::move(packet)) { }
-
-            void Read() override;
-
-            WorldPackets::Item::InvUpdate Inv;
-            uint8 Slot = 0;
-            uint8 PackSlot = 0;
-        };
-
-        // CMSG_BUY_REAGENT_BANK
-        // CMSG_REAGENT_BANK_DEPOSIT
-        class ReagentBank final : public ClientPacket
-        {
-        public:
-            ReagentBank(WorldPacket&& packet) : ClientPacket(std::move(packet)) { }
+            explicit BankerActivate(WorldPacket&& packet) : ClientPacket(CMSG_BANKER_ACTIVATE, std::move(packet)) { }
 
             void Read() override;
 
             ObjectGuid Banker;
+            PlayerInteractionType InteractionType = { };
         };
     }
 }

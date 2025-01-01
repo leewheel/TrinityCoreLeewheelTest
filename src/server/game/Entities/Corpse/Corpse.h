@@ -49,17 +49,15 @@ enum CorpseFlags
     CORPSE_FLAG_FFA_PVP     = 0x40
 };
 
-class TC_GAME_API Corpse : public WorldObject, public GridObject<Corpse>
+class TC_GAME_API Corpse final : public WorldObject, public GridObject<Corpse>
 {
     public:
         explicit Corpse(CorpseType type = CORPSE_BONES);
         ~Corpse();
 
     protected:
-        void BuildValuesCreate(ByteBuffer* data, Player const* target) const override;
-        void BuildValuesUpdate(ByteBuffer* data, Player const* target) const override;
-        void BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const override;
-        void BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const override;
+        void BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
+        void BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
         void ClearUpdateMask(bool remove) override;
 
     public:
@@ -83,6 +81,8 @@ class TC_GAME_API Corpse : public WorldObject, public GridObject<Corpse>
         bool Create(ObjectGuid::LowType guidlow, Map* map);
         bool Create(ObjectGuid::LowType guidlow, Player* owner);
 
+        void Update(uint32 diff) override;
+
         void SaveToDB();
         bool LoadCorpseFromDB(ObjectGuid::LowType guid, Field* fields);
 
@@ -90,80 +90,34 @@ class TC_GAME_API Corpse : public WorldObject, public GridObject<Corpse>
         static void DeleteFromDB(ObjectGuid const& ownerGuid, CharacterDatabaseTransaction trans);
 
         CorpseDynFlags GetCorpseDynamicFlags() const { return CorpseDynFlags(*m_corpseData->DynamicFlags); }
-        void SetCorpseDynamicFlag(CorpseDynFlags dynamicFlags) {
-            SetFlag(UF::CORPSE_FIELD_DYNAMIC_FLAGS, dynamicFlags);
-            SetUpdateFieldFlagValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags);
-        }
-        void RemoveCorpseDynamicFlag(CorpseDynFlags dynamicFlags) {
-            RemoveFlag(UF::CORPSE_FIELD_DYNAMIC_FLAGS, dynamicFlags);
-            RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags);
-        }
-        void ReplaceAllCorpseDynamicFlags(CorpseDynFlags dynamicFlags) {
-            SetUInt32Value(UF::CORPSE_FIELD_DYNAMIC_FLAGS, dynamicFlags);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags);
-        }
+        void SetCorpseDynamicFlag(CorpseDynFlags dynamicFlags) { SetUpdateFieldFlagValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags); }
+        void RemoveCorpseDynamicFlag(CorpseDynFlags dynamicFlags) { RemoveUpdateFieldFlagValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags); }
+        void ReplaceAllCorpseDynamicFlags(CorpseDynFlags dynamicFlags) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DynamicFlags), dynamicFlags); }
 
+        ObjectGuid GetCreatorGUID() const override { return m_corpseData->Owner; }
         ObjectGuid GetOwnerGUID() const override { return m_corpseData->Owner; }
-        void SetOwnerGUID(ObjectGuid owner) {
-            SetGuidValue(UF::CORPSE_FIELD_OWNER, owner);
-			SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Owner), owner);
-        }
-        void SetPartyGUID(ObjectGuid partyGuid) {
-            SetGuidValue(UF::CORPSE_FIELD_PARTY_GUID, partyGuid);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::PartyGUID), partyGuid);
-        }
-        void SetGuildGUID(ObjectGuid guildGuid) {
-            SetGuidValue(UF::CORPSE_FIELD_GUILD_GUID, guildGuid);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::GuildGUID), guildGuid);
-        }
-        void SetDisplayId(uint32 displayId) {
-            SetUInt32Value(UF::CORPSE_FIELD_DISPLAY_ID, displayId);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DisplayID), displayId);
-        }
-        void SetRace(uint8 race) {
-            SetByteValue(UF::CORPSE_FIELD_BYTES_1, 0, race);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::RaceID), race);
-        }
-        void SetClass(uint8 playerClass) {
-            SetByteValue(UF::CORPSE_FIELD_BYTES_1, 2, playerClass);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Class), playerClass);
-        }
-        void SetSex(uint8 sex) {
-            SetByteValue(UF::CORPSE_FIELD_BYTES_1, 1, sex);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Sex), sex);
-        }
-        void ReplaceAllFlags(uint32 flags) {
-            SetUInt32Value(UF::CORPSE_FIELD_FLAGS, flags);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Flags), flags);
-        }
-        void SetFactionTemplate(int32 factionTemplate) {
-            SetInt32Value(UF::CORPSE_FIELD_FACTION_TEMPLATE, factionTemplate);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::FactionTemplate), factionTemplate);
-        }
+        void SetOwnerGUID(ObjectGuid owner) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Owner), owner); }
+        void SetPartyGUID(ObjectGuid partyGuid) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::PartyGUID), partyGuid); }
+        void SetGuildGUID(ObjectGuid guildGuid) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::GuildGUID), guildGuid); }
+        void SetDisplayId(uint32 displayId) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::DisplayID), displayId); }
+        void SetRace(uint8 race) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::RaceID), race); }
+        void SetClass(uint8 playerClass) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Class), playerClass); }
+        void SetSex(uint8 sex) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Sex), sex); }
+        void ReplaceAllFlags(uint32 flags) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Flags), flags); }
+        void SetFactionTemplate(int32 factionTemplate) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::FactionTemplate), factionTemplate); }
         uint32 GetFaction() const override { return m_corpseData->FactionTemplate; }
         void SetFaction(uint32 faction) override { SetFactionTemplate(faction); }
-        void SetItem(uint32 slot, uint32 item) {
-            SetUInt32Value(UF::CORPSE_FIELD_ITEMS + slot, item);
-            SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Items, slot), item);
-        }
+        void SetItem(uint32 slot, uint32 item) { SetUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Items, slot), item); }
 
         template<typename Iter>
         void SetCustomizations(Trinity::IteratorPair<Iter> customizations)
         {
-            uint32 index = 0;
+            ClearDynamicUpdateFieldValues(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Customizations));
             for (auto&& customization : customizations)
             {
-                auto custom = m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Customizations, index);
-                SetUpdateFieldFlagValue(custom.ModifyValue(&UF::ChrCustomizationChoice::ChrCustomizationOptionID), customization.ChrCustomizationOptionID);
-                SetUpdateFieldFlagValue(custom.ModifyValue(&UF::ChrCustomizationChoice::ChrCustomizationChoiceID), customization.ChrCustomizationChoiceID);
-                index++;
-            }
-
-            for (; index < m_corpseData->Customizations.size(); index++)
-            {
-                auto custom = m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Customizations, index);
-                SetUpdateFieldFlagValue(custom.ModifyValue(&UF::ChrCustomizationChoice::ChrCustomizationOptionID), 0);
-                SetUpdateFieldFlagValue(custom.ModifyValue(&UF::ChrCustomizationChoice::ChrCustomizationChoiceID), 0);
+                UF::ChrCustomizationChoice& newChoice = AddDynamicUpdateFieldValue(m_values.ModifyValue(&Corpse::m_corpseData).ModifyValue(&UF::CorpseData::Customizations));
+                newChoice.ChrCustomizationOptionID = customization.ChrCustomizationOptionID;
+                newChoice.ChrCustomizationChoiceID = customization.ChrCustomizationChoiceID;
             }
         }
 

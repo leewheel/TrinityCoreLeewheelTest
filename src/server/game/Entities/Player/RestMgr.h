@@ -40,11 +40,12 @@ enum PlayerRestInfoOffsets : uint8
     MAX_REST_INFO
 };
 
+// Exhaustion.db2 ids
 enum PlayerRestState : uint8
 {
-    REST_STATE_RESTED           = 0x01,
-    REST_STATE_NOT_RAF_LINKED   = 0x02,
-    REST_STATE_RAF_LINKED       = 0x06
+    REST_STATE_RESTED           = 1,
+    REST_STATE_NORMAL           = 2,
+    REST_STATE_RAF_LINKED       = 6
 };
 
 enum RestFlag : uint32
@@ -67,17 +68,19 @@ public:
     void AddRestBonus(RestTypes restType, float restBonus);
 
     bool HasRestFlag(RestFlag restFlag) const { return (_restFlagMask & restFlag) != 0; }
-    void SetRestFlag(RestFlag restFlag, uint32 triggerId = 0);
+    void SetRestFlag(RestFlag restFlag);
     void RemoveRestFlag(RestFlag restFlag);
 
     uint32 GetRestBonusFor(RestTypes restType, uint32 xp);
     uint32 GetInnTriggerID() const { return _innAreaTriggerId; }
+    void SetInnTriggerID(uint32 id) { _innAreaTriggerId = id; }
 
     void Update(time_t now);
 
+    float CalcExtraPerSec(RestTypes restType, float bubble) const;
+
 protected:
     void LoadRestBonus(RestTypes restType, PlayerRestState state, float restBonus);
-    float CalcExtraPerSec(RestTypes restType, float bubble) const;
 
 private:
     Player* _player;

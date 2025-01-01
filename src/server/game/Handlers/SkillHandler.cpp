@@ -28,13 +28,30 @@
 
 void WorldSession::HandleLearnTalentOpcode(WorldPackets::Talent::LearnTalent& packet)
 {
-    _player->LearnTalent(packet.TalentID, packet.Rank);
-    _player->SendTalentsInfoData(false);
+    if (_player->LearnTalent(packet.TalentID, packet.Rank))
+        _player->SendTalentsInfoData();
 }
 
-void WorldSession::HandleLearnPvpTalentsOpcode(WorldPackets::Talent::LearnPvpTalents& packet)
+void WorldSession::HandleLearnPreviewTalentsOpcode(WorldPackets::Talent::LearnPreviewTalents& packet)
 {
+    if (!_player->GetPrimaryTalentTree() && packet.TabIndex >= 0)
+        if (TalentTabEntry const* talentTab = sDB2Manager.GetTalentTabByIndex(_player->GetClass(), packet.TabIndex))
+            _player->SetPrimaryTalentTree(talentTab->ID, true);
 
+    for (auto const& talentInfo : packet.Talents)
+        if (!_player->LearnTalent(talentInfo.TalentID, talentInfo.Rank))
+            break;
+
+    _player->SendTalentsInfoData();
+}
+
+void WorldSession::HandleSetPrimaryTalentTreeOpcode(WorldPackets::Talent::SetPrimaryTalentTree& packet)
+{
+    if (_player->GetPrimaryTalentTree() != 0 || packet.TabIndex < 0)
+        return;
+
+    if (TalentTabEntry const* talentTab = sDB2Manager.GetTalentTabByIndex(_player->GetClass(), packet.TabIndex))
+        _player->SetPrimaryTalentTree(talentTab->ID, true);
 }
 
 void WorldSession::HandleConfirmRespecWipeOpcode(WorldPackets::Talent::ConfirmRespecWipe& confirmRespecWipe)
@@ -62,7 +79,6 @@ void WorldSession::HandleConfirmRespecWipeOpcode(WorldPackets::Talent::ConfirmRe
     if (!_player->ResetTalents())
         return;
 
-    _player->SendTalentsInfoData(false);
     unit->CastSpell(_player, 14867, true);                  //spell: "Untalent Visual Effect"
 }
 

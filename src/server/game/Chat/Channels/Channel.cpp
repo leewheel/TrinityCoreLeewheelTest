@@ -18,6 +18,7 @@
 #include "Channel.h"
 #include "AccountMgr.h"
 #include "ChannelAppenders.h"
+#include "ChannelMgr.h"
 #include "Chat.h"
 #include "ChatPackets.h"
 #include "DB2Stores.h"
@@ -25,10 +26,8 @@
 #include "GameTime.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
-#include "Language.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
-#include "ObjectMgr.h"
 #include "Player.h"
 #include "SocialMgr.h"
 #include "StringConvert.h"
@@ -49,15 +48,15 @@ Channel::Channel(ObjectGuid const& guid, uint32 channelId, uint32 team /*= 0*/, 
     _zoneEntry(zoneEntry)
 {
     ChatChannelsEntry const* channelEntry = sChatChannelsStore.AssertEntry(channelId);
-    if (channelEntry->Flags & CHANNEL_DBC_FLAG_TRADE)              // for trade channel
+    if (channelEntry->GetFlags().HasFlag(ChatChannelFlags::AllowItemLinks))     // for trade channel
         _channelFlags |= CHANNEL_FLAG_TRADE;
 
-    if (channelEntry->Flags & CHANNEL_DBC_FLAG_CITY_ONLY2)         // for city only channels
+    if (channelEntry->GetFlags().HasFlag(ChatChannelFlags::LinkedChannel))      // for city only channels
         _channelFlags |= CHANNEL_FLAG_CITY;
 
-    if (channelEntry->Flags & CHANNEL_DBC_FLAG_LFG)                // for LFG channel
+    if (channelEntry->GetFlags().HasFlag(ChatChannelFlags::LookingForGroup))    // for LFG channel
         _channelFlags |= CHANNEL_FLAG_LFG;
-    else                                                            // for all other channels
+    else                                                                        // for all other channels
         _channelFlags |= CHANNEL_FLAG_NOT_LFG;
 }
 
@@ -77,9 +76,16 @@ Channel::Channel(ObjectGuid const& guid, std::string const& name, uint32 team /*
     for (std::string_view guid : Trinity::Tokenize(banList, ' ', false))
     {
         // legacy db content might not have 0x prefix, account for that
-        std::string bannedGuidStr(guid.size() > 2 && guid.substr(0, 2) == "0x" ? guid.substr(2) : guid);
+        if (guid.size() > 2 && guid.substr(0, 2) == "0x")
+            guid.remove_suffix(2);
+
+        Optional<uint64> high = Trinity::StringTo<uint64>(guid.substr(0, 16), 16);
+        Optional<uint64> low = Trinity::StringTo<uint64>(guid.substr(16, 16), 16);
+        if (!high || !low)
+            continue;
+
         ObjectGuid banned;
-        banned.SetRawValue(uint64(strtoull(bannedGuidStr.substr(0, 16).c_str(), nullptr, 16)), uint64(strtoull(bannedGuidStr.substr(16).c_str(), nullptr, 16)));
+        banned.SetRawValue(*high, *low);
         if (!banned)
             continue;
 
@@ -93,12 +99,12 @@ void Channel::GetChannelName(std::string& channelName, uint32 channelId, LocaleC
     if (channelId)
     {
         ChatChannelsEntry const* channelEntry = sChatChannelsStore.AssertEntry(channelId);
-        if (!(channelEntry->Flags & CHANNEL_DBC_FLAG_GLOBAL))
+        if (channelEntry->GetFlags().HasFlag(ChatChannelFlags::ZoneBased))
         {
-            if (channelEntry->Flags & CHANNEL_DBC_FLAG_CITY_ONLY)
-                channelName = fmt::sprintf(channelEntry->Name[locale], sObjectMgr->GetTrinityString(LANG_CHANNEL_CITY, locale));
-            else
-                channelName = fmt::sprintf(channelEntry->Name[locale], ASSERT_NOTNULL(zoneEntry)->AreaName[locale]);
+            if (channelEntry->GetFlags().HasFlag(ChatChannelFlags::LinkedChannel))
+                zoneEntry = ChannelMgr::SpecialLinkedArea;
+
+            channelName = fmt::sprintf(channelEntry->Name[locale], ASSERT_NOTNULL(zoneEntry)->AreaName[locale]);
         }
         else
             channelName = channelEntry->Name[locale];
@@ -602,7 +608,7 @@ void Channel::List(Player const* player)
 
     std::string channelName = GetName(player->GetSession()->GetSessionDbcLocale());
     TC_LOG_DEBUG("chat.system", "SMSG_CHANNEL_LIST {} Channel: {}",
-        player->GetSession()->GetPlayerInfo().c_str(), channelName.c_str());
+        player->GetSession()->GetPlayerInfo(), channelName);
 
     WorldPackets::Channel::ChannelListResponse list;
     list._Display = true; /// always true?
@@ -623,7 +629,7 @@ void Channel::List(Player const* player)
              member->GetSession()->GetSecurity() <= AccountTypes(gmLevelInWhoList)) &&
             member->IsVisibleGloballyFor(player))
         {
-            list._Members.emplace_back(i.first, GetVirtualRealmAddress(), i.second.GetFlags());
+            list._Members.emplace_back(i.first, *member->m_playerData->VirtualPlayerRealm, i.second.GetFlags());
         }
     }
 

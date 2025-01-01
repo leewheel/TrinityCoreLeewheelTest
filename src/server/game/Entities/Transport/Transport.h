@@ -26,7 +26,7 @@
 struct CreatureData;
 struct SummonPropertiesEntry;
 
-class TC_GAME_API Transport : public GameObject, public TransportBase
+class TC_GAME_API Transport final : public GameObject, public TransportBase
 {
         friend Transport* TransportMgr::CreateTransport(uint32, Map*, ObjectGuid::LowType, uint8, uint32, uint32);
 
@@ -66,7 +66,7 @@ class TC_GAME_API Transport : public GameObject, public TransportBase
         *
         * @return Summoned creature.
         */
-        TempSummon* SummonPassenger(uint32 entry, Position const& pos, TempSummonType summonType, SummonPropertiesEntry const* properties = nullptr, uint32 duration = 0, Unit* summoner = nullptr, uint32 spellId = 0, uint32 vehId = 0);
+        TempSummon* SummonPassenger(uint32 entry, Position const& pos, TempSummonType summonType, SummonPropertiesEntry const* properties = nullptr, Milliseconds duration = 0ms, Unit* summoner = nullptr, uint32 spellId = 0, uint32 vehId = 0);
 
         ObjectGuid GetTransportGUID() const override { return GetGUID(); }
 
@@ -109,7 +109,7 @@ class TC_GAME_API Transport : public GameObject, public TransportBase
 
     private:
         bool TeleportTransport(uint32 oldMapId, uint32 newMapId, float x, float y, float z, float o);
-        void TeleportPassengersAndHideTransport(uint32 newMapid, float x, float y, float z, float o);
+        void TeleportPassengersAndHideTransport(uint32 newMapid);
         void UpdatePassengerPositions(PassengerSet const& passengers);
 
         TransportTemplate const* _transportInfo;

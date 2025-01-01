@@ -107,6 +107,7 @@ public:
     void LoadAccountHeirlooms(PreparedQueryResult result);
     void SaveAccountHeirlooms(LoginDatabaseTransaction trans);
     void AddHeirloom(uint32 itemId, uint32 flags);
+    bool HasHeirloom(uint32 itemId) const { return _heirlooms.contains(itemId); }
     void UpgradeHeirloom(uint32 itemId, int32 castItem);
     void CheckHeirloomUpgrades(Item* item);
 
@@ -138,6 +139,13 @@ public:
     // returns ItemAppearance::ID, not ItemModifiedAppearance::ID
     std::unordered_set<uint32> GetAppearanceIds() const;
 
+    // Illusions
+    void LoadTransmogIllusions();
+    void LoadAccountTransmogIllusions(PreparedQueryResult knownTransmogIllusions);
+    void SaveAccountTransmogIllusions(LoginDatabaseTransaction trans);
+    void AddTransmogIllusion(uint32 transmogIllusionId);
+    bool HasTransmogIllusion(uint32 transmogIllusionId) const;
+
     enum class FavoriteAppearanceState
     {
         New,
@@ -161,6 +169,7 @@ private:
     std::unique_ptr<boost::dynamic_bitset<uint32>> _appearances;
     std::unordered_map<uint32, std::unordered_set<ObjectGuid>> _temporaryAppearances;
     std::unordered_map<uint32, FavoriteAppearanceState> _favoriteAppearances;
+    std::unique_ptr<boost::dynamic_bitset<uint32>> _transmogIllusions;
 };
 
 #endif // CollectionMgr_h__

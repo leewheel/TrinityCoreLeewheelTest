@@ -103,7 +103,7 @@ void LoadSkillDiscoveryTable()
                 if (reportedReqSpells.find(absReqSkillOrSpell) == reportedReqSpells.end())
                 {
                     TC_LOG_ERROR("sql.sql", "Spell (ID: {}) does not have any MECHANIC_DISCOVERY (28) value in the Mechanic field in spell.dbc"
-                        " nor 100%% chance random discovery ability, but is listed for spellId {} (and maybe more) in the `skill_discovery_template` table.",
+                        " nor 100% chance random discovery ability, but is listed for spellId {} (and maybe more) in the `skill_discovery_template` table.",
                         absReqSkillOrSpell, spellId);
                     reportedReqSpells.insert(absReqSkillOrSpell);
                 }
@@ -174,7 +174,7 @@ uint32 GetExplicitDiscoverySpell(uint32 spellId, Player* player)
                 full_chance += item_iter->chance;
 
     float rate = full_chance / 100.0f;
-    float roll = (float)rand_chance() * rate;                      // roll now in range 0..full_chance
+    float roll = rand_chance() * rate;                             // roll now in range 0..full_chance
 
     for (SkillDiscoveryList::const_iterator item_iter = tab->second.begin(); item_iter != tab->second.end(); ++item_iter)
     {

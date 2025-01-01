@@ -131,22 +131,21 @@ void LoadHelper(CellGuidSet const& guid_set, CellCoord& cell, GridRefManager<T>&
 void ObjectGridLoader::Visit(GameObjectMapType& m)
 {
     CellCoord cellCoord = i_cell.GetCellCoord();
-    CellObjectGuids const& cell_guids = sObjectMgr->GetCellObjectGuids(i_map->GetId(), i_map->GetDifficultyID(), cellCoord.GetId());
-    LoadHelper(cell_guids.gameobjects, cellCoord, m, i_gameObjects, i_map);
+    if (CellObjectGuids const* cell_guids = sObjectMgr->GetCellObjectGuids(i_map->GetId(), i_map->GetDifficultyID(), cellCoord.GetId()))
+        LoadHelper(cell_guids->gameobjects, cellCoord, m, i_gameObjects, i_map);
 }
 
 void ObjectGridLoader::Visit(CreatureMapType &m)
 {
     CellCoord cellCoord = i_cell.GetCellCoord();
-    CellObjectGuids const& cell_guids = sObjectMgr->GetCellObjectGuids(i_map->GetId(), i_map->GetDifficultyID(), cellCoord.GetId());
-    LoadHelper(cell_guids.creatures, cellCoord, m, i_creatures, i_map);
+    if (CellObjectGuids const* cell_guids = sObjectMgr->GetCellObjectGuids(i_map->GetId(), i_map->GetDifficultyID(), cellCoord.GetId()))
+        LoadHelper(cell_guids->creatures, cellCoord, m, i_creatures, i_map);
 }
 
 void ObjectGridLoader::Visit(AreaTriggerMapType& m)
 {
     CellCoord cellCoord = i_cell.GetCellCoord();
-    CellGuidSet const* areaTriggers = sAreaTriggerDataStore->GetAreaTriggersForMapAndCell(i_map->GetId(), cellCoord.GetId());
-    if (areaTriggers)
+    if (CellGuidSet const* areaTriggers = sAreaTriggerDataStore->GetAreaTriggersForMapAndCell(i_map->GetId(), i_map->GetDifficultyID(), cellCoord.GetId()))
         LoadHelper(*areaTriggers, cellCoord, m, i_areaTriggers, i_map);
 }
 
@@ -159,7 +158,7 @@ void ObjectWorldLoader::Visit(CorpseMapType& /*m*/)
         {
             corpse->AddToWorld();
             GridType& cell = i_grid.GetGridType(i_cell.CellX(), i_cell.CellY());
-            if (corpse->IsWorldObject())
+            if (corpse->IsStoredInWorldObjectGridContainer())
                 cell.AddWorldObject(corpse);
             else
                 cell.AddGridObject(corpse);

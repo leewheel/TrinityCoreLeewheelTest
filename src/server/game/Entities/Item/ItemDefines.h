@@ -136,6 +136,13 @@ enum InventoryResult : uint8
     EQUIP_ERR_NOT_IN_NPE                                   = 110,// Not available during the tutorial
     EQUIP_ERR_ITEM_COOLDOWN                                = 111,// Item is not ready yet.
     EQUIP_ERR_NOT_IN_RATED_BATTLEGROUND                    = 112,// You can't do that in a rated battleground.
+    EQUIP_ERR_EQUIPABLESPELLS_SLOTS_FULL                   = 113,
+    EQUIP_ERR_CANT_BE_RECRAFTED                            = 114,// You can't recraft that itemv
+    EQUIP_ERR_REAGENTBAG_WRONG_SLOT                        = 115,// Reagent Bags can only be placed in the reagent bag slot.
+    EQUIP_ERR_SLOT_ONLY_REAGENTBAG                         = 116,// Only Reagent Bags can be placed in the reagent bag slot.
+    EQUIP_ERR_REAGENTBAG_ITEM_TYPE                         = 117,// Only Reagents can be placed in Reagent Bags.
+    EQUIP_ERR_CANT_BULK_SELL_ITEM_WITH_REFUND              = 118,// Items that can be refunded can't be bulk sold.
+    EQUIP_ERR_NO_SOULBOUND_ITEM_IN_ACCOUNT_BANK            = 119,// Soulbound items cannot be stored in the Warband Bank.
 };
 
 // EnumUtils: DESCRIBE THIS
@@ -161,7 +168,10 @@ enum SellResult
     SELL_ERR_YOU_DONT_OWN_THAT_ITEM              = 4,       // DESCRIPTION You don't own that item.
     SELL_ERR_UNK                                 = 5,       // DESCRIPTION nothing appears...
     SELL_ERR_ONLY_EMPTY_BAG                      = 6,       // DESCRIPTION You can only do that with empty bags.
-    SELL_ERR_CANT_SELL_TO_THIS_MERCHANT          = 7        // DESCRIPTION You cannot sell items to this merchant.
+    SELL_ERR_CANT_SELL_TO_THIS_MERCHANT          = 7,       // DESCRIPTION You cannot sell items to this merchant.
+    SELL_ERR_MUST_REPAIR_DURABILITY              = 8,       // DESCRIPTION You must repair that item's durability to use it.
+    SELL_ERR_VENDOR_REFUSE_SCRAPPABLE_AZERITE    = 9,       // DESCRIPTION The merchant doesn't want that item. Bring it to the Scrapper to extract Titan Residuum.
+    SELL_ERR_INTERNAL_BAG_ERROR                  = 10,      // DESCRIPTION Internal Bag Error
 };
 
 // -1 from client enchantment slot number
@@ -237,8 +247,52 @@ enum ItemModifier : uint16
     ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_4      = 35,
     ITEM_MODIFIER_TRANSMOG_SECONDARY_APPEARANCE_SPEC_5      = 36,
     ITEM_MODIFIER_SOULBIND_CONDUIT_RANK                     = 37,
+    ITEM_MODIFIER_CRAFTING_QUALITY_ID                       = 38,
+    ITEM_MODIFIER_CRAFTING_SKILL_LINE_ABILITY_ID            = 39,
+    ITEM_MODIFIER_CRAFTING_DATA_ID                          = 40,
+    ITEM_MODIFIER_CRAFTING_SKILL_REAGENTS                   = 41,
+    ITEM_MODIFIER_CRAFTING_SKILL_WATERMARK                  = 42,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_0                   = 43,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_1                   = 44,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_2                   = 45,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_3                   = 46,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_4                   = 47,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_5                   = 48,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_6                   = 49,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_7                   = 50,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_8                   = 51,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_9                   = 52,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_10                  = 53,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_11                  = 54,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_12                  = 55,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_13                  = 56,
+    ITEM_MODIFIER_CRAFTING_REAGENT_SLOT_14                  = 57,
+    ITEM_MODIFIER_REFORGE                                   = 58,
 
     MAX_ITEM_MODIFIERS
+};
+
+enum class AzeriteEssenceActivateResult : uint32
+{
+    None                = 0,
+    EssenceNotUnlocked  = 2,    // Arg: AzeriteEssenceID
+    CantDoThatRightNow  = 3,
+    AffectingCombat     = 4,
+    CantRemoveEssence   = 5,    // Arg: SpellID of active essence on cooldown
+    ChallengeModeActive = 6,
+    NotInRestArea       = 7,
+    ConditionFailed     = 8,
+    SlotLocked          = 9,
+    NotAtForge          = 10,
+    HeartLevelTooLow    = 11,   // Arg: RequiredLevel
+    NotEquipped         = 12
+};
+
+enum class BankType : int8
+{
+    Character   = 0,
+    Guild       = 1,
+    Account     = 2
 };
 
 #endif // ItemDefines_h__

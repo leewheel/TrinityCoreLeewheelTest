@@ -26,19 +26,19 @@
 
 DoorData const doorData[] =
 {
-    { GO_NAJENTUS_GATE,         DATA_HIGH_WARLORD_NAJENTUS, DOOR_TYPE_PASSAGE },
-    { GO_NAJENTUS_GATE,         DATA_SUPREMUS,              DOOR_TYPE_ROOM    },
-    { GO_SUPREMUS_GATE,         DATA_SUPREMUS,              DOOR_TYPE_PASSAGE },
-    { GO_SHADE_OF_AKAMA_DOOR,   DATA_SHADE_OF_AKAMA,        DOOR_TYPE_ROOM    },
-    { GO_TERON_DOOR_1,          DATA_TERON_GOREFIEND,       DOOR_TYPE_ROOM    },
-    { GO_TERON_DOOR_2,          DATA_TERON_GOREFIEND,       DOOR_TYPE_ROOM    },
-    { GO_GURTOGG_DOOR,          DATA_GURTOGG_BLOODBOIL,     DOOR_TYPE_PASSAGE },
-    { GO_MOTHER_SHAHRAZ_DOOR,   DATA_MOTHER_SHAHRAZ,        DOOR_TYPE_PASSAGE },
-    { GO_COUNCIL_DOOR_1,        DATA_ILLIDARI_COUNCIL,      DOOR_TYPE_ROOM    },
-    { GO_COUNCIL_DOOR_2,        DATA_ILLIDARI_COUNCIL,      DOOR_TYPE_ROOM    },
-    { GO_ILLIDAN_DOOR_R,        DATA_ILLIDAN_STORMRAGE,     DOOR_TYPE_ROOM    },
-    { GO_ILLIDAN_DOOR_L,        DATA_ILLIDAN_STORMRAGE,     DOOR_TYPE_ROOM    },
-    { 0,                        0,                          DOOR_TYPE_ROOM    } // END
+    { GO_NAJENTUS_GATE,         DATA_HIGH_WARLORD_NAJENTUS, EncounterDoorBehavior::OpenWhenDone },
+    { GO_NAJENTUS_GATE,         DATA_SUPREMUS,              EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_SUPREMUS_GATE,         DATA_SUPREMUS,              EncounterDoorBehavior::OpenWhenDone },
+    { GO_SHADE_OF_AKAMA_DOOR,   DATA_SHADE_OF_AKAMA,        EncounterDoorBehavior::OpenWhenNotInProgress    },
+    { GO_TERON_DOOR_1,          DATA_TERON_GOREFIEND,       EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_TERON_DOOR_2,          DATA_TERON_GOREFIEND,       EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_GURTOGG_DOOR,          DATA_GURTOGG_BLOODBOIL,     EncounterDoorBehavior::OpenWhenDone },
+    { GO_MOTHER_SHAHRAZ_DOOR,   DATA_MOTHER_SHAHRAZ,        EncounterDoorBehavior::OpenWhenDone },
+    { GO_COUNCIL_DOOR_1,        DATA_ILLIDARI_COUNCIL,      EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_COUNCIL_DOOR_2,        DATA_ILLIDARI_COUNCIL,      EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ILLIDAN_DOOR_R,        DATA_ILLIDAN_STORMRAGE,     EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ILLIDAN_DOOR_L,        DATA_ILLIDAN_STORMRAGE,     EncounterDoorBehavior::OpenWhenNotInProgress },
+    { 0,                        0,                          EncounterDoorBehavior::OpenWhenNotInProgress } // END
 };
 
 BossBoundaryData const boundaries =
@@ -88,6 +88,19 @@ ObjectData const gameObjectData[] =
     { 0,                              0                             } //END
 };
 
+DungeonEncounterData const encounters[] =
+{
+    { DATA_HIGH_WARLORD_NAJENTUS, {{ 601 }} },
+    { DATA_SUPREMUS, {{ 602 }} },
+    { DATA_SHADE_OF_AKAMA, {{ 603 }} },
+    { DATA_TERON_GOREFIEND, {{ 604 }} },
+    { DATA_GURTOGG_BLOODBOIL, {{ 605 }} },
+    { DATA_RELIQUARY_OF_SOULS, {{ 606 }} },
+    { DATA_MOTHER_SHAHRAZ, {{ 607 }} },
+    { DATA_ILLIDARI_COUNCIL, {{ 608 }} },
+    { DATA_ILLIDAN_STORMRAGE, {{ 609 }} }
+};
+
 class instance_black_temple : public InstanceMapScript
 {
     public:
@@ -102,6 +115,7 @@ class instance_black_temple : public InstanceMapScript
                 LoadDoorData(doorData);
                 LoadObjectData(creatureData, gameObjectData);
                 LoadBossBoundaries(boundaries);
+                LoadDungeonEncounterData(encounters);
                 AkamaState = AKAMA_INTRO;
                 AkamaIllidanIntro = 1;
             }

@@ -22,21 +22,20 @@
 #include "IpAddress.h"
 #include "Log.h"
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/v6_only.hpp>
 #include <atomic>
 #include <functional>
-
-using boost::asio::ip::tcp;
 
 #define TRINITY_MAX_LISTEN_CONNECTIONS boost::asio::socket_base::max_listen_connections
 
 class AsyncAcceptor
 {
 public:
-    typedef void(*AcceptCallback)(tcp::socket&& newSocket, uint32 threadIndex);
+    typedef void(*AcceptCallback)(boost::asio::ip::tcp::socket&& newSocket, uint32 threadIndex);
 
     AsyncAcceptor(Trinity::Asio::IoContext& ioContext, std::string const& bindIp, uint16 port) :
         _acceptor(ioContext), _endpoint(Trinity::Net::make_address(bindIp), port),
-        _socket(ioContext), _closed(false), _socketFactory(std::bind(&AsyncAcceptor::DefeaultSocketFactory, this))
+        _socket(ioContext), _closed(false), _socketFactory([this] { return DefeaultSocketFactory(); })
     {
     }
 
@@ -46,9 +45,10 @@ public:
     template<AcceptCallback acceptCallback>
     void AsyncAcceptWithCallback()
     {
-        tcp::socket* socket;
-        uint32 threadIndex;
-        std::tie(socket, threadIndex) = _socketFactory();
+        auto [tmpSocket, tmpThreadIndex] = _socketFactory();
+        // TODO: get rid of temporary variables (clang 15 cannot handle variables from structured bindings as lambda captures)
+        boost::asio::ip::tcp::socket* socket = tmpSocket;
+        uint32 threadIndex = tmpThreadIndex;
         _acceptor.async_accept(*socket, [this, socket, threadIndex](boost::system::error_code error)
         {
             if (!error)
@@ -89,6 +89,11 @@ public:
         }
 #endif
 
+        // v6_only is enabled on some *BSD distributions by default
+        // we want to allow both v4 and v6 connections to the same listener
+        if (_endpoint.protocol() == boost::asio::ip::tcp::v6())
+            _acceptor.set_option(boost::asio::ip::v6_only(false));
+
         _acceptor.bind(_endpoint, errorCode);
         if (errorCode)
         {
@@ -115,16 +120,16 @@ public:
         _acceptor.close(err);
     }
 
-    void SetSocketFactory(std::function<std::pair<tcp::socket*, uint32>()> func) { _socketFactory = func; }
+    void SetSocketFactory(std::function<std::pair<boost::asio::ip::tcp::socket*, uint32>()> func) { _socketFactory = std::move(func); }
 
 private:
-    std::pair<tcp::socket*, uint32> DefeaultSocketFactory() { return std::make_pair(&_socket, 0); }
+    std::pair<boost::asio::ip::tcp::socket*, uint32> DefeaultSocketFactory() { return std::make_pair(&_socket, 0); }
 
-    tcp::acceptor _acceptor;
-    tcp::endpoint _endpoint;
-    tcp::socket _socket;
+    boost::asio::ip::tcp::acceptor _acceptor;
+    boost::asio::ip::tcp::endpoint _endpoint;
+    boost::asio::ip::tcp::socket _socket;
     std::atomic<bool> _closed;
-    std::function<std::pair<tcp::socket*, uint32>()> _socketFactory;
+    std::function<std::pair<boost::asio::ip::tcp::socket*, uint32>()> _socketFactory;
 };
 
 template<class T>

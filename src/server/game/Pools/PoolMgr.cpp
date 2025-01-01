@@ -304,7 +304,7 @@ void PoolGroup<T>::SpawnObject(SpawnedPoolData& spawns, uint32 limit, uint64 tri
         // roll objects to be spawned
         if (!ExplicitlyChanced.empty())
         {
-            float roll = (float)rand_chance();
+            float roll = rand_chance();
 
             for (PoolObject& obj : ExplicitlyChanced)
             {
@@ -565,17 +565,6 @@ void PoolMgr::LoadFromDB()
                 if (!data)
                 {
                     TC_LOG_ERROR("sql.sql", "`pool_gameobject` has a non existing gameobject spawn (GUID: {}) defined for pool id ({}), skipped.", guid, pool_id);
-                    continue;
-                }
-
-                GameObjectTemplate const* goinfo = sObjectMgr->GetGameObjectTemplate(data->id);
-                ASSERT(goinfo);
-                if (goinfo->type != GAMEOBJECT_TYPE_CHEST &&
-                    goinfo->type != GAMEOBJECT_TYPE_FISHINGHOLE &&
-                    goinfo->type != GAMEOBJECT_TYPE_GATHERING_NODE &&
-                    goinfo->type != GAMEOBJECT_TYPE_GOOBER)
-                {
-                    TC_LOG_ERROR("sql.sql", "`pool_gameobject` has a not lootable gameobject spawn (GUID: {}, type: {}) defined for pool id ({}), skipped.", guid, goinfo->type, pool_id);
                     continue;
                 }
 

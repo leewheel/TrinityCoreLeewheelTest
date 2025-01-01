@@ -30,8 +30,12 @@ void WorldSession::HandleMoveDismissVehicle(WorldPackets::Vehicle::MoveDismissVe
     if (vehicleGUID.IsEmpty())
         return;
 
-    _player->ValidateMovementInfo(&moveDismissVehicle.Status);
-    _player->m_movementInfo = moveDismissVehicle.Status;
+    if (moveDismissVehicle.Status.guid != vehicleGUID)
+    {
+        TC_LOG_ERROR("network", "Player {} tried to dismiss a controlled vehicle ({}) that he has no control over. Possible cheater or malformed packet.",
+            GetPlayer()->GetGUID().ToString().c_str(), vehicleGUID.ToString().c_str());
+        return;
+    }
 
     _player->ExitVehicle();
 }
@@ -46,7 +50,7 @@ void WorldSession::HandleRequestVehiclePrevSeat(WorldPackets::Vehicle::RequestVe
     if (!seat->CanSwitchFromSeat())
     {
         TC_LOG_ERROR("network", "HandleRequestVehiclePrevSeat: {} tried to switch seats but current seatflags {} don't permit that.",
-            GetPlayer()->GetGUID().ToString().c_str(), seat->Flags);
+            GetPlayer()->GetGUID().ToString(), seat->Flags);
         return;
     }
 
@@ -63,7 +67,7 @@ void WorldSession::HandleRequestVehicleNextSeat(WorldPackets::Vehicle::RequestVe
     if (!seat->CanSwitchFromSeat())
     {
         TC_LOG_ERROR("network", "HandleRequestVehicleNextSeat: {} tried to switch seats but current seatflags {} don't permit that.",
-            GetPlayer()->GetGUID().ToString().c_str(), seat->Flags);
+            GetPlayer()->GetGUID().ToString(), seat->Flags);
         return;
     }
 
@@ -80,7 +84,7 @@ void WorldSession::HandleMoveChangeVehicleSeats(WorldPackets::Vehicle::MoveChang
     if (!seat->CanSwitchFromSeat())
     {
         TC_LOG_ERROR("network", "HandleMoveChangeVehicleSeats: Player {} tried to switch seats but current seatflags {} don't permit that.",
-            GetPlayer()->GetGUID().ToString().c_str(), seat->Flags);
+            GetPlayer()->GetGUID().ToString(), seat->Flags);
         return;
     }
 
@@ -109,7 +113,7 @@ void WorldSession::HandleRequestVehicleSwitchSeat(WorldPackets::Vehicle::Request
     if (!seat->CanSwitchFromSeat())
     {
         TC_LOG_ERROR("network", "HandleRequestVehicleSwitchSeat: {} tried to switch seats but current seatflags {} don't permit that.",
-            GetPlayer()->GetGUID().ToString().c_str(), seat->Flags);
+            GetPlayer()->GetGUID().ToString(), seat->Flags);
         return;
     }
 
@@ -185,7 +189,7 @@ void WorldSession::HandleRequestVehicleExit(WorldPackets::Vehicle::RequestVehicl
                 GetPlayer()->ExitVehicle();
             else
                 TC_LOG_ERROR("network", "Player {} tried to exit vehicle, but seatflags {} (ID: {}) don't permit that.",
-                    GetPlayer()->GetGUID().ToString().c_str(), vehicle->GetVehicleInfo()->SeatID[itr->first], itr->second.SeatInfo->Flags);
+                    GetPlayer()->GetGUID().ToString(), vehicle->GetVehicleInfo()->SeatID[itr->first], itr->second.SeatInfo->Flags);
         }
     }
 }

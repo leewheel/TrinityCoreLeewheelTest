@@ -102,7 +102,9 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Auth::AuthWaitInfo const&
 {
     data << uint32(waitInfo.WaitCount);
     data << uint32(waitInfo.WaitTime);
+    data << uint32(waitInfo.AllowedFactionGroupForCharacterCreate);
     data.WriteBit(waitInfo.HasFCM);
+    data.WriteBit(waitInfo.CanCreateOnlyIfExisting);
     data.FlushBits();
 
     return data;
@@ -138,6 +140,7 @@ WorldPacket const* WorldPackets::Auth::AuthResponse::Write()
                 _worldPacket << uint8(classAvailability.ClassID);
                 _worldPacket << uint8(classAvailability.ActiveExpansionLevel);
                 _worldPacket << uint8(classAvailability.AccountExpansionLevel);
+                _worldPacket << uint8(classAvailability.MinActiveExpansionLevel);
             }
         }
 
@@ -146,6 +149,7 @@ WorldPacket const* WorldPackets::Auth::AuthResponse::Write()
         _worldPacket.WriteBit(SuccessInfo->NumPlayersHorde.has_value());
         _worldPacket.WriteBit(SuccessInfo->NumPlayersAlliance.has_value());
         _worldPacket.WriteBit(SuccessInfo->ExpansionTrialExpiration.has_value());
+        _worldPacket.WriteBit(SuccessInfo->NewBuildKeys.has_value());
         _worldPacket.FlushBits();
 
         {
@@ -166,27 +170,36 @@ WorldPacket const* WorldPackets::Auth::AuthResponse::Write()
             _worldPacket << uint16(*SuccessInfo->NumPlayersAlliance);
 
         if (SuccessInfo->ExpansionTrialExpiration)
-            _worldPacket << int32(*SuccessInfo->ExpansionTrialExpiration);
+            _worldPacket << *SuccessInfo->ExpansionTrialExpiration;
+
+        if (SuccessInfo->NewBuildKeys)
+        {
+            for (std::size_t i = 0; i < 16; ++i)
+            {
+                _worldPacket << SuccessInfo->NewBuildKeys->NewBuildKey[i];
+                _worldPacket << SuccessInfo->NewBuildKeys->SomeKey[i];
+            }
+        }
 
         for (VirtualRealmInfo const& virtualRealm : SuccessInfo->VirtualRealms)
             _worldPacket << virtualRealm;
 
-        for (CharacterTemplate const* templat : SuccessInfo->Templates)
+        for (CharacterTemplate const* characterTemplate : SuccessInfo->Templates)
         {
-            _worldPacket << uint32(templat->TemplateSetId);
-            _worldPacket << uint32(templat->Classes.size());
-            for (CharacterTemplateClass const& templateClass : templat->Classes)
+            _worldPacket << uint32(characterTemplate->TemplateSetId);
+            _worldPacket << uint32(characterTemplate->Classes.size());
+            for (CharacterTemplateClass const& templateClass : characterTemplate->Classes)
             {
                 _worldPacket << uint8(templateClass.ClassID);
                 _worldPacket << uint8(templateClass.FactionGroup);
             }
 
-            _worldPacket.WriteBits(templat->Name.length(), 7);
-            _worldPacket.WriteBits(templat->Description.length(), 10);
+            _worldPacket.WriteBits(characterTemplate->Name.length(), 7);
+            _worldPacket.WriteBits(characterTemplate->Description.length(), 10);
             _worldPacket.FlushBits();
 
-            _worldPacket.WriteString(templat->Name);
-            _worldPacket.WriteString(templat->Description);
+            _worldPacket.WriteString(characterTemplate->Name);
+            _worldPacket.WriteString(characterTemplate->Description);
         }
     }
 
@@ -314,8 +327,8 @@ void WorldPackets::Auth::AuthContinuedSession::Read()
 
 void WorldPackets::Auth::ConnectToFailed::Read()
 {
-    Serial = _worldPacket.read<ConnectToSerial>();
     _worldPacket >> Con;
+    _worldPacket >> As<uint32>(Serial);
 }
 
 bool WorldPackets::Auth::EnterEncryptedMode::InitializeEncryption()
@@ -334,18 +347,18 @@ void WorldPackets::Auth::EnterEncryptedMode::ShutdownEncryption()
 }
 
 std::array<uint8, 16> constexpr EnableEncryptionSeed = { 0x90, 0x9C, 0xD0, 0x50, 0x5A, 0x2C, 0x14, 0xDD, 0x5C, 0x2C, 0xC0, 0x64, 0x14, 0xF3, 0xFE, 0xC9 };
+std::array<uint8, 16> constexpr EnableEncryptionContext = { 0xA7, 0x1F, 0xB6, 0x9B, 0xC9, 0x7C, 0xDD, 0x96, 0xE9, 0xBB, 0xB8, 0x21, 0x39, 0x8D, 0x5A, 0xD4 };
 
 WorldPacket const* WorldPackets::Auth::EnterEncryptedMode::Write()
 {
-    std::array<uint8, 17> msg{};
-    msg[0] = Enabled ? 1 : 0;
-    std::copy_n(std::begin(EnableEncryptionSeed), std::size(EnableEncryptionSeed), &msg[1]);
+    std::array<uint8, 32> toSign = Trinity::Crypto::HMAC_SHA256::GetDigestOf(EncryptionKey,
+        std::array<uint8, 1>{uint8(Enabled ? 1 : 0)},
+        EnableEncryptionSeed);
 
-    Trinity::Crypto::RsaSignature rsa(*ConnectToRSA);
-    Trinity::Crypto::RsaSignature::HMAC_SHA256 digestGenerator(EncryptionKey.data(), EncryptionKey.size());
+    Trinity::Crypto::Ed25519 ed25519(*EnterEncryptedModeSigner);
     std::vector<uint8> signature;
 
-    rsa.Sign(msg, digestGenerator, signature);
+    ed25519.SignWithContext(toSign, { EnableEncryptionContext.begin(), EnableEncryptionContext.end() }, signature);
 
     _worldPacket.append(signature.data(), signature.size());
     _worldPacket.WriteBit(Enabled);

@@ -30,8 +30,8 @@ void WorldPackets::Item::BuyItem::Read()
     _worldPacket >> Quantity;
     _worldPacket >> Muid;
     _worldPacket >> Slot;
+    _worldPacket >> As<int32>(ItemType);
     _worldPacket >> Item;
-    ItemType = static_cast<ItemVendorType>(_worldPacket.ReadBits(3));
 }
 
 WorldPacket const* WorldPackets::Item::BuySucceeded::Write()
@@ -152,7 +152,7 @@ WorldPacket const* WorldPackets::Item::SetProficiency::Write()
 
 WorldPacket const* WorldPackets::Item::InventoryChangeFailure::Write()
 {
-    _worldPacket << int8(BagResult);
+    _worldPacket << int32(BagResult);
     _worldPacket << Item[0];
     _worldPacket << Item[1];
     _worldPacket << uint8(ContainerBSlot); // bag type subclass, used with EQUIP_ERR_EVENT_AUTOEQUIP_BIND_CONFIRM and EQUIP_ERR_WRONG_BAG_TYPE_2
@@ -238,8 +238,10 @@ void WorldPackets::Item::DestroyItem::Read()
 WorldPacket const* WorldPackets::Item::SellResponse::Write()
 {
     _worldPacket << VendorGUID;
-    _worldPacket << ItemGUID;
-    _worldPacket << uint8(Reason);
+    _worldPacket << uint32(ItemGUIDs.size());
+    _worldPacket << int32(Reason);
+    for (ObjectGuid const& itemGuid : ItemGUIDs)
+        _worldPacket << itemGuid;
 
     return &_worldPacket;
 }
@@ -255,15 +257,18 @@ WorldPacket const* WorldPackets::Item::ItemPushResult::Write()
     _worldPacket << int32(DungeonEncounterID);
     _worldPacket << int32(BattlePetSpeciesID);
     _worldPacket << int32(BattlePetBreedID);
-    _worldPacket << uint32(BattlePetBreedQuality);
+    _worldPacket << uint8(BattlePetBreedQuality);
     _worldPacket << int32(BattlePetLevel);
     _worldPacket << ItemGUID;
-    _worldPacket.WriteBit(Pushed);
-    _worldPacket.WriteBit(Created);
-    _worldPacket.WriteBits(DisplayText, 3);
-    _worldPacket.WriteBit(IsBonusRoll);
-    _worldPacket.WriteBit(IsEncounterLoot);
+
+    _worldPacket << Bits<1>(Pushed);
+    _worldPacket << Bits<1>(Created);
+    _worldPacket << Bits<1>(Unused_1017);
+    _worldPacket << Bits<3>(DisplayText);
+    _worldPacket << Bits<1>(IsBonusRoll);
+    _worldPacket << Bits<1>(IsEncounterLoot);
     _worldPacket.FlushBits();
+
     _worldPacket << Item;
 
     return &_worldPacket;
@@ -358,7 +363,33 @@ void WorldPackets::Item::RemoveNewItem::Read()
     _worldPacket >> ItemGuid;
 }
 
-void WorldPackets::Item::SetAmmo::Read()
+void WorldPackets::Item::ReforgeItem::Read()
 {
-    _worldPacket >> ItemID;
+    _worldPacket >> ReforgerGUID;
+    _worldPacket >> ContainerId;
+    _worldPacket >> SlotNum;
+    _worldPacket >> ItemReforgeRecId;
+}
+
+WorldPacket const* WorldPackets::Item::AddItemPassive::Write()
+{
+    _worldPacket << int32(SpellID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Item::RemoveItemPassive::Write()
+{
+    _worldPacket << int32(SpellID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Item::SendItemPassives::Write()
+{
+    _worldPacket << uint32(SpellID.size());
+    if (!SpellID.empty())
+        _worldPacket.append(SpellID.data(), SpellID.size());
+
+    return &_worldPacket;
 }

@@ -128,13 +128,13 @@ void WorldSession::moveItems(Item* myItems[], Item* hisItems[])
                 if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
                 {
                     sLog->OutCommand(_player->GetSession()->GetAccountId(), "GM {} (Account: {}) trade: {} (Entry: {} Count: {}) to player: {} (Account: {})",
-                        _player->GetName().c_str(), _player->GetSession()->GetAccountId(),
+                        _player->GetName(), _player->GetSession()->GetAccountId(),
                         myItems[i]->GetTemplate()->GetDefaultLocaleName(), myItems[i]->GetEntry(), myItems[i]->GetCount(),
-                        trader->GetName().c_str(), trader->GetSession()->GetAccountId());
+                        trader->GetName(), trader->GetSession()->GetAccountId());
                 }
 
                 // adjust time (depends on /played)
-                if (myItems[i]->IsBOPTradeable())
+                if (*myItems[i]->m_itemData->CreatePlayedTime)
                     myItems[i]->SetCreatePlayedTime(trader->GetTotalPlayedTime() - (_player->GetTotalPlayedTime() - myItems[i]->m_itemData->CreatePlayedTime));
                 // store
                 trader->MoveItemToInventory(traderDst, myItems[i], true, true);
@@ -146,13 +146,13 @@ void WorldSession::moveItems(Item* myItems[], Item* hisItems[])
                 if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
                 {
                     sLog->OutCommand(trader->GetSession()->GetAccountId(), "GM {} (Account: {}) trade: {} (Entry: {} Count: {}) to player: {} (Account: {})",
-                        trader->GetName().c_str(), trader->GetSession()->GetAccountId(),
+                        trader->GetName(), trader->GetSession()->GetAccountId(),
                         hisItems[i]->GetTemplate()->GetDefaultLocaleName(), hisItems[i]->GetEntry(), hisItems[i]->GetCount(),
-                        _player->GetName().c_str(), _player->GetSession()->GetAccountId());
+                        _player->GetName(), _player->GetSession()->GetAccountId());
                 }
 
                 // adjust time (depends on /played)
-                if (hisItems[i]->IsBOPTradeable())
+                if (*hisItems[i]->m_itemData->CreatePlayedTime)
                     hisItems[i]->SetCreatePlayedTime(_player->GetTotalPlayedTime() - (trader->GetTotalPlayedTime() - hisItems[i]->m_itemData->CreatePlayedTime));
                 // store
                 _player->MoveItemToInventory(playerDst, hisItems[i], true, true);
@@ -488,17 +488,17 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPackets::Trade::AcceptTrade& acc
             if (my_trade->GetMoney() > 0)
             {
                 sLog->OutCommand(_player->GetSession()->GetAccountId(), "GM {} (Account: {}) give money (Amount: {}) to player: {} (Account: {})",
-                    _player->GetName().c_str(), _player->GetSession()->GetAccountId(),
+                    _player->GetName(), _player->GetSession()->GetAccountId(),
                     my_trade->GetMoney(),
-                    trader->GetName().c_str(), trader->GetSession()->GetAccountId());
+                    trader->GetName(), trader->GetSession()->GetAccountId());
             }
 
             if (his_trade->GetMoney() > 0)
             {
                 sLog->OutCommand(trader->GetSession()->GetAccountId(), "GM {} (Account: {}) give money (Amount: {}) to player: {} (Account: {})",
-                    trader->GetName().c_str(), trader->GetSession()->GetAccountId(),
+                    trader->GetName(), trader->GetSession()->GetAccountId(),
                     his_trade->GetMoney(),
-                    _player->GetName().c_str(), _player->GetSession()->GetAccountId());
+                    _player->GetName(), _player->GetSession()->GetAccountId());
             }
         }
 
@@ -774,8 +774,4 @@ void WorldSession::HandleClearTradeItemOpcode(WorldPackets::Trade::ClearTradeIte
         return;
 
     my_trade->SetItem(TradeSlots(clearTradeItem.TradeSlot), nullptr);
-}
-
-void WorldSession::HandleSetTradeCurrencyOpcode(WorldPackets::Trade::SetTradeCurrency& /*setTradeCurrency*/)
-{
 }

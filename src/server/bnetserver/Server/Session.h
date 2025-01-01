@@ -19,67 +19,55 @@
 #define Session_h__
 
 #include "AsyncCallbackProcessor.h"
-#include "Realm.h"
-#include "SslContext.h"
-#include "SslSocket.h"
-#include "Socket.h"
+#include "ClientBuildInfo.h"
+#include "Duration.h"
 #include "QueryResult.h"
+#include "Realm.h"
+#include "Socket.h"
+#include "SslSocket.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <google/protobuf/message.h>
 #include <memory>
-
-using boost::asio::ip::tcp;
 
 namespace pb = google::protobuf;
 
 class ServiceBase;
 
-namespace bgs
+namespace bgs::protocol
 {
-    namespace protocol
-    {
-        class Variant;
+class Variant;
 
-        namespace account
-        {
-            namespace v1
-            {
-                class GetAccountStateRequest;
-                class GetAccountStateResponse;
-                class GetGameAccountStateRequest;
-                class GetGameAccountStateResponse;
-            }
-        }
+namespace account::v1
+{
+    class GetAccountStateRequest;
+    class GetAccountStateResponse;
+    class GetGameAccountStateRequest;
+    class GetGameAccountStateResponse;
+}
 
-        namespace authentication
-        {
-            namespace v1
-            {
-                class LogonRequest;
-                class VerifyWebCredentialsRequest;
-            }
-        }
+namespace authentication::v1
+{
+    class GenerateWebCredentialsRequest;
+    class LogonRequest;
+    class VerifyWebCredentialsRequest;
+}
 
-        namespace game_utilities
-        {
-            namespace v1
-            {
-                class ClientRequest;
-                class ClientResponse;
-                class GetAllValuesForAttributeRequest;
-                class GetAllValuesForAttributeResponse;
-            }
-        }
-    }
+namespace game_utilities::v1
+{
+    class ClientRequest;
+    class ClientResponse;
+    class GetAllValuesForAttributeRequest;
+    class GetAllValuesForAttributeResponse;
+}
 }
 
 using namespace bgs::protocol;
 
 namespace Battlenet
 {
-    class Session : public Socket<Session, SslSocket<SslContext>>
+    class Session : public Socket<Session, SslSocket<>>
     {
-        typedef Socket<Session, SslSocket<SslContext>> BattlenetSocket;
+        typedef Socket<Session, SslSocket<>> BattlenetSocket;
 
     public:
         struct LastPlayedCharacterInfo
@@ -92,7 +80,7 @@ namespace Battlenet
 
         struct GameAccountInfo
         {
-            void LoadResult(Field* fields);
+            void LoadResult(Field const* fields);
 
             uint32 Id;
             std::string Name;
@@ -122,7 +110,7 @@ namespace Battlenet
             std::unordered_map<uint32, GameAccountInfo> GameAccounts;
         };
 
-        explicit Session(tcp::socket&& socket);
+        explicit Session(boost::asio::ip::tcp::socket&& socket);
         ~Session();
 
         void Start() override;
@@ -144,6 +132,7 @@ namespace Battlenet
 
         uint32 HandleLogon(authentication::v1::LogonRequest const* logonRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
         uint32 HandleVerifyWebCredentials(authentication::v1::VerifyWebCredentialsRequest const* verifyWebCredentialsRequest, std::function<void(ServiceBase*, uint32, ::google::protobuf::Message const*)>& continuation);
+        uint32 HandleGenerateWebCredentials(authentication::v1::GenerateWebCredentialsRequest const* request, std::function<void(ServiceBase*, uint32, google::protobuf::Message const*)>& continuation);
         uint32 HandleGetAccountState(account::v1::GetAccountStateRequest const* request, account::v1::GetAccountStateResponse* response);
         uint32 HandleGetGameAccountState(account::v1::GetGameAccountStateRequest const* request, account::v1::GetGameAccountStateResponse* response);
         uint32 HandleProcessClientRequest(game_utilities::v1::ClientRequest const* request, game_utilities::v1::ClientResponse* response);
@@ -185,6 +174,8 @@ namespace Battlenet
         std::string _locale;
         std::string _os;
         uint32 _build;
+        ClientBuild::VariantId _clientInfo;
+        Minutes _timezoneOffset;
 
         std::string _ipCountry;
 

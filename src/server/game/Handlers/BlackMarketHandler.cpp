@@ -21,15 +21,15 @@
 #include "DatabaseEnv.h"
 #include "Item.h"
 #include "Log.h"
+#include "NPCPackets.h"
 #include "Player.h"
-#include "WorldPacket.h"
 
 void WorldSession::HandleBlackMarketOpen(WorldPackets::BlackMarket::BlackMarketOpen& blackMarketOpen)
 {
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(blackMarketOpen.Guid, UNIT_NPC_FLAG_BLACK_MARKET, UNIT_NPC_FLAG_2_BLACK_MARKET_VIEW);
     if (!unit)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketHello - Unit (GUID: {}) not found or you can't interact with him.", blackMarketOpen.Guid.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketHello - Unit (GUID: {}) not found or you can't interact with him.", blackMarketOpen.Guid.ToString());
         return;
     }
 
@@ -42,86 +42,11 @@ void WorldSession::HandleBlackMarketOpen(WorldPackets::BlackMarket::BlackMarketO
 
 void WorldSession::SendBlackMarketOpenResult(ObjectGuid guid, Creature* /*auctioneer*/)
 {
-    WorldPackets::BlackMarket::BlackMarketOpenResult packet;
-    packet.Guid = guid;
-    packet.Enable = sBlackMarketMgr->IsEnabled();
-    SendPacket(packet.Write());
-}
-
-void WorldSession::HandleBlackMarketRequestItems(WorldPackets::BlackMarket::BlackMarketRequestItems& blackMarketRequestItems)
-{
-    if (!sBlackMarketMgr->IsEnabled())
-        return;
-
-    Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(blackMarketRequestItems.Guid, UNIT_NPC_FLAG_BLACK_MARKET, UNIT_NPC_FLAG_2_BLACK_MARKET_VIEW);
-    if (!unit)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketRequestItems - Unit (GUID: {}) not found or you can't interact with him.", blackMarketRequestItems.Guid.ToString().c_str());
-        return;
-    }
-
-    WorldPackets::BlackMarket::BlackMarketRequestItemsResult result;
-    sBlackMarketMgr->BuildItemsResponse(result, GetPlayer());
-    SendPacket(result.Write());
-}
-
-void WorldSession::HandleBlackMarketBidOnItem(WorldPackets::BlackMarket::BlackMarketBidOnItem& blackMarketBidOnItem)
-{
-    if (!sBlackMarketMgr->IsEnabled())
-        return;
-
-    Player* player = GetPlayer();
-    Creature* unit = player->GetNPCIfCanInteractWith(blackMarketBidOnItem.Guid, UNIT_NPC_FLAG_BLACK_MARKET, UNIT_NPC_FLAG_2_NONE);
-    if (!unit)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Unit (GUID: {}) not found or you can't interact with him.", blackMarketBidOnItem.Guid.ToString().c_str());
-        return;
-    }
-
-    BlackMarketEntry* entry = sBlackMarketMgr->GetAuctionByID(blackMarketBidOnItem.MarketID);
-    if (!entry)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Player ({}, name: {}) tried to bid on a nonexistent auction (MarketId: {}).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), blackMarketBidOnItem.MarketID);
-        SendBlackMarketBidOnItemResult(ERR_BMAH_ITEM_NOT_FOUND, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
-        return;
-    }
-
-    if (entry->GetBidder() == player->GetGUID().GetCounter())
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Player ({}, name: {}) tried to place a bid on an item he already bid on. (MarketId: {}).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), blackMarketBidOnItem.MarketID);
-        SendBlackMarketBidOnItemResult(ERR_BMAH_ALREADY_BID, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
-        return;
-    }
-
-    if (!entry->ValidateBid(blackMarketBidOnItem.BidAmount))
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Player ({}, name: {}) tried to place an invalid bid. Amount: {} (MarketId: {}).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), blackMarketBidOnItem.BidAmount, blackMarketBidOnItem.MarketID);
-        SendBlackMarketBidOnItemResult(ERR_BMAH_HIGHER_BID, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
-        return;
-    }
-
-    if (!player->HasEnoughMoney(blackMarketBidOnItem.BidAmount))
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Player ({}, name: {}) does not have enough money to place bid. (MarketId: {}).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), blackMarketBidOnItem.MarketID);
-        SendBlackMarketBidOnItemResult(ERR_BMAH_NOT_ENOUGH_MONEY, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
-        return;
-    }
-
-    if (entry->GetSecondsRemaining() <= 0)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleBlackMarketBidOnItem - Player ({}, name: {}) tried to bid on a completed auction. (MarketId: {}).", player->GetGUID().ToString().c_str(), player->GetName().c_str(), blackMarketBidOnItem.MarketID);
-        SendBlackMarketBidOnItemResult(ERR_BMAH_DATABASE_ERROR, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
-        return;
-    }
-
-    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-
-    sBlackMarketMgr->SendAuctionOutbidMail(entry, trans);
-    entry->PlaceBid(blackMarketBidOnItem.BidAmount, player, trans);
-
-    CharacterDatabase.CommitTransaction(trans);
-
-    SendBlackMarketBidOnItemResult(ERR_BMAH_OK, blackMarketBidOnItem.MarketID, blackMarketBidOnItem.Item);
+    WorldPackets::NPC::NPCInteractionOpenResult npcInteraction;
+    npcInteraction.Npc = guid;
+    npcInteraction.InteractionType = PlayerInteractionType::BlackMarketAuctioneer;
+    npcInteraction.Success = sBlackMarketMgr->IsEnabled();
+    SendPacket(npcInteraction.Write());
 }
 
 void WorldSession::SendBlackMarketBidOnItemResult(int32 result, int32 marketId, WorldPackets::Item::ItemInstance& item)

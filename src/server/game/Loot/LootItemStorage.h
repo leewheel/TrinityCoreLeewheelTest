@@ -22,6 +22,7 @@
 #include "DatabaseEnvFwd.h"
 #include "DBCEnums.h"
 #include "ItemEnchantmentMgr.h"
+#include "LootItemType.h"
 
 #include <shared_mutex>
 #include <unordered_map>
@@ -45,8 +46,7 @@ struct StoredLootItem
     bool Counted;
     bool UnderThreshold;
     bool NeedsQuest;
-    ItemRandomEnchantmentId RandomPropertyID;
-    uint32 RandomSuffix;
+    ItemRandomBonusListId RandomBonusListId;
     ItemContext Context;
     std::vector<int32> BonusListIDs;
 };
@@ -62,9 +62,9 @@ class StoredLootContainer
         void AddMoney(uint32 money, CharacterDatabaseTransaction trans);
 
         void RemoveMoney();
-        void RemoveItem(uint32 itemId, uint32 count, uint32 itemIndex);
+        void RemoveItem(LootItemType type, uint32 itemId, uint32 count, uint32 itemIndex);
 
-        uint32 GetContainer() const { return _containerId; }
+        uint64 GetContainer() const { return _containerId; }
         uint32 GetMoney() const { return _money; }
         StoredLootItemContainer const& GetLootItems() const { return _lootItems; }
 
@@ -84,7 +84,7 @@ class LootItemStorage
         bool LoadStoredLoot(Item* item, Player* player);
         void RemoveStoredMoneyForContainer(uint64 containerId);
         void RemoveStoredLootForContainer(uint64 containerId);
-        void RemoveStoredLootItemForContainer(uint64 containerId, uint32 itemId, uint32 count, uint32 itemIndex);
+        void RemoveStoredLootItemForContainer(uint64 containerId, LootItemType type, uint32 itemId, uint32 count, uint32 itemIndex);
         void AddNewStoredLoot(uint64 containerId, Loot* loot, Player* player);
 
     private:

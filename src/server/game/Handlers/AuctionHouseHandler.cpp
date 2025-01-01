@@ -33,187 +33,12 @@
 #include "World.h"
 #include <sstream>
 
-void WorldSession::HandleAuctionBrowseQuery(WorldPackets::AuctionHouse::AuctionBrowseQuery& browseQuery)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, false);
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(browseQuery.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListItems - {} not found or you can't interact with him.", browseQuery.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseFilterMask filters = AuctionHouseFilterMask::None;
-
-    if (browseQuery.OnlyUsable)
-        filters |= AuctionHouseFilterMask::UsableOnly;
-
-    if (browseQuery.ExactMatch)
-        filters |= AuctionHouseFilterMask::ExactMatch;
-
-    if (browseQuery.Quality == -1) {
-        filters |= AuctionHouseFilterMask::PoorQuality |
-            AuctionHouseFilterMask::CommonQuality |
-            AuctionHouseFilterMask::UncommonQuality |
-            AuctionHouseFilterMask::RareQuality |
-            AuctionHouseFilterMask::EpicQuality |
-            AuctionHouseFilterMask::LegendaryQuality |
-            AuctionHouseFilterMask::ArtifactQuality;
-    }
-    else {
-        filters |= AuctionHouseFilterMask(1 << (browseQuery.Quality + 5));
-    }
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    TC_LOG_DEBUG("auctionHouse", "Auctionhouse search {}, searchedname: {}, levelmin: {}, levelmax: {}, filters: {}",
-        browseQuery.Auctioneer.ToString().c_str(), browseQuery.Name.c_str(), browseQuery.MinLevel, browseQuery.MaxLevel, AsUnderlyingType(filters));
-
-    std::wstring name;
-    if (!Utf8toWStr(browseQuery.Name, name))
-        return;
-
-    Optional<AuctionSearchClassFilters> classFilters;
-
-    WorldPackets::AuctionHouse::AuctionListItemsResult listItemsResult;
-    listItemsResult.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    listItemsResult.OnlyUsable = browseQuery.OnlyUsable;
-
-    if (!browseQuery.ItemClassFilters.empty())
-    {
-        classFilters.emplace();
-
-        for (auto const& classFilter : browseQuery.ItemClassFilters)
-        {
-            if (!classFilter.SubClassFilters.empty())
-            {
-                for (auto const& subClassFilter : classFilter.SubClassFilters)
-                {
-                    if (classFilter.ItemClass < MAX_ITEM_CLASS)
-                    {
-                        classFilters->Classes[classFilter.ItemClass].SubclassMask |= 1 << subClassFilter.ItemSubclass;
-                        if (subClassFilter.ItemSubclass < MAX_ITEM_SUBCLASS_TOTAL)
-                            classFilters->Classes[classFilter.ItemClass].InvTypes[subClassFilter.ItemSubclass] = subClassFilter.InvTypeMask;
-                    }
-                }
-            }
-            else
-                classFilters->Classes[classFilter.ItemClass].SubclassMask = AuctionSearchClassFilters::FILTER_SKIP_SUBCLASS;
-        }
-    }
-
-    auctionHouse->BuildListAuctionItems(listItemsResult, _player, name, browseQuery.MinLevel, browseQuery.MaxLevel, filters, classFilters, browseQuery.Offset, browseQuery.Sorts.data(), browseQuery.SortCount);
-    SendPacket(listItemsResult.Write());
-}
-
-void WorldSession::HandleAuctionCancelCommoditiesPurchase(WorldPackets::AuctionHouse::AuctionCancelCommoditiesPurchase& cancelCommoditiesPurchase)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, cancelCommoditiesPurchase.TaintedBy.has_value(), AuctionCommand::PlaceBid);
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(cancelCommoditiesPurchase.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionCancelCommoditiesPurchase - {} not found or you can't interact with him.",
-            cancelCommoditiesPurchase.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-    auctionHouse->CancelCommodityQuote(_player->GetGUID());
-}
-
-void WorldSession::HandleAuctionConfirmCommoditiesPurchase(WorldPackets::AuctionHouse::AuctionConfirmCommoditiesPurchase& confirmCommoditiesPurchase)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, confirmCommoditiesPurchase.TaintedBy.has_value(), AuctionCommand::PlaceBid);
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(confirmCommoditiesPurchase.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionConfirmCommoditiesPurchase - {} not found or you can't interact with him.", confirmCommoditiesPurchase.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-    if (auctionHouse->BuyCommodity(trans, _player, confirmCommoditiesPurchase.ItemID, confirmCommoditiesPurchase.Quantity, throttle.DelayUntilNext))
-    {
-        AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this, buyerGuid = _player->GetGUID(), throttle](bool success)
-        {
-            if (GetPlayer() && GetPlayer()->GetGUID() == buyerGuid)
-            {
-                if (success)
-                {
-                    GetPlayer()->UpdateCriteria(CriteriaType::AuctionsWon, 1);
-                    SendAuctionCommandResult(0, AuctionCommand::PlaceBid, AuctionResult::Ok, throttle.DelayUntilNext);
-                }
-                else
-                    SendAuctionCommandResult(0, AuctionCommand::PlaceBid, AuctionResult::CommodityPurchaseFailed, throttle.DelayUntilNext);
-            }
-        });
-    }
-}
-
-void WorldSession::HandleAuctionGetCommodityQuote(WorldPackets::AuctionHouse::AuctionGetCommodityQuote& getCommodityQuote)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, getCommodityQuote.TaintedBy.has_value(), AuctionCommand::PlaceBid);
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(getCommodityQuote.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionStartCommoditiesPurchase - {} not found or you can't interact with him.",
-            getCommodityQuote.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionGetCommodityQuoteResult commodityQuoteResult;
-
-    if (CommodityQuote const* quote = auctionHouse->CreateCommodityQuote(_player, getCommodityQuote.ItemID, getCommodityQuote.Quantity))
-    {
-        commodityQuoteResult.TotalPrice = quote->TotalPrice;
-        commodityQuoteResult.Quantity = quote->Quantity;
-        commodityQuoteResult.QuoteDuration = std::chrono::duration_cast<Milliseconds>(quote->ValidTo - GameTime::Now());
-    }
-
-    commodityQuoteResult.ItemID = getCommodityQuote.ItemID;
-    commodityQuoteResult.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-
-    SendPacket(commodityQuoteResult.Write());
-}
-
 void WorldSession::HandleAuctionHelloOpcode(WorldPackets::AuctionHouse::AuctionHelloRequest& hello)
 {
     Creature* unit = GetPlayer()->GetNPCIfCanInteractWith(hello.Guid, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
     if (!unit)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionHelloOpcode - Unit ({}) not found or you can't interact with him.", hello.Guid.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionHelloOpcode - Unit ({}) not found or you can't interact with him.", hello.Guid.ToString());
         return;
     }
 
@@ -222,153 +47,6 @@ void WorldSession::HandleAuctionHelloOpcode(WorldPackets::AuctionHouse::AuctionH
         GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
 
     SendAuctionHello(hello.Guid, unit);
-}
-
-void WorldSession::HandleAuctionListBiddedItems(WorldPackets::AuctionHouse::AuctionListBiddedItems& listBiddedItems)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, listBiddedItems.TaintedBy.has_value());
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(listBiddedItems.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListBidderItems - {} not found or you can't interact with him.", listBiddedItems.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionListBiddedItemsResult result;
-
-    Player* player = GetPlayer();
-    auctionHouse->BuildListBiddedItems(result, player, listBiddedItems.Offset, listBiddedItems.Sorts.data(), listBiddedItems.Sorts.size());
-    result.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    SendPacket(result.Write());
-}
-
-void WorldSession::HandleAuctionListBucketsByBucketKeys(WorldPackets::AuctionHouse::AuctionListBucketsByBucketKeys& listBucketsByBucketKeys)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, listBucketsByBucketKeys.TaintedBy.has_value());
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(listBucketsByBucketKeys.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListBucketsByBucketKeys - {} not found or you can't interact with him.",
-            listBucketsByBucketKeys.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionListBucketsResult listBucketsResult;
-
-    auctionHouse->BuildListBuckets(listBucketsResult, _player,
-        listBucketsByBucketKeys.BucketKeys.data(), listBucketsByBucketKeys.BucketKeys.size(),
-        listBucketsByBucketKeys.Sorts.data(), listBucketsByBucketKeys.Sorts.size());
-
-    listBucketsResult.BrowseMode = AuctionHouseBrowseMode::SpecificKeys;
-    listBucketsResult.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    SendPacket(listBucketsResult.Write());
-}
-
-void WorldSession::HandleAuctionListItemsByBucketKey(WorldPackets::AuctionHouse::AuctionListItemsByBucketKey& listItemsByBucketKey)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, listItemsByBucketKey.TaintedBy.has_value());
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(listItemsByBucketKey.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListItemsByBucketKey - {} not found or you can't interact with him.", listItemsByBucketKey.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionListItemsResult listItemsResult;
-    listItemsResult.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    listItemsResult.BucketKey = listItemsByBucketKey.BucketKey;
-    ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(listItemsByBucketKey.BucketKey.ItemID);
-    listItemsResult.ListType = itemTemplate && itemTemplate->GetMaxStackSize() > 1 ? AuctionHouseListType::Commodities : AuctionHouseListType::Items;
-
-    auctionHouse->BuildListAuctionItems(listItemsResult, _player, listItemsByBucketKey.BucketKey, listItemsByBucketKey.Offset,
-        listItemsByBucketKey.Sorts.data(), listItemsByBucketKey.Sorts.size());
-
-    SendPacket(listItemsResult.Write());
-}
-
-void WorldSession::HandleAuctionListItemsByItemID(WorldPackets::AuctionHouse::AuctionListItemsByItemID& listItemsByItemID)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, listItemsByItemID.TaintedBy.has_value());
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(listItemsByItemID.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListItemsByItemID - {} not found or you can't interact with him.", listItemsByItemID.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionListItemsResult listItemsResult;
-    listItemsResult.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    listItemsResult.BucketKey.ItemID = listItemsByItemID.ItemID;
-    ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(listItemsByItemID.ItemID);
-    listItemsResult.ListType = itemTemplate && itemTemplate->GetMaxStackSize() > 1 ? AuctionHouseListType::Commodities : AuctionHouseListType::Items;
-
-    auctionHouse->BuildListAuctionItems(listItemsResult, _player, listItemsByItemID.ItemID, listItemsByItemID.Offset,
-        listItemsByItemID.Sorts.data(), listItemsByItemID.Sorts.size());
-
-    SendPacket(listItemsResult.Write());
-}
-
-//this void sends player info about his auctions
-void WorldSession::HandleAuctionListOwnedItems(WorldPackets::AuctionHouse::AuctionListOwnedItems& listOwnedItems)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, listOwnedItems.TaintedBy.has_value());
-    if (throttle.Throttled)
-        return;
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(listOwnedItems.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionListOwnerItems - {} not found or you can't interact with him.", listOwnedItems.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    // remove fake death
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    WorldPackets::AuctionHouse::AuctionListOwnedItemsResult result;
-
-    auctionHouse->BuildListOwnedItems(result, _player, listOwnedItems.Offset, listOwnedItems.Sorts.data(), listOwnedItems.Sorts.size());
-    result.DesiredDelay = uint32(throttle.DelayUntilNext.count());
-    SendPacket(result.Write());
 }
 
 // this function is called when client bids or buys out auction
@@ -381,7 +59,7 @@ void WorldSession::HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlac
     Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(placeBid.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
     if (!creature)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionPlaceBid - {} not found or you can't interact with him.", placeBid.Auctioneer.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionPlaceBid - {} not found or you can't interact with him.", placeBid.Auctioneer.ToString());
         return;
     }
 
@@ -461,10 +139,10 @@ void WorldSession::HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlac
     if (canBuyout && placeBid.BidAmount == auction->BuyoutOrUnitPrice)
     {
         // buyout
-        auctionHouse->SendAuctionWon(auction, player, trans);
-        auctionHouse->SendAuctionSold(auction, nullptr, trans);
+        std::map<uint32, AuctionPosting>::node_type removedAuctionNode = auctionHouse->RemoveAuction(trans, auction);
 
-        auctionHouse->RemoveAuction(trans, auction);
+        auctionHouse->SendAuctionSold(&removedAuctionNode.mapped(), nullptr, trans);
+        auctionHouse->SendAuctionWon(&removedAuctionNode.mapped(), player, trans);
     }
     else
     {
@@ -515,7 +193,7 @@ void WorldSession::HandleAuctionRemoveItem(WorldPackets::AuctionHouse::AuctionRe
     Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(removeItem.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
     if (!creature)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionRemoveItem - {} not found or you can't interact with him.", removeItem.Auctioneer.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionRemoveItem - {} not found or you can't interact with him.", removeItem.Auctioneer.ToString());
         return;
     }
 
@@ -531,7 +209,7 @@ void WorldSession::HandleAuctionRemoveItem(WorldPackets::AuctionHouse::AuctionRe
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
     if (auction && auction->Owner == player->GetGUID())
     {
-        if (!auction->Bidder.IsEmpty())                   // If we have a bidder, we have to send him the money he paid
+        if (auction->Bidder.IsEmpty())                   // If we have a bidder, we have to send him the money he paid
         {
             uint64 cancelCost = CalculatePct(auction->BidAmount, 5u);
             if (!player->HasEnoughMoney(cancelCost))          //player doesn't have enough money
@@ -549,7 +227,7 @@ void WorldSession::HandleAuctionRemoveItem(WorldPackets::AuctionHouse::AuctionRe
     {
         SendAuctionCommandResult(0, AuctionCommand::Cancel, AuctionResult::DatabaseError, throttle.DelayUntilNext);
         //this code isn't possible ... maybe there should be assert
-        TC_LOG_ERROR("entities.player.cheat", "CHEATER : {} tried to cancel auction (id: {}) of another player or auction is NULL", player->GetGUID().ToString().c_str(), removeItem.AuctionID);
+        TC_LOG_ERROR("entities.player.cheat", "CHEATER : {} tried to cancel auction (id: {}) of another player or auction is NULL", player->GetGUID().ToString(), removeItem.AuctionID);
         return;
     }
 
@@ -572,19 +250,12 @@ void WorldSession::HandleAuctionRemoveItem(WorldPackets::AuctionHouse::AuctionRe
     });
 }
 
-void WorldSession::HandleAuctionListPendingSales(WorldPackets::AuctionHouse::AuctionListPendingSales& /*packet*/)
-{
-    WorldPackets::AuctionHouse::AuctionListPendingSalesResult result;
-    result.TotalNumRecords = 0;
-    SendPacket(result.Write());
-}
-
 void WorldSession::HandleAuctionReplicateItems(WorldPackets::AuctionHouse::AuctionReplicateItems& replicateItems)
 {
     Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(replicateItems.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
     if (!creature)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleReplicateItems - {} not found or you can't interact with him.", replicateItems.Auctioneer.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleReplicateItems - {} not found or you can't interact with him.", replicateItems.Auctioneer.ToString());
         return;
     }
 
@@ -604,59 +275,42 @@ void WorldSession::HandleAuctionReplicateItems(WorldPackets::AuctionHouse::Aucti
     SendPacket(response.Write());
 }
 
-void WorldSession::HandleAuctionRequestFavoriteList(WorldPackets::AuctionHouse::AuctionRequestFavoriteList& /*requestFavoriteList*/)
+void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSellItem& sellItem)
 {
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_FAVORITE_AUCTIONS);
-    stmt->setUInt64(0, _player->GetGUID().GetCounter());
-    GetQueryProcessor().AddCallback(CharacterDatabase.AsyncQuery(stmt)).WithPreparedCallback([this](PreparedQueryResult favoriteAuctionResult)
-    {
-        WorldPackets::AuctionHouse::AuctionFavoriteList favoriteItems;
-        if (favoriteAuctionResult)
-        {
-            favoriteItems.Items.reserve(favoriteAuctionResult->GetRowCount());
-
-            do
-            {
-                Field* fields = favoriteAuctionResult->Fetch();
-
-                WorldPackets::AuctionHouse::AuctionFavoriteInfo& item = favoriteItems.Items.emplace_back();
-                item.Order = fields[0].GetUInt32();
-                item.ItemID = fields[1].GetUInt32();
-                item.ItemLevel = fields[2].GetUInt32();
-                item.BattlePetSpeciesID = fields[3].GetUInt32();
-                item.SuffixItemNameDescriptionID = fields[4].GetUInt32();
-
-            } while (favoriteAuctionResult->NextRow());
-
-        }
-        SendPacket(favoriteItems.Write());
-    });
-}
-
-void WorldSession::HandleAuctionSellCommodity(WorldPackets::AuctionHouse::AuctionSellCommodity& sellCommodity)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, sellCommodity.TaintedBy.has_value(), AuctionCommand::SellItem);
+    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, sellItem.TaintedBy.has_value(), AuctionCommand::SellItem);
     if (throttle.Throttled)
         return;
 
-    if (!sellCommodity.UnitPrice || sellCommodity.UnitPrice > MAX_MONEY_AMOUNT)
+    if (sellItem.Items.size() != 1 || sellItem.Items[0].UseCount != 1)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Player {} {} attempted to sell item with invalid price.", _player->GetName().c_str(), _player->GetGUID().ToString().c_str());
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
+        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
+        return;
+    }
+
+    if (!sellItem.MinBid && !sellItem.BuyoutPrice)
+    {
+        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
+        return;
+    }
+
+    if (sellItem.MinBid > MAX_MONEY_AMOUNT || sellItem.BuyoutPrice > MAX_MONEY_AMOUNT)
+    {
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Player {} {} attempted to sell item with higher price than max gold amount.", _player->GetName(), _player->GetGUID().ToString());
+        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::Inventory, throttle.DelayUntilNext, EQUIP_ERR_TOO_MUCH_GOLD);
         return;
     }
 
     // auction house does not deal with copper
-    if (sellCommodity.UnitPrice % SILVER)
+    if (sellItem.MinBid % SILVER || sellItem.BuyoutPrice % SILVER)
     {
         SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
         return;
     }
 
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(sellCommodity.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
+    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(sellItem.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
     if (!creature)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} not found or you can't interact with him.", sellCommodity.Auctioneer.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} not found or you can't interact with him.", sellItem.Auctioneer.ToString());
         return;
     }
 
@@ -664,11 +318,11 @@ void WorldSession::HandleAuctionSellCommodity(WorldPackets::AuctionHouse::Auctio
     AuctionHouseEntry const* auctionHouseEntry = AuctionHouseMgr::GetAuctionHouseEntry(creature->GetFaction(), &houseId);
     if (!auctionHouseEntry)
     {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} has wrong faction.", sellCommodity.Auctioneer.ToString().c_str());
+        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} has wrong faction.", sellItem.Auctioneer.ToString());
         return;
     }
 
-    switch (sellCommodity.RunTime)
+    switch (sellItem.RunTime)
     {
         case 1 * MIN_AUCTION_TIME / MINUTE:
         case 2 * MIN_AUCTION_TIME / MINUTE:
@@ -682,64 +336,32 @@ void WorldSession::HandleAuctionSellCommodity(WorldPackets::AuctionHouse::Auctio
     if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
         GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
 
-    // find all items for sale
-    uint64 totalCount = 0;
-    std::unordered_map<ObjectGuid, std::pair<Item*, uint64>> items2;
-
-    for (WorldPackets::AuctionHouse::AuctionItemForSale const& itemForSale : sellCommodity.Items)
+    Item* item = _player->GetItemByGuid(sellItem.Items[0].Guid);
+    if (!item)
     {
-        Item* item = _player->GetItemByGuid(itemForSale.Guid);
-        if (!item)
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
-            return;
-        }
-
-        if (item->GetTemplate()->GetMaxStackSize() == 1)
-        {
-            // not commodity, must use different packet
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
-            return;
-        }
-
-        // verify that all items belong to the same bucket
-        if (!items2.empty() && AuctionsBucketKey::ForItem(item) != AuctionsBucketKey::ForItem(items2.begin()->second.first))
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
-            return;
-        }
-
-        if (sAuctionMgr->GetAItem(item->GetGUID()) || !item->CanBeTraded() || item->IsNotEmptyBag() ||
-            item->GetTemplate()->HasFlag(ITEM_FLAG_CONJURED) || *item->m_itemData->Expiration ||
-            item->GetCount() < itemForSale.UseCount)
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-            return;
-        }
-
-        std::pair<Item*, uint64>& soldItem = items2[item->GetGUID()];
-        soldItem.first = item;
-        soldItem.second += itemForSale.UseCount;
-        if (item->GetCount() < soldItem.second)
-        {
-            // check that we have enough of this item to sell
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
-            return;
-        }
-
-        totalCount += itemForSale.UseCount;
+        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
+        return;
     }
 
-    if (!totalCount)
+    if (item->GetTemplate()->GetMaxStackSize() > 1)
+    {
+        // commodity, must use different packet
+        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
+        return;
+    }
+
+    if (sAuctionMgr->GetAItem(item->GetGUID()) || !item->CanBeTraded() || item->IsNotEmptyBag() ||
+        item->GetTemplate()->HasFlag(ITEM_FLAG_CONJURED) || *item->m_itemData->Expiration ||
+        item->GetCount() != 1)
     {
         SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
         return;
     }
 
-    Seconds auctionTime = Seconds(int64(std::chrono::duration_cast<Seconds>(Minutes(sellCommodity.RunTime)).count() * double(sWorld->getRate(RATE_AUCTION_TIME))));
+    Seconds auctionTime = Seconds(int64(std::chrono::duration_cast<Seconds>(Minutes(sellItem.RunTime)).count() * double(sWorld->getRate(RATE_AUCTION_TIME))));
     AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
 
-    uint64 deposit = AuctionHouseMgr::GetCommodityAuctionDeposit(items2.begin()->second.first->GetTemplate(), Minutes(sellCommodity.RunTime), totalCount);
+    uint64 deposit = AuctionHouseMgr::GetItemAuctionDeposit(_player, item, Minutes(sellItem.RunTime));
     if (!_player->HasEnoughMoney(deposit))
     {
         SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
@@ -747,89 +369,45 @@ void WorldSession::HandleAuctionSellCommodity(WorldPackets::AuctionHouse::Auctio
     }
 
     uint32 auctionId = sObjectMgr->GenerateAuctionID();
+
     AuctionPosting auction;
     auction.Id = auctionId;
     auction.Owner = _player->GetGUID();
     auction.OwnerAccount = GetAccountGUID();
-    auction.BuyoutOrUnitPrice = sellCommodity.UnitPrice;
+    auction.MinBid = sellItem.MinBid;
+    auction.BuyoutOrUnitPrice = sellItem.BuyoutPrice;
     auction.Deposit = deposit;
+    auction.BidAmount = sellItem.MinBid;
     auction.StartTime = GameTime::GetSystemTime();
     auction.EndTime = auction.StartTime + auctionTime;
 
-    // keep track of what was cloned to undo/modify counts later
-    std::unordered_map<Item* /*original*/, std::unique_ptr<Item> /*clone*/> clones;
-    for (std::pair<ObjectGuid const, std::pair<Item*, uint64>>& it : items2)
+    if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
     {
-        Item* itemForSale;
-        if (it.second.first->GetCount() != it.second.second)
-        {
-            itemForSale = it.second.first->CloneItem(it.second.second, _player);
-            if (!itemForSale)
-            {
-                TC_LOG_ERROR("network", "CMSG_AUCTION_SELL_COMMODITY: Could not create clone of item {}", it.second.first->GetEntry());
-                SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-                return;
-            }
-
-            clones.emplace(it.second.first, itemForSale);
-        }
+        sLog->OutCommand(GetAccountId(), "GM {} (Account: {}) create auction: {} (Entry: {} Count: {})",
+            GetPlayerName(), GetAccountId(), item->GetTemplate()->GetDefaultLocaleName(), item->GetEntry(), item->GetCount());
     }
 
-    if (!sAuctionMgr->PendingAuctionAdd(_player, auctionHouse->GetAuctionHouseId(), auction.Id, auction.Deposit))
+    auction.Items.push_back(item);
+
+    TC_LOG_INFO("network", "CMSG_AuctionAction::SellItem: {} {} is selling item {} {} to auctioneer {} with count {} with initial bid {} with buyout {} and with time {} (in sec) in auctionhouse {}",
+        _player->GetGUID().ToString(), _player->GetName(), item->GetGUID().ToString(), item->GetTemplate()->GetDefaultLocaleName(),
+        creature->GetGUID().ToString(), item->GetCount(), sellItem.MinBid, sellItem.BuyoutPrice, uint32(auctionTime.count()), auctionHouse->GetAuctionHouseId());
+
+    // Add to pending auctions, or fail with insufficient funds error
+    if (!sAuctionMgr->PendingAuctionAdd(_player, auctionHouse->GetAuctionHouseId(), auctionId, auction.Deposit))
     {
         SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
         return;
     }
 
-    TC_LOG_INFO("network", "CMSG_AUCTION_SELL_COMMODITY: {} {} is selling item {} {} to auctioneer {} with count {} with with unit price {} and with time {} (in sec) in auctionhouse {}",
-        _player->GetGUID().ToString().c_str(), _player->GetName().c_str(), items2.begin()->second.first->GetNameForLocaleIdx(sWorld->GetDefaultDbcLocale()).c_str(),
-        ([&items2]()
-        {
-            std::stringstream ss;
-            auto itr = items2.begin();
-            ss << (itr++)->first.ToString();
-            for (; itr != items2.end(); ++itr)
-                ss << ',' << itr->first.ToString();
-            return ss.str();
-        }()).c_str(),
-        creature->GetGUID().ToString().c_str(), totalCount, sellCommodity.UnitPrice, uint32(auctionTime.count()), auctionHouse->GetAuctionHouseId());
-
-    if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
-    {
-        Item* logItem = items2.begin()->second.first;
-        sLog->OutCommand(GetAccountId(), "GM {} (Account: {}) create auction: {} (Entry: {} Count: {})",
-            GetPlayerName().c_str(), GetAccountId(), logItem->GetNameForLocaleIdx(sWorld->GetDefaultDbcLocale()).c_str(), logItem->GetEntry(), totalCount);
-    }
+    _player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-
-    for (std::pair<ObjectGuid const, std::pair<Item*, uint64>> const& it : items2)
-    {
-        Item* itemForSale = it.second.first;
-        auto cloneItr = clones.find(it.second.first);
-        if (cloneItr != clones.end())
-        {
-            Item* original = itemForSale;
-            original->SetCount(original->GetCount() - uint32(it.second.second));
-            original->SetState(ITEM_CHANGED, _player);
-            _player->ItemRemovedQuestCheck(original->GetEntry(), uint32(it.second.second));
-            original->SaveToDB(trans);
-
-            itemForSale = cloneItr->second.release();
-        }
-        else
-        {
-            _player->MoveItemFromInventory(itemForSale->GetBagSlot(), itemForSale->GetSlot(), true);
-            itemForSale->DeleteFromInventoryDB(trans);
-        }
-
-        itemForSale->SaveToDB(trans);
-        auction.Items.push_back(itemForSale);
-    }
+    item->DeleteFromInventoryDB(trans);
+    item->SaveToDB(trans);
 
     auctionHouse->AddAuction(trans, std::move(auction));
     _player->SaveInventoryAndGoldToDB(trans);
-
     AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this, auctionId, auctionPlayerGuid = _player->GetGUID(), throttle](bool success)
     {
         if (GetPlayer() && GetPlayer()->GetGUID() == auctionPlayerGuid)
@@ -845,321 +423,8 @@ void WorldSession::HandleAuctionSellCommodity(WorldPackets::AuctionHouse::Auctio
     });
 }
 
-void WorldSession::HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSellItem& sellItem)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, sellItem.TaintedBy.has_value(), AuctionCommand::SellItem);
-    if (throttle.Throttled)
-        return;
-
-    for (auto const& item : sellItem.Items)
-        if (!item.Guid || !item.UseCount || item.UseCount > 1000)
-            return;
-
-    if (!sellItem.MinBid && !sellItem.BuyoutPrice)
-    {
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
-        return;
-    }
-
-    if (sellItem.MinBid > MAX_MONEY_AMOUNT || sellItem.BuyoutPrice > MAX_MONEY_AMOUNT)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Player {} {} attempted to sell item with higher price than max gold amount.", _player->GetName().c_str(), _player->GetGUID().ToString().c_str());
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::Inventory, throttle.DelayUntilNext, EQUIP_ERR_TOO_MUCH_GOLD);
-        return;
-    }
-
-    Creature* creature = GetPlayer()->GetNPCIfCanInteractWith(sellItem.Auctioneer, UNIT_NPC_FLAG_AUCTIONEER, UNIT_NPC_FLAG_2_NONE);
-    if (!creature)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} not found or you can't interact with him.", sellItem.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    uint32 houseId = 0;
-    AuctionHouseEntry const* auctionHouseEntry = AuctionHouseMgr::GetAuctionHouseEntry(creature->GetFaction(), &houseId);
-    if (!auctionHouseEntry)
-    {
-        TC_LOG_DEBUG("network", "WORLD: HandleAuctionSellItem - Unit {} has wrong faction.", sellItem.Auctioneer.ToString().c_str());
-        return;
-    }
-
-    const bool validRuntime = [](uint32 runtime) -> bool {
-        if constexpr (CURRENT_EXPANSION == EXPANSION_CLASSIC) {
-            switch (runtime)
-            {
-            case 1 * MIN_AUCTION_TIME / MINUTE:
-            case 4 * MIN_AUCTION_TIME / MINUTE:
-            case 12 * MIN_AUCTION_TIME / MINUTE:
-                return true;
-            }
-        }
-        else {
-            switch (runtime)
-            {
-            case 6 * MIN_AUCTION_TIME / MINUTE:
-            case 12 * MIN_AUCTION_TIME / MINUTE:
-            case 24 * MIN_AUCTION_TIME / MINUTE:
-                return true;
-            }
-        }
-
-        return false;
-    }(sellItem.RunTime);
-
-    if (!validRuntime) {
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::AuctionHouseBusy, throttle.DelayUntilNext);
-    }
-
-    if (GetPlayer()->HasUnitState(UNIT_STATE_DIED))
-        GetPlayer()->RemoveAurasByType(SPELL_AURA_FEIGN_DEATH);
-
-    uint32 finalCount = 0;
-    std::array<Item*, decltype(sellItem.Items)::max_capacity::value> items;
-    items.fill(nullptr);
-    for (std::size_t i = 0; i < sellItem.Items.size(); ++i)
-    {
-        items[i] = _player->GetItemByGuid(sellItem.Items[i].Guid);
-
-        if (!items[i])
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::ItemNotFound, throttle.DelayUntilNext);
-            return;
-        }
-
-        if (sAuctionMgr->GetAItem(items[i]->GetGUID()) || !items[i]->CanBeTraded() || items[i]->IsNotEmptyBag() ||
-            items[i]->GetTemplate()->HasFlag(ITEM_FLAG_CONJURED) || items[i]->m_itemData->Expiration ||
-            items[i]->GetCount() < sellItem.Items[i].UseCount)
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-            return;
-        }
-
-        finalCount += sellItem.Items[i].UseCount;
-    }
-
-    if (sellItem.Items.empty() || !finalCount)
-    {
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-        return;
-    }
-
-    // check if there are 2 identical guids, in this case user is most likely cheating
-    for (std::size_t i = 0; i < sellItem.Items.size() - 1; ++i)
-    {
-        for (std::size_t j = i + 1; j < sellItem.Items.size(); ++j)
-        {
-            if (sellItem.Items[i].Guid == sellItem.Items[j].Guid)
-            {
-                SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-                return;
-            }
-            if (items[i]->GetEntry() != items[j]->GetEntry())
-            {
-                SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-                return;
-            }
-        }
-    }
-
-    for (std::size_t i = 0; i < sellItem.Items.size(); ++i)
-    {
-        if (items[i]->GetMaxStackCount() < finalCount)
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-            return;
-        }
-    }
-
-    Item* item = items[0];
-    Seconds auctionTime = Seconds(int64(std::chrono::duration_cast<Seconds>(Minutes(sellItem.RunTime)).count() * double(sWorld->getRate(RATE_AUCTION_TIME))));
-    AuctionHouseObject* auctionHouse = sAuctionMgr->GetAuctionsMap(creature->GetFaction());
-
-    uint64 deposit = AuctionHouseMgr::GetItemAuctionDeposit(_player, item, Minutes(sellItem.RunTime));
-    if (!_player->HasEnoughMoney(deposit))
-    {
-        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
-        return;
-    }
-
-    // Required stack size of auction matches to current item stack size, just move item to auctionhouse
-    if (sellItem.Items.size() == 1 && item->GetCount() == sellItem.Items[0].UseCount)
-    {
-        if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
-        {
-            sLog->OutCommand(GetAccountId(), "GM {} (Account: {}) create auction: {} (Entry: {} Count: {})",
-                GetPlayerName().c_str(), GetAccountId(), item->GetTemplate()->GetDefaultLocaleName(), item->GetEntry(), item->GetCount());
-        }
-
-        uint32 auctionId = sObjectMgr->GenerateAuctionID();
-
-        AuctionPosting auction;
-        auction.Id = auctionId;
-        auction.Owner = _player->GetGUID();
-        auction.OwnerAccount = GetAccountGUID();
-        auction.MinBid = sellItem.MinBid;
-        auction.BuyoutOrUnitPrice = sellItem.BuyoutPrice;
-        auction.Deposit = deposit;
-        auction.BidAmount = sellItem.MinBid;
-        auction.StartTime = GameTime::GetSystemTime();
-        auction.EndTime = auction.StartTime + auctionTime;
-
-        auction.Items.push_back(item);
-
-        TC_LOG_INFO("network", "CMSG_AuctionAction::SellItem: {} {} is selling item {} {} to auctioneer {} with count {} with initial bid {} with buyout {} and with time {} (in sec) in auctionhouse {}",
-            _player->GetGUID().ToString().c_str(), _player->GetName().c_str(), item->GetGUID().ToString().c_str(), item->GetTemplate()->GetDefaultLocaleName(),
-            creature->GetGUID().ToString().c_str(), item->GetCount(), sellItem.MinBid, sellItem.BuyoutPrice, uint32(auctionTime.count()), auctionHouse->GetAuctionHouseId());
-
-        // Add to pending auctions, or fail with insufficient funds error
-        if (!sAuctionMgr->PendingAuctionAdd(_player, auctionHouse->GetAuctionHouseId(), auctionId, auction.Deposit))
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
-            return;
-        }
-
-        _player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
-
-        CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-        item->DeleteFromInventoryDB(trans);
-        item->SaveToDB(trans);
-
-        auctionHouse->AddAuction(trans, std::move(auction));
-        _player->SaveInventoryAndGoldToDB(trans);
-        AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this, auctionId, auctionPlayerGuid = _player->GetGUID(), throttle](bool success)
-            {
-                if (GetPlayer() && GetPlayer()->GetGUID() == auctionPlayerGuid)
-                {
-                    if (success)
-                    {
-                        GetPlayer()->UpdateCriteria(CriteriaType::ItemsPostedAtAuction, 1);
-                        SendAuctionCommandResult(auctionId, AuctionCommand::SellItem, AuctionResult::Ok, throttle.DelayUntilNext);
-                    }
-                    else
-                        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-                }
-            }); 
-    }
-    else // Required stack size of auction does not match to current item stack size, clone item and set correct stack size
-    {
-        Item* newItem = item->CloneItem(finalCount, _player);
-        if (!newItem)
-        {
-            TC_LOG_ERROR("network", "CMSG_AUCTION_SELL_ITEM: Could not create clone of item {}", item->GetEntry());
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-            return;
-        }
-
-        if (HasPermission(rbac::RBAC_PERM_LOG_GM_TRADE))
-        {
-            sLog->OutCommand(GetAccountId(), "GM {} (Account: {}) create auction: {} (Entry: {} Count: {})",
-                GetPlayerName().c_str(), GetAccountId(), item->GetTemplate()->GetDefaultLocaleName(), item->GetEntry(), item->GetCount());
-        }
-
-        uint32 auctionId = sObjectMgr->GenerateAuctionID();
-
-        AuctionPosting auction;
-        auction.Id = auctionId;
-        auction.Owner = _player->GetGUID();
-        auction.OwnerAccount = GetAccountGUID();
-        auction.MinBid = sellItem.MinBid;
-        auction.BuyoutOrUnitPrice = sellItem.BuyoutPrice;
-        auction.Deposit = deposit;
-        auction.BidAmount = sellItem.MinBid;
-        auction.StartTime = GameTime::GetSystemTime();
-        auction.EndTime = auction.StartTime + auctionTime;
-
-        auction.Items.push_back(newItem);
-
-        TC_LOG_INFO("network", "CMSG_AuctionAction::SellItem: {} {} is selling item {} {} to auctioneer {} with count {} with initial bid {} with buyout {} and with time {} (in sec) in auctionhouse {}",
-            _player->GetGUID().ToString().c_str(), _player->GetName().c_str(), item->GetGUID().ToString().c_str(), item->GetTemplate()->GetDefaultLocaleName(),
-            creature->GetGUID().ToString().c_str(), item->GetCount(), sellItem.MinBid, sellItem.BuyoutPrice, uint32(auctionTime.count()), auctionHouse->GetAuctionHouseId());
-
-        // Add to pending auctions, or fail with insufficient funds error
-        if (!sAuctionMgr->PendingAuctionAdd(_player, auctionHouse->GetAuctionHouseId(), auctionId, auction.Deposit))
-        {
-            SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::NotEnoughMoney, throttle.DelayUntilNext);
-            return;
-        }
-
-        for (std::size_t i = 0; i < sellItem.Items.size(); ++i)
-        {
-            Item* item2 = items[i];
-
-            // Item stack count equals required count, ready to delete item - cloned item will be used for auction
-            if (item2->GetCount() == sellItem.Items[i].UseCount)
-            {
-                _player->MoveItemFromInventory(item2->GetBagSlot(), item2->GetSlot(), true);
-
-                CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-                item2->DeleteFromInventoryDB(trans);
-                item2->DeleteFromDB(trans);
-                CharacterDatabase.CommitTransaction(trans);
-                delete item2;
-            }
-            else // Item stack count is bigger than required count, update item stack count and save to database - cloned item will be used for auction
-            {
-                item2->SetCount(item2->GetCount() - sellItem.Items[i].UseCount);
-                item2->SetState(ITEM_CHANGED, _player);
-                _player->ItemRemovedQuestCheck(item2->GetEntry(), sellItem.Items[i].UseCount);
-                item2->SendUpdateToPlayer(_player);
-
-                CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-                item2->SaveToDB(trans);
-                CharacterDatabase.CommitTransaction(trans);
-            }
-        }
-
-        CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-        item->DeleteFromInventoryDB(trans);
-        item->SaveToDB(trans);
-
-        auctionHouse->AddAuction(trans, std::move(auction));
-        _player->SaveInventoryAndGoldToDB(trans);
-        AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this, auctionId, auctionPlayerGuid = _player->GetGUID(), throttle](bool success)
-            {
-                if (GetPlayer() && GetPlayer()->GetGUID() == auctionPlayerGuid)
-                {
-                    if (success)
-                    {
-                        GetPlayer()->UpdateCriteria(CriteriaType::ItemsPostedAtAuction, 1);
-                        SendAuctionCommandResult(auctionId, AuctionCommand::SellItem, AuctionResult::Ok, throttle.DelayUntilNext);
-                    }
-                    else
-                        SendAuctionCommandResult(0, AuctionCommand::SellItem, AuctionResult::DatabaseError, throttle.DelayUntilNext);
-                }
-            });
-    }
-}
-
-void WorldSession::HandleAuctionSetFavoriteItem(WorldPackets::AuctionHouse::AuctionSetFavoriteItem& setFavoriteItem)
-{
-    AuctionThrottleResult throttle = sAuctionMgr->CheckThrottle(_player, false);
-    if (throttle.Throttled)
-        return;
-
-    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHARACTER_FAVORITE_AUCTION);
-    stmt->setUInt64(0, _player->GetGUID().GetCounter());
-    stmt->setUInt32(1, setFavoriteItem.Item.Order);
-    trans->Append(stmt);
-
-    if (!setFavoriteItem.IsNotFavorite)
-    {
-        stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHARACTER_FAVORITE_AUCTION);
-        stmt->setUInt64(0, _player->GetGUID().GetCounter());
-        stmt->setUInt32(1, setFavoriteItem.Item.Order);
-        stmt->setUInt32(2, setFavoriteItem.Item.ItemID);
-        stmt->setUInt32(3, setFavoriteItem.Item.ItemLevel);
-        stmt->setUInt32(4, setFavoriteItem.Item.BattlePetSpeciesID);
-        stmt->setUInt32(5, setFavoriteItem.Item.SuffixItemNameDescriptionID);
-        trans->Append(stmt);
-    }
-
-    CharacterDatabase.CommitTransaction(trans);
-}
-
 //this void causes that auction window is opened
-void WorldSession::SendAuctionHello(ObjectGuid guid, Creature* unit)
+void WorldSession::SendAuctionHello(ObjectGuid guid, Unit const* unit)
 {
     if (GetPlayer()->GetLevel() < sWorld->getIntConfig(CONFIG_AUCTION_LEVEL_REQ))
     {

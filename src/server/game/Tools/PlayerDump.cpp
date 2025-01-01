@@ -23,6 +23,7 @@
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "StringConvert.h"
 #include "World.h"
 #include <boost/algorithm/string/find.hpp>
 #include <fstream>
@@ -105,7 +106,6 @@ DumpTable const DumpTables[] =
     { "character_inventory",              DTT_INVENTORY  },
     { "character_pet",                    DTT_PET        },
     { "character_pet_declinedname",       DTT_PET        },
-    { "character_pvp_talent",             DTT_CHAR_TABLE },
     { "character_queststatus",            DTT_CHAR_TABLE },
     { "character_queststatus_daily",      DTT_CHAR_TABLE },
     { "character_queststatus_monthly",    DTT_CHAR_TABLE },
@@ -220,7 +220,7 @@ inline void MarkDependentColumn(TableStruct& tableStruct, std::string const& col
     if (itr == tableStruct.TableFields.end())
     {
         TC_LOG_FATAL("server.loading", "Column `{}` declared in table `{}` marked as dependent but doesn't exist, PlayerDump will not work properly, please update table definitions",
-            columnName.c_str(), tableStruct.TableName.c_str());
+            columnName, tableStruct.TableName);
         ABORT();
         return;
     }
@@ -228,7 +228,7 @@ inline void MarkDependentColumn(TableStruct& tableStruct, std::string const& col
     if (itr->IsDependentField)
     {
         TC_LOG_FATAL("server.loading", "Attempt to mark column `{}` in table `{}` as dependent column but already marked! please check your code.",
-            columnName.c_str(), tableStruct.TableName.c_str());
+            columnName, tableStruct.TableName);
         ABORT();
         return;
     }
@@ -245,7 +245,7 @@ inline void MarkWhereField(TableStruct& tableStruct, std::string const& whereFie
     if (whereFieldItr == tableStruct.TableFields.end())
     {
         TC_LOG_FATAL("server.loading", "Column name `{}` set as 'WHERE' column for table `{}` doesn't exist. PlayerDump won't work properly",
-            whereField.c_str(), tableStruct.TableName.c_str());
+            whereField, tableStruct.TableName);
         ABORT();
         return;
     }
@@ -581,7 +581,7 @@ inline T RegisterNewGuid(T oldGuid, MapType<T, T, Rest...>& guidMap, T guidOffse
 template <typename T, template<class, class, class...> class MapType, class... Rest>
 inline bool ChangeGuid(TableStruct const& ts, std::string& str, std::string const& column, MapType<T, T, Rest...>& guidMap, T guidOffset, bool allowZero = false)
 {
-    T oldGuid(atoull(GetColumn(ts, str, column).c_str()));
+    T oldGuid = Trinity::StringTo<T>(GetColumn(ts, str, column)).template value_or<T>(0);
     if (allowZero && !oldGuid)
         return true;                                        // not an error
 
@@ -629,7 +629,11 @@ inline void AppendTableDump(StringTransaction& trans, TableStruct const& tableSt
                 else
                 {
                     std::vector<uint8> b(fields[i].GetBinary());
-                    ss << "0x" << ByteArrayToHexStr(b);
+
+                    if (!b.empty())
+                        ss << "0x" << ByteArrayToHexStr(b);
+                    else
+                        ss << '\'' << '\'';
                 }
             }
 
@@ -687,7 +691,7 @@ void PlayerDumpWriter::PopulateGuids(ObjectGuid::LowType guid)
         }
 
         std::string whereStr = GenerateWhereStr(baseTable.PlayerGuid, guid);
-        QueryResult result = CharacterDatabase.PQuery("SELECT {} FROM {} WHERE {}", baseTable.PrimaryKey, baseTable.TableName, whereStr.c_str());
+        QueryResult result = CharacterDatabase.PQuery("SELECT {} FROM {} WHERE {}", baseTable.PrimaryKey, baseTable.TableName, whereStr);
         if (!result)
             continue;
 
@@ -756,7 +760,7 @@ bool PlayerDumpWriter::AppendTable(StringTransaction& trans, ObjectGuid::LowType
             break;
     }
 
-    QueryResult result = CharacterDatabase.PQuery("SELECT * FROM {} WHERE {}", dumpTable.Name, whereStr.c_str());
+    QueryResult result = CharacterDatabase.PQuery("SELECT * FROM {} WHERE {}", dumpTable.Name, whereStr);
     switch (dumpTable.Type)
     {
         case DTT_CHARACTER:
@@ -890,8 +894,8 @@ DumpReturn PlayerDumpReader::LoadDump(std::istream& input, uint32 account, std::
     std::map<ObjectGuid::LowType, ObjectGuid::LowType> items;
     ObjectGuid::LowType itemLowGuidOffset = sObjectMgr->GetGenerator<HighGuid::Item>().GetNextAfterMaxUsed();
 
-    std::map<uint32, uint32> mails;
-    uint32 mailLowGuidOffset = sObjectMgr->_mailId;
+    std::map<uint64, uint64> mails;
+    uint64 mailLowGuidOffset = sObjectMgr->_mailId;
 
     std::map<uint32, uint32> petIds;
     uint32 petLowGuidOffset = sObjectMgr->_hiPetNumber;
@@ -1000,10 +1004,10 @@ DumpReturn PlayerDumpReader::LoadDump(std::istream& input, uint32 account, std::
         {
             case DTT_CHARACTER:
             {
-                race = uint8(atoul(GetColumn(ts, line, "race").c_str()));
-                playerClass = uint8(atoul(GetColumn(ts, line, "class").c_str()));
-                gender = uint8(atoul(GetColumn(ts, line, "gender").c_str()));
-                level = uint8(atoul(GetColumn(ts, line, "level").c_str()));
+                race = Trinity::StringTo<uint8>(GetColumn(ts, line, "race")).value_or<uint8>(0);
+                playerClass = Trinity::StringTo<uint8>(GetColumn(ts, line, "class")).value_or<uint8>(0);
+                gender = Trinity::StringTo<uint8>(GetColumn(ts, line, "gender")).value_or<uint8>(0);
+                level = Trinity::StringTo<uint8>(GetColumn(ts, line, "level")).value_or<uint8>(0);
                 if (name.empty())
                 {
                     // generate a temporary name

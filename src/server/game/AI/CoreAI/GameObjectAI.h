@@ -30,7 +30,7 @@ class Quest;
 class SpellInfo;
 class Unit;
 class WorldObject;
-enum class QuestGiverStatus : uint32;
+enum class QuestGiverStatus : uint64;
 
 namespace WorldPackets
 {
@@ -63,14 +63,14 @@ class TC_GAME_API GameObjectAI
         virtual void Reset() { }
 
         // Pass parameters between AI
-        virtual void DoAction(int32 /*param = 0 */) { }
-        virtual void SetGUID(ObjectGuid const& /*guid*/, int32 /*id = 0 */) { }
-        virtual ObjectGuid GetGUID(int32 /*id = 0 */) const { return ObjectGuid::Empty; }
+        virtual void DoAction([[maybe_unused]] int32 param) { }
+        virtual void SetGUID([[maybe_unused]] ObjectGuid const& guid, [[maybe_unused]] int32 id) { }
+        virtual ObjectGuid GetGUID([[maybe_unused]] int32 id) const { return ObjectGuid::Empty; }
 
         static int32 Permissible(GameObject const* go);
 
         // Called when the dialog status between a player and the gameobject is requested.
-        virtual Optional<QuestGiverStatus> GetDialogStatus(Player* player);
+        virtual Optional<QuestGiverStatus> GetDialogStatus(Player const* player);
 
         // Called when a player opens a gossip dialog with the gameobject.
         virtual bool OnGossipHello(Player* /*player*/) { return false; }

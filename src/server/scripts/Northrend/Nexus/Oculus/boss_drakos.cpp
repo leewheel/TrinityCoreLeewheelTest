@@ -131,16 +131,12 @@ struct boss_drakos : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
-
-        DoMeleeAttackIfReady();
     }
 };
 
 // 51336 - Magic Pull
 class spell_drakos_magic_pull : public SpellScript
 {
-    PrepareSpellScript(spell_drakos_magic_pull);
-
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_MAGIC_PULL_EFFECT, SPELL_SUMMON_UNSTABLE_SPHERE });

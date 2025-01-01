@@ -136,25 +136,14 @@ bool SceneObject::Create(ObjectGuid::LowType lowGuid, SceneType type, uint32 sce
     return true;
 }
 
-void SceneObject::BuildValuesCreate(ByteBuffer* data, Player const* target) const
+void SceneObject::BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
 {
-    /*
-    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
-    std::size_t sizePos = data->wpos();
-    *data << uint32(0);
-    *data << uint8(flags);
     m_objectData->WriteCreate(*data, flags, this, target);
     m_sceneObjectData->WriteCreate(*data, flags, this, target);
-    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
-    */
 }
 
-void SceneObject::BuildValuesUpdate(ByteBuffer* data, Player const* target) const
+void SceneObject::BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const
 {
-    /*
-    UF::UpdateFieldFlag flags = GetUpdateFieldFlagsFor(target);
-    std::size_t sizePos = data->wpos();
-    *data << uint32(0);
     *data << uint32(m_values.GetChangedObjectTypeMask());
 
     if (m_values.HasChanged(TYPEID_OBJECT))
@@ -162,24 +151,11 @@ void SceneObject::BuildValuesUpdate(ByteBuffer* data, Player const* target) cons
 
     if (m_values.HasChanged(TYPEID_SCENEOBJECT))
         m_sceneObjectData->WriteUpdate(*data, flags, this, target);
-
-    data->put<uint32>(sizePos, data->wpos() - sizePos - 4);
-    */
-}
-
-void SceneObject::BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
-{
-    ABORT_MSG("Not implemented Conversation BuildValues");
-}
-void SceneObject::BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const
-{
-    ABORT_MSG("Not implemented Conversation BuildValues");
 }
 
 void SceneObject::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::ObjectData::Mask const& requestedObjectMask,
     UF::SceneObjectData::Mask const& requestedSceneObjectMask, Player const* target) const
 {
-    /*
     UpdateMask<NUM_CLIENT_OBJECT_TYPES> valuesMask;
     if (requestedObjectMask.IsAnySet())
         valuesMask.Set(TYPEID_OBJECT);
@@ -187,7 +163,7 @@ void SceneObject::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::Objec
     if (requestedSceneObjectMask.IsAnySet())
         valuesMask.Set(TYPEID_SCENEOBJECT);
 
-    ByteBuffer buffer = PrepareValuesUpdateBuffer();
+    ByteBuffer& buffer = PrepareValuesUpdateBuffer(data);
     std::size_t sizePos = buffer.wpos();
     buffer << uint32(0);
     buffer << uint32(valuesMask.GetBlock(0));
@@ -200,8 +176,7 @@ void SceneObject::BuildValuesUpdateForPlayerWithMask(UpdateData* data, UF::Objec
 
     buffer.put<uint32>(sizePos, buffer.wpos() - sizePos - 4);
 
-    data->AddUpdateBlock(buffer);
-    */
+    data->AddUpdateBlock();
 }
 
 void SceneObject::ValuesUpdateForPlayerWithMaskSender::operator()(Player const* player) const

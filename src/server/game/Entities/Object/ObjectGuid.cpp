@@ -20,9 +20,10 @@
 #include "Errors.h"
 #include "Hash.h"
 #include "Log.h"
-#include "Realm.h"
+#include "RealmList.h"
 #include "Util.h"
 #include "World.h"
+#include <charconv>
 
 static_assert(sizeof(ObjectGuid) == sizeof(uint64) * 2, "ObjectGuid must be exactly 16 bytes");
 
@@ -88,7 +89,7 @@ namespace
 
             if constexpr (Width != 0)
             {
-                if (std::ptrdiff_t written = std::distance(buf.data(), end); written < Width)
+                if (std::ptrdiff_t written =  std::distance(buf.data(), end); written < Width)
                     std::fill_n(ctx.out(), Width - written, '0');
             }
 
@@ -553,15 +554,15 @@ namespace
             ctx.advance_to(AppendComponent<no_padding, dec>(ctx, clubFinderId));
             switch (type)
             {
-            case 0: // club
-                ctx.advance_to(AppendComponent<padding<16>, hex>(ctx, guid.GetRawValue(0))); // clubId
-                break;
-            case 1: // guild
-                ctx.advance_to(AppendComponent<no_padding, dec>(ctx, guid.GetRealmId()));
-                ctx.advance_to(AppendComponent<no_padding, dec>(ctx, guid.GetRawValue(0))); // guildId
-                break;
-            default:
-                break;
+                case 0: // club
+                    ctx.advance_to(AppendComponent<padding<16>, hex>(ctx, guid.GetRawValue(0))); // clubId
+                    break;
+                case 1: // guild
+                    ctx.advance_to(AppendComponent<no_padding, dec>(ctx, guid.GetRealmId()));
+                    ctx.advance_to(AppendComponent<no_padding, dec>(ctx, guid.GetRawValue(0))); // guildId
+                    break;
+                default:
+                    break;
             }
 
             return ctx.out();
@@ -580,17 +581,17 @@ namespace
 
             switch (type)
             {
-            case 0: // club
-                if (!ParseComponent<hex>(guidString, &dbId))
+                case 0: // club
+                    if (!ParseComponent<hex>(guidString, &dbId))
+                        return ObjectGuid::FromStringFailed;
+                    break;
+                case 1: // guild
+                    if (!ParseComponent<dec>(guidString, &realmId)
+                        || !ParseComponent<dec>(guidString, &dbId))
+                        return ObjectGuid::FromStringFailed;
+                    break;
+                default:
                     return ObjectGuid::FromStringFailed;
-                break;
-            case 1: // guild
-                if (!ParseComponent<dec>(guidString, &realmId)
-                    || !ParseComponent<dec>(guidString, &dbId))
-                    return ObjectGuid::FromStringFailed;
-                break;
-            default:
-                return ObjectGuid::FromStringFailed;
             }
 
             if (!ParseDone(guidString))
@@ -661,6 +662,24 @@ namespace
             return ctx.out();
         }
 
+        static ObjectGuid ParseLMMLobby(HighGuid /*type*/, std::string_view guidString)
+        {
+            uint32 realmId = 0;
+            uint32 arg2 = 0;
+            uint8 arg3 = 0;
+            uint8 arg4 = 0;
+            uint64 arg5 = 0;
+
+            if (!ParseComponent<dec>(guidString, &realmId)
+                || !ParseComponent<dec>(guidString, &arg2)
+                || !ParseComponent<dec>(guidString, &arg3)
+                || !ParseComponent<dec>(guidString, &arg4)
+                || !ParseComponent<hex>(guidString, &arg5)
+                || !ParseDone(guidString))
+                return ObjectGuid::FromStringFailed;
+
+            return ObjectGuidFactory::CreateLMMLobby(realmId, arg2, arg3, arg4, arg5);
+        }
 
         ObjectGuidInfo();
     } Info;
@@ -725,6 +744,8 @@ namespace
         SET_GUID_INFO(ToolsClient, FormatToolsClient, ParseToolsClient);
         SET_GUID_INFO(WorldLayer, FormatWorldLayer, ParseWorldLayer);
         SET_GUID_INFO(ArenaTeam, FormatGuild, ParseGuild);
+        SET_GUID_INFO(LMMParty, FormatClient, ParseClient);
+        SET_GUID_INFO(LMMLobby, FormatLMMLobby, ParseLMMLobby);
 
 #undef SET_GUID_INFO
     }
@@ -745,18 +766,17 @@ auto fmt::formatter<ObjectGuid>::format(ObjectGuid const& guid, FormatContext& c
 
 template TC_GAME_API fmt::appender fmt::formatter<ObjectGuid>::format<fmt::format_context>(ObjectGuid const&, format_context&) const;
 
-
-char const* ObjectGuid::GetTypeName(HighGuid high)
+std::string_view ObjectGuid::GetTypeName(HighGuid high)
 {
     if (high >= HighGuid::Count)
         return "<unknown>";
 
-    return Info.Names[uint32(high)].c_str();
+    return Info.Names[uint32(high)];
 }
 
 std::string ObjectGuid::ToString() const
 {
-    return Info.Format(*this);
+    return ObjectGuidInfo::Format(*this);
 }
 
 std::string ObjectGuid::ToHexString() const
@@ -764,7 +784,7 @@ std::string ObjectGuid::ToHexString() const
     return Trinity::StringFormat("0x{:016X}{:016X}", _data[1], _data[0]);
 }
 
-ObjectGuid ObjectGuid::FromString(std::string const& guidString)
+ObjectGuid ObjectGuid::FromString(std::string_view guidString)
 {
     return Info.Parse(guidString);
 }
@@ -795,7 +815,7 @@ static inline uint32 GetRealmIdForObjectGuid(uint32 realmId)
     if (realmId)
         return realmId;
 
-    return realm.Id.Realm;
+    return sRealmList->GetCurrentRealmId().Realm;
 }
 
 ObjectGuid ObjectGuidFactory::CreateNull()
@@ -944,6 +964,16 @@ ObjectGuid ObjectGuidFactory::CreateWorldLayer(uint32 arg1, uint16 arg2, uint8 a
         | uint64(arg4 & 0x7FFFFF)));
 }
 
+ObjectGuid ObjectGuidFactory::CreateLMMLobby(uint32 realmId, uint32 arg2, uint8 arg3, uint8 arg4, ObjectGuid::LowType counter)
+{
+    return ObjectGuid(uint64((uint64(HighGuid::LMMLobby) << 58)
+        | (uint64(GetRealmIdForObjectGuid(realmId)) << 42)
+        | (uint64(arg2 & 0xFFFFFFFF) << 26)
+        | (uint64(arg3 & 0xFF) << 18)
+        | (uint64(arg4 & 0xFF) << 10)),
+        counter);
+}
+
 ObjectGuid const ObjectGuid::Empty = ObjectGuid();
 ObjectGuid const ObjectGuid::ToStringFailed = ObjectGuid::Create<HighGuid::Uniq>(UI64LIT(3));
 ObjectGuid const ObjectGuid::FromStringFailed = ObjectGuid::Create<HighGuid::Uniq>(UI64LIT(4));
@@ -979,70 +1009,27 @@ ByteBuffer& operator>>(ByteBuffer& buf, ObjectGuid& guid)
     return buf;
 }
 
-void ObjectGuidGeneratorBase::HandleCounterOverflow(HighGuid high)
+ObjectGuid::LowType ObjectGuidGenerator::Generate()
 {
-    TC_LOG_ERROR("misc", "{} guid overflow!! Can't continue, shutting down server. ", ObjectGuid::GetTypeName(high));
+    if (_nextGuid >= ObjectGuid::GetMaxCounter(_high) - 1)
+        HandleCounterOverflow();
+
+    if (_high == HighGuid::Creature || _high == HighGuid::Vehicle || _high == HighGuid::GameObject || _high == HighGuid::Transport)
+        CheckGuidTrigger();
+
+    return _nextGuid++;
+}
+
+void ObjectGuidGenerator::HandleCounterOverflow()
+{
+    TC_LOG_ERROR("misc", "{} guid overflow!! Can't continue, shutting down server. ", ObjectGuid::GetTypeName(_high));
     World::StopNow(ERROR_EXIT_CODE);
 }
 
-void ObjectGuidGeneratorBase::CheckGuidTrigger(ObjectGuid::LowType guidlow)
+void ObjectGuidGenerator::CheckGuidTrigger()
 {
-    if (!sWorld->IsGuidAlert() && guidlow > sWorld->getIntConfig(CONFIG_RESPAWN_GUIDALERTLEVEL))
+    if (!sWorld->IsGuidAlert() && _nextGuid > sWorld->getIntConfig(CONFIG_RESPAWN_GUIDALERTLEVEL))
         sWorld->TriggerGuidAlert();
-    else if (!sWorld->IsGuidWarning() && guidlow > sWorld->getIntConfig(CONFIG_RESPAWN_GUIDWARNLEVEL))
+    else if (!sWorld->IsGuidWarning() && _nextGuid > sWorld->getIntConfig(CONFIG_RESPAWN_GUIDWARNLEVEL))
         sWorld->TriggerGuidWarning();
 }
-
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Null>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Uniq>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Player>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Item>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::WorldTransaction>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::StaticDoor>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Transport>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Conversation>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Creature>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Vehicle>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Pet>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::GameObject>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::DynamicObject>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::AreaTrigger>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Corpse>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::LootObject>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::SceneObject>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Scenario>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::AIGroup>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::DynamicDoor>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ClientActor>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Vignette>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::CallForHelp>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::AIResource>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::AILock>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::AILockTicket>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ChatChannel>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Party>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Guild>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::WowAccount>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::BNetAccount>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::GMTask>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::MobileSession>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::RaidGroup>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Spell>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Mail>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::WebObj>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::LFGObject>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::LFGList>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::UserRouter>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::PVPQueueGroup>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::UserClient>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::PetBattle>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::UniqUserClient>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::BattlePet>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::CommerceObj>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ClientSession>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::Cast>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ClientConnection>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ClubFinder>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ToolsClient>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::WorldLayer>;
-template class TC_GAME_API ObjectGuidGenerator<HighGuid::ArenaTeam>;

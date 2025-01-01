@@ -17,6 +17,7 @@
 
 #include "PetAI.h"
 #include "AIException.h"
+#include "CharmInfo.h"
 #include "Creature.h"
 #include "Errors.h"
 #include "Group.h"
@@ -80,15 +81,6 @@ void PetAI::UpdateAI(uint32 diff)
             StopAttack();
             return;
         }
-
-        // Check before attacking to prevent pets from leaving stay position
-        if (me->GetCharmInfo()->HasCommandState(COMMAND_STAY))
-        {
-            if (me->GetCharmInfo()->IsCommandAttack() || (me->GetCharmInfo()->IsAtStay() && me->IsWithinMeleeRange(me->GetVictim())))
-                DoMeleeAttackIfReady();
-        }
-        else
-            DoMeleeAttackIfReady();
     }
     else
     {
@@ -134,7 +126,7 @@ void PetAI::UpdateAI(uint32 diff)
 
             if (spellInfo->IsPositive())
             {
-                if (spellInfo->CanBeUsedInCombat())
+                if (spellInfo->CanBeUsedInCombat(me))
                 {
                     // Check if we're in combat or commanded to attack
                     if (!me->IsInCombat() && !me->GetCharmInfo()->IsCommandAttack())
@@ -190,7 +182,7 @@ void PetAI::UpdateAI(uint32 diff)
                 if (!spellUsed)
                     delete spell;
             }
-            else if (me->GetVictim() && CanAttack(me->GetVictim()) && spellInfo->CanBeUsedInCombat())
+            else if (me->GetVictim() && CanAttack(me->GetVictim()) && spellInfo->CanBeUsedInCombat(me))
             {
                 Spell* spell = new Spell(me, spellInfo, TRIGGERED_NONE);
                 if (spell->CanAutoCast(me->GetVictim()))

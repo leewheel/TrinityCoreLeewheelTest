@@ -18,8 +18,8 @@
 #include "Metric.h"
 #include "Config.h"
 #include "DeadlineTimer.h"
+#include "IoContext.h"
 #include "Log.h"
-#include "Strand.h"
 #include "Util.h"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -42,7 +42,7 @@ bool Metric::Connect()
     if (error)
     {
         TC_LOG_ERROR("metric", "Error connecting to '{}:{}', disabling Metric. Error message : {}",
-            _hostname.c_str(), _port.c_str(), error.message().c_str());
+            _hostname, _port, error.message());
         _enabled = false;
         return false;
     }
@@ -152,8 +152,14 @@ void Metric::SendBatch()
         if (!_realmName.empty())
             batchedData << ",realm=" << _realmName;
 
-        for (MetricTag const& tag : data->Tags)
-            batchedData << "," << tag.first << "=" << FormatInfluxDBTagValue(tag.second);
+        if (data->Tags)
+        {
+            auto begin = std::visit([](auto&& value) { return value.data(); }, *data->Tags);
+            auto end = std::visit([](auto&& value) { return value.data() + value.size(); }, *data->Tags);
+            for (auto itr = begin; itr != end; ++itr)
+                if (!itr->first.empty())
+                    batchedData << "," << itr->first << "=" << FormatInfluxDBTagValue(itr->second);
+        }
 
         batchedData << " ";
 
@@ -219,8 +225,8 @@ void Metric::ScheduleSend()
 {
     if (_enabled)
     {
-        _batchTimer->expires_from_now(boost::posix_time::seconds(_updateInterval));
-        _batchTimer->async_wait(std::bind(&Metric::SendBatch, this));
+        _batchTimer->expires_after(std::chrono::seconds(_updateInterval));
+        _batchTimer->async_wait([this](boost::system::error_code const&){ SendBatch(); });
     }
     else
     {
@@ -249,7 +255,7 @@ void Metric::ScheduleOverallStatusLog()
 {
     if (_enabled)
     {
-        _overallStatusTimer->expires_from_now(boost::posix_time::seconds(_overallStatusTimerInterval));
+        _overallStatusTimer->expires_after(std::chrono::seconds(_overallStatusTimerInterval));
         _overallStatusTimer->async_wait([this](const boost::system::error_code&)
         {
             _overallStatusTimerTriggered = true;

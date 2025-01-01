@@ -17,24 +17,11 @@
 
 #include "WorldSession.h"
 #include "AdventureMapPackets.h"
-#include "DB2Stores.h"
-#include "ObjectMgr.h"
-#include "Player.h"
 
-void WorldSession::HandleAdventureMapStartQuest(WorldPackets::AdventureMap::AdventureMapStartQuest& startQuest)
+void WorldSession::HandleCheckIsAdventureMapPoiValid(WorldPackets::AdventureMap::CheckIsAdventureMapPoiValid& /*checkIsAdventureMapPoiValid*/)
 {
-    Quest const* quest = sObjectMgr->GetQuestTemplate(startQuest.QuestID);
-    if (!quest)
-        return;
+}
 
-    auto itr = std::find_if(sAdventureMapPOIStore.begin(), sAdventureMapPOIStore.end(), [&](AdventureMapPOIEntry const* adventureMap)
-    {
-        return adventureMap->QuestID == uint32(startQuest.QuestID) && _player->MeetPlayerCondition(adventureMap->PlayerConditionID);
-    });
-
-    if (itr == sAdventureMapPOIStore.end())
-        return;
-
-    if (_player->CanTakeQuest(quest, true))
-        _player->AddQuestAndCheckCompletion(quest, _player);
+void WorldSession::HandleAdventureMapStartQuest(WorldPackets::AdventureMap::AdventureMapStartQuest& /*startQuest*/)
+{
 }

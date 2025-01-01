@@ -37,7 +37,6 @@ EndScriptData */
 #include "DB2Stores.h"
 #include "GameTime.h"
 #include "GridNotifiersImpl.h"
-#include "InstanceSaveMgr.h"
 #include "InstanceScript.h"
 #include "Language.h"
 #include "Log.h"
@@ -76,6 +75,7 @@ public:
             { "movie",              HandleDebugPlayMovieCommand,            rbac::RBAC_PERM_COMMAND_DEBUG,  Console::No },
             { "sound",              HandleDebugPlaySoundCommand,            rbac::RBAC_PERM_COMMAND_DEBUG,  Console::No },
             { "music",              HandleDebugPlayMusicCommand,            rbac::RBAC_PERM_COMMAND_DEBUG,  Console::No },
+            { "objectsound",        HandleDebugPlayObjectSoundCommand,      rbac::RBAC_PERM_COMMAND_DEBUG,  Console::No },
         };
         static ChatCommandTable debugSendCommandTable =
         {
@@ -119,8 +119,9 @@ public:
             { "raidreset",          HandleDebugRaidResetCommand,           rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
             { "neargraveyard",      HandleDebugNearGraveyard,              rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
             { "instancespawn",      HandleDebugInstanceSpawns,             rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
-            { "conversation" ,      HandleDebugConversationCommand,        rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
-            { "wsexpression" ,      HandleDebugWSExpressionCommand,        rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
+            { "conversation",       HandleDebugConversationCommand,        rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
+            { "wsexpression",       HandleDebugWSExpressionCommand,        rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
+            { "playercondition",    HandleDebugPlayerConditionCommand,     rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
             { "pvp warmode",        HandleDebugWarModeBalanceCommand,      rbac::RBAC_PERM_COMMAND_DEBUG,   Console::Yes },
             { "dummy",              HandleDebugDummyCommand,               rbac::RBAC_PERM_COMMAND_DEBUG,   Console::No },
             { "asan memoryleak",    HandleDebugMemoryLeak,                 rbac::RBAC_PERM_COMMAND_DEBUG,   Console::Yes },
@@ -270,6 +271,23 @@ public:
         player->PlayDirectMusic(musicId, player);
 
         handler->PSendSysMessage(LANG_YOU_HEAR_SOUND, musicId);
+        return true;
+    }
+
+    static bool HandleDebugPlayObjectSoundCommand(ChatHandler* handler, int32 soundKitId, Optional<int32> broadcastTextId)
+    {
+        if (!sSoundKitStore.LookupEntry(soundKitId))
+        {
+            handler->PSendSysMessage(LANG_SOUND_NOT_EXIST, soundKitId);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        Player* player = handler->GetPlayer();
+
+        player->PlayObjectSound(soundKitId, player->GetGUID(), player, broadcastTextId.has_value() ? *broadcastTextId : 0);
+
+        handler->PSendSysMessage(LANG_YOU_HEAR_SOUND, soundKitId);
         return true;
     }
 
@@ -515,6 +533,7 @@ public:
             handler->PSendSysMessage(LANG_DEBUG_AREATRIGGER_OFF);
             player->isDebugAreaTriggers = false;
         }
+        player->UpdateObjectVisibility();
         return true;
     }
 
@@ -547,9 +566,15 @@ public:
         if (!target)
             return false;
 
-        handler->PSendSysMessage("Loot recipient for creature %s (%s, SpawnID " UI64FMTD ") is %s",
-            target->GetName().c_str(), target->GetGUID().ToString().c_str(), target->GetSpawnId(),
-            target->hasLootRecipient() ? (target->GetLootRecipient() ? target->GetLootRecipient()->GetName().c_str() : "offline") : "no loot recipient");
+        handler->PSendSysMessage("Loot recipients for creature %s (%s, SpawnID " UI64FMTD ") are:",
+            target->GetName().c_str(), target->GetGUID().ToString().c_str(), target->GetSpawnId());
+
+        for (ObjectGuid tapperGuid : target->GetTapList())
+        {
+            Player* tapper = ObjectAccessor::GetPlayer(*target, tapperGuid);
+            handler->PSendSysMessage("* %s", tapper ? tapper->GetName().c_str() : "offline");
+        }
+
         return true;
     }
 
@@ -1347,27 +1372,6 @@ public:
             return true;
         }
 
-        if (!difficulty)
-        {
-            handler->PSendSysMessage("Resetting all difficulties for '%s'.", mEntry->MapName[handler->GetSessionDbcLocale()]);
-            for (DifficultyEntry const* diff : sDifficultyStore)
-            {
-                if (sDB2Manager.GetMapDifficultyData(mapId, Difficulty(diff->ID)))
-                {
-                    handler->PSendSysMessage("Resetting difficulty %d for '%s'.", diff->ID, mEntry->MapName[handler->GetSessionDbcLocale()]);
-                    sInstanceSaveMgr->ForceGlobalReset(mapId, Difficulty(diff->ID));
-                }
-            }
-        }
-        else if (mEntry->IsNonRaidDungeon() && *difficulty == DIFFICULTY_NORMAL)
-        {
-            handler->PSendSysMessage("'%s' does not have any permanent saves for difficulty %d.", mEntry->MapName[handler->GetSessionDbcLocale()], *difficulty);
-        }
-        else
-        {
-            handler->PSendSysMessage("Resetting difficulty %d for '%s'.", *difficulty, mEntry->MapName[handler->GetSessionDbcLocale()]);
-            sInstanceSaveMgr->ForceGlobalReset(mapId, Difficulty(*difficulty));
-        }
         return true;
     }
 
@@ -1414,15 +1418,11 @@ public:
 
         if (linked)
         {
-            if (Battleground* bg = player->GetBattleground())
-                nearestLoc = bg->GetClosestGraveyard(player);
+
+            if (Battlefield* bf = sBattlefieldMgr->GetBattlefieldToZoneId(player->GetMap(), player->GetZoneId()))
+                nearestLoc = bf->GetClosestGraveyard(player);
             else
-            {
-                if (Battlefield* bf = sBattlefieldMgr->GetBattlefieldToZoneId(player->GetMap(), player->GetZoneId()))
-                    nearestLoc = bf->GetClosestGraveyard(player);
-                else
-                    nearestLoc = sObjectMgr->GetClosestGraveyard(*player, player->GetTeam(), player);
-            }
+                nearestLoc = sObjectMgr->GetClosestGraveyard(*player, player->GetTeam(), player);
         }
         else
         {
@@ -1593,13 +1593,32 @@ public:
         if (!wsExpressionEntry)
             return false;
 
-        if (sConditionMgr->IsPlayerMeetingExpression(target, wsExpressionEntry))
+        if (ConditionMgr::IsMeetingWorldStateExpression(target->GetMap(), wsExpressionEntry))
             handler->PSendSysMessage("Expression %u meet", expressionId);
         else
             handler->PSendSysMessage("Expression %u not meet", expressionId);
 
         return true;
-    };
+    }
+
+    static bool HandleDebugPlayerConditionCommand(ChatHandler* handler, uint32 playerConditionId)
+    {
+        Player* target = handler->getSelectedPlayerOrSelf();
+
+        if (!target)
+        {
+            handler->SendSysMessage(LANG_PLAYER_NOT_FOUND);
+            handler->SetSentErrorMessage(true);
+            return false;
+        }
+
+        if (ConditionMgr::IsPlayerMeetingCondition(target, playerConditionId))
+            handler->PSendSysMessage("PlayerCondition %u met", playerConditionId);
+        else
+            handler->PSendSysMessage("PlayerCondition %u not met", playerConditionId);
+
+        return true;
+    }
 
     static bool HandleDebugOutOfBounds([[maybe_unused]] ChatHandler* handler)
     {
@@ -1607,7 +1626,7 @@ public:
         uint8 stack_array[10] = {};
         int size = 10;
 
-        handler->PSendSysMessage("Triggered an array out of bounds read at address %p, value %u", stack_array + size, stack_array[size]);
+        handler->PSendSysMessage("Triggered an array out of bounds read at address %p, value %u", static_cast<void*>(stack_array + size), stack_array[size]);
 #endif
         return true;
     }
@@ -1616,7 +1635,7 @@ public:
     {
 #ifdef ASAN
         uint8* leak = new uint8();
-        handler->PSendSysMessage("Leaked 1 uint8 object at address %p", leak);
+        handler->PSendSysMessage("Leaked 1 uint8 object at address %p", static_cast<void*>(leak));
 #endif
         return true;
     }

@@ -39,7 +39,7 @@ LFGPlayerScript::LFGPlayerScript() : PlayerScript("LFGPlayerScript") { }
 
 void LFGPlayerScript::OnLogout(Player* player)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     if (!player->GetGroup())
@@ -50,7 +50,7 @@ void LFGPlayerScript::OnLogout(Player* player)
 
 void LFGPlayerScript::OnLogin(Player* player, bool /*loginFirst*/)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     // Temporal: Trying to determine when group data and LFG data gets desynched
@@ -63,7 +63,7 @@ void LFGPlayerScript::OnLogin(Player* player, bool /*loginFirst*/)
         if (gguid != gguid2)
         {
             TC_LOG_ERROR("lfg", "{} on group {} but LFG has group {} saved... Fixing.",
-                player->GetSession()->GetPlayerInfo().c_str(), gguid2.ToString().c_str(), gguid.ToString().c_str());
+                player->GetSession()->GetPlayerInfo(), gguid2.ToString(), gguid.ToString());
             sLFGMgr->SetupGroupMember(guid, group->GetGUID());
         }
     }
@@ -89,7 +89,7 @@ void LFGPlayerScript::OnMapChanged(Player* player)
             player->RemoveAurasDueToSpell(LFG_SPELL_LUCK_OF_THE_DRAW);
             player->TeleportTo(player->m_homebind);
             TC_LOG_ERROR("lfg", "LFGPlayerScript::OnMapChanged, Player {} {} is in LFG dungeon map but does not have a valid group! "
-                "Teleporting to homebind.", player->GetName().c_str(), player->GetGUID().ToString().c_str());
+                "Teleporting to homebind.", player->GetName(), player->GetGUID().ToString());
             return;
         }
 
@@ -110,7 +110,7 @@ void LFGPlayerScript::OnMapChanged(Player* player)
             sLFGMgr->LeaveLfg(group->GetGUID());
             group->Disband();
             TC_LOG_DEBUG("lfg", "LFGPlayerScript::OnMapChanged, Player {}({}) is last in the lfggroup so we disband the group.",
-                player->GetName().c_str(), player->GetGUID().ToString().c_str());
+                player->GetName(), player->GetGUID().ToString());
         }
         player->RemoveAurasDueToSpell(LFG_SPELL_LUCK_OF_THE_DRAW);
     }
@@ -120,7 +120,7 @@ LFGGroupScript::LFGGroupScript() : GroupScript("LFGGroupScript") { }
 
 void LFGGroupScript::OnAddMember(Group* group, ObjectGuid guid)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     ObjectGuid gguid = group->GetGUID();
@@ -128,14 +128,14 @@ void LFGGroupScript::OnAddMember(Group* group, ObjectGuid guid)
 
     if (leader == guid)
     {
-        TC_LOG_DEBUG("lfg", "LFGScripts::OnAddMember [{}]: added [{}] leader [{}]", gguid.ToString().c_str(), guid.ToString().c_str(), leader.ToString().c_str());
+        TC_LOG_DEBUG("lfg", "LFGScripts::OnAddMember [{}]: added [{}] leader [{}]", gguid.ToString(), guid.ToString(), leader.ToString());
         sLFGMgr->SetLeader(gguid, guid);
     }
     else
     {
         LfgState gstate = sLFGMgr->GetState(gguid);
         LfgState state = sLFGMgr->GetState(guid);
-        TC_LOG_DEBUG("lfg", "LFGScripts::OnAddMember [{}]: added [{}] leader [{}] gstate: {}, state: {}", gguid.ToString().c_str(), guid.ToString().c_str(), leader.ToString().c_str(), gstate, state);
+        TC_LOG_DEBUG("lfg", "LFGScripts::OnAddMember [{}]: added [{}] leader [{}] gstate: {}, state: {}", gguid.ToString(), guid.ToString(), leader.ToString(), gstate, state);
 
         if (state == LFG_STATE_QUEUED)
             sLFGMgr->LeaveLfg(guid);
@@ -150,12 +150,12 @@ void LFGGroupScript::OnAddMember(Group* group, ObjectGuid guid)
 
 void LFGGroupScript::OnRemoveMember(Group* group, ObjectGuid guid, RemoveMethod method, ObjectGuid kicker, char const* reason)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     ObjectGuid gguid = group->GetGUID();
     TC_LOG_DEBUG("lfg", "LFGScripts::OnRemoveMember [{}]: remove [{}] Method: {} Kicker: [{}] Reason: {}",
-        gguid.ToString().c_str(), guid.ToString().c_str(), method, kicker.ToString().c_str(), (reason ? reason : ""));
+        gguid.ToString(), guid.ToString(), method, kicker.ToString(), (reason ? reason : ""));
 
     bool isLFG = group->isLFGGroup();
 
@@ -206,37 +206,37 @@ void LFGGroupScript::OnRemoveMember(Group* group, ObjectGuid guid, RemoveMethod 
 
 void LFGGroupScript::OnDisband(Group* group)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     ObjectGuid gguid = group->GetGUID();
-    TC_LOG_DEBUG("lfg", "LFGScripts::OnDisband [{}]", gguid.ToString().c_str());
+    TC_LOG_DEBUG("lfg", "LFGScripts::OnDisband [{}]", gguid.ToString());
 
     sLFGMgr->RemoveGroupData(gguid);
 }
 
 void LFGGroupScript::OnChangeLeader(Group* group, ObjectGuid newLeaderGuid, ObjectGuid oldLeaderGuid)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     ObjectGuid gguid = group->GetGUID();
 
     TC_LOG_DEBUG("lfg", "LFGScripts::OnChangeLeader [{}]: old [{}] new [{}]",
-        gguid.ToString().c_str(), newLeaderGuid.ToString().c_str(), oldLeaderGuid.ToString().c_str());
+        gguid.ToString(), newLeaderGuid.ToString(), oldLeaderGuid.ToString());
 
     sLFGMgr->SetLeader(gguid, newLeaderGuid);
 }
 
 void LFGGroupScript::OnInviteMember(Group* group, ObjectGuid guid)
 {
-    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_BROWSER))
+    if (!sLFGMgr->isOptionEnabled(LFG_OPTION_ENABLE_DUNGEON_FINDER | LFG_OPTION_ENABLE_RAID_FINDER))
         return;
 
     ObjectGuid gguid = group->GetGUID();
     ObjectGuid leader = group->GetLeaderGUID();
     TC_LOG_DEBUG("lfg", "LFGScripts::OnInviteMember [{}]: invite [{}] leader [{}]",
-        gguid.ToString().c_str(), guid.ToString().c_str(), leader.ToString().c_str());
+        gguid.ToString(), guid.ToString(), leader.ToString());
 
     // No gguid ==  new group being formed
     // No leader == after group creation first invite is new leader

@@ -16,27 +16,34 @@
  */
 
 #include "GameTables.h"
-#include "ItemTemplate.h"
 #include "Timer.h"
 #include "Log.h"
+#include "StringConvert.h"
 #include "Util.h"
 #include <boost/filesystem/path.hpp>
 #include <fstream>
 #include <sstream>
 
-GameTable<GtBarberShopCostBaseEntry>            sBarberShopCostBaseGameTable;
-GameTable<GtBaseMPEntry>                        sBaseMPGameTable;
-GameTable<GtBattlePetXPEntry>                   sBattlePetXPGameTable;
-GameTable<GtCombatRatingsEntry>                 sCombatRatingsGameTable;
-GameTable<GtCombatRatingsMultByILvl>            sCombatRatingsMultByILvlGameTable;
-GameTable<GtHpPerStaEntry>                      sHpPerStaGameTable;
-GameTable<GtItemSocketCostPerLevelEntry>        sItemSocketCostPerLevelGameTable;
-GameTable<GtNpcManaCostScalerEntry>             sNpcManaCostScalerGameTable;
-GameTable<GtOCTRegenHPEntry>                    sOCTRegenHPGameTable;
-GameTable<GtRegenHPPerSptEntry>                 sRegenHPPerSptGameTable;
-GameTable<GtRegenMPPerSptEntry>                 sRegenMPPerSptGameTable;
-GameTable<GtShieldBlockRegularEntry>            sShieldBlockRegularGameTable;
-GameTable<GtSpellScalingEntry>                  sSpellScalingGameTable;
+GameTable<GtBarberShopCostBaseEntry>             sBarberShopCostBaseGameTable;
+GameTable<GtChanceToMeleeCritEntry>              sChanceToMeleeCritGameTable;
+GameTable<GtChanceToMeleeCritBaseEntry>          sChanceToMeleeCritBaseGameTable;
+GameTable<GtChanceToSpellCritEntry>              sChanceToSpellCritGameTable;
+GameTable<GtChanceToSpellCritBaseEntry>          sChanceToSpellCritBaseGameTable;
+GameTable<GtCombatRatingsEntry>                  sCombatRatingsGameTable;
+GameTable<GtNpcManaCostScalerEntry>              sNpcManaCostScalerGameTable;
+GameTable<GtNpcDamageByClassEntry>               sNpcDamageByClassGameTable[MAX_CLASSIC_EXPANSIONS];
+GameTable<GtNpcTotalHpEntry>                     sNpcTotalHpGameTable[MAX_CLASSIC_EXPANSIONS];
+GameTable<GtOctBaseHpByClassEntry>               sOctBaseHpByClassGameTable;
+GameTable<GtOctBaseMpByClassEntry>               sOctBaseMpByClassGameTable;
+GameTable<GtOctClassCombatRatingScalarEntry>     sOctClassCombatRatingScalarGameTable;
+GameTable<GtOctHpPerStaminaEntry>                sOctHpPerStaminaGameTable;
+GameTable<GtOctRegenHpEntry>                     sOctRegenHpGameTable;
+GameTable<GtOctRegenMpEntry>                     sOctRegenMpGameTable;
+GameTable<GtRegenHpPerSptEntry>                  sRegenHpPerSptTable;
+GameTable<GtRegenMpPerSptEntry>                  sRegenMpPerSptTable;
+GameTable<GtShieldBlockRegularEntry>             sShieldBlockRegularTable;
+GameTable<GtSpellScalingEntry>                   sSpellScalingGameTable;
+GameTable<GtTeamContributionPointsEntry>         sTeamContributionPointsGameTable;
 
 template<class T>
 inline uint32 LoadGameTable(std::vector<std::string>& errors, GameTable<T>& storage, boost::filesystem::path const& path)
@@ -58,7 +65,7 @@ inline uint32 LoadGameTable(std::vector<std::string>& errors, GameTable<T>& stor
     std::vector<std::string_view> columnDefs = Trinity::Tokenize(headers, '\t', false);
 
     ASSERT(columnDefs.size() - 1 == sizeof(T) / sizeof(float),
-        "GameTable '{}' has different count of columns " SZFMTD " than expected by size of C++ structure (" SZFMTD ").",
+        "GameTable '%s' has different count of columns " SZFMTD " than expected by size of C++ structure (" SZFMTD ").",
         path.string().c_str(), columnDefs.size() - 1, sizeof(T) / sizeof(float));
 
     std::vector<T> data;
@@ -67,6 +74,7 @@ inline uint32 LoadGameTable(std::vector<std::string>& errors, GameTable<T>& stor
     std::string line;
     while (std::getline(stream, line))
     {
+        RemoveCRLF(line); // file extracted from client will always have CRLF line endings, on linux opening file in text mode will not work, manually erase \r
         std::vector<std::string_view> values = Trinity::Tokenize(line, '\t', true);
         if (values.empty())
             break;
@@ -84,14 +92,14 @@ inline uint32 LoadGameTable(std::vector<std::string>& errors, GameTable<T>& stor
         ASSERT(std::size_t(std::distance(values.begin(), end)) == columnDefs.size(), SZFMTD " == " SZFMTD, std::size_t(std::distance(values.begin(), end)), columnDefs.size());
 
         // client ignores id column - CombatRatings has copypasted rows for levels > 110
-        //ASSERT(strtol(values[0], nullptr, 10) == data.size(),
-        //    "Unexpected row identifier {} at row " SZFMTD " (expected " SZFMTD ")",
-        //    strtol(values[0], nullptr, 10), data.size(), data.size());
+        //ASSERT(Trinity::StringTo<int32>(values[0], 10) == data.size(),
+        //    "Unexpected row identifier %d at row " SZFMTD " (expected " SZFMTD ")",
+        //    Trinity::StringTo<int32>(values[0], 10).value_or(0), data.size(), data.size());
 
         data.emplace_back();
         float* row = reinterpret_cast<float*>(&data.back());
         for (auto itr = values.begin() + 1; itr != end; ++itr)
-            *row++ = strtof(itr->data(), nullptr);
+            *row++ = Trinity::StringTo<float>(*itr, 10).value_or(0.0f);
     }
 
     storage.SetData(std::move(data));
@@ -108,23 +116,38 @@ void LoadGameTables(std::string const& dataPath)
     std::vector<std::string> bad_gt_files;
     uint32 gameTableCount = 0, expectedGameTableCount = 0;
 
-#define LOAD_GT(store, file) gameTableCount += LoadGameTable(bad_gt_files, store, gtPath / file); ++expectedGameTableCount;
+    auto LOAD_GT = [&]<typename T>(GameTable<T>& gameTable, char const* file)
+    {
+        gameTableCount += LoadGameTable(bad_gt_files, gameTable, gtPath / file);
+        ++expectedGameTableCount;
+    };
 
-    if constexpr (CURRENT_EXPANSION >= EXPANSION_WRATH_OF_THE_LICH_KING) {
-        LOAD_GT(sBarberShopCostBaseGameTable, "BarberShopCostBase.txt");
-    }
-    LOAD_GT(sBaseMPGameTable, "BaseMp.txt");
-    LOAD_GT(sBattlePetXPGameTable, "BattlePetXP.txt");
+    LOAD_GT(sBarberShopCostBaseGameTable, "BarberShopCostBase.txt");
+    LOAD_GT(sChanceToMeleeCritGameTable, "ChanceToMeleeCrit.txt");
+    LOAD_GT(sChanceToMeleeCritBaseGameTable, "ChanceToMeleeCritBase.txt");
+    LOAD_GT(sChanceToSpellCritGameTable, "ChanceToSpellCrit.txt");
+    LOAD_GT(sChanceToSpellCritBaseGameTable, "ChanceToSpellCritBase.txt");
     LOAD_GT(sCombatRatingsGameTable, "CombatRatings.txt");
-    LOAD_GT(sCombatRatingsMultByILvlGameTable, "CombatRatingsMultByILvl.txt");
-    LOAD_GT(sItemSocketCostPerLevelGameTable, "ItemSocketCostPerLevel.txt");
-    LOAD_GT(sHpPerStaGameTable, "HpPerSta.txt");
     LOAD_GT(sNpcManaCostScalerGameTable, "NPCManaCostScaler.txt");
-    LOAD_GT(sOCTRegenHPGameTable, "OCTRegenHP.txt");
-    LOAD_GT(sRegenHPPerSptGameTable, "RegenHPPerSpt.txt");
-    LOAD_GT(sRegenMPPerSptGameTable, "RegenMPPerSpt.txt");
-    LOAD_GT(sShieldBlockRegularGameTable, "ShieldBlockRegular.txt");
+    LOAD_GT(sNpcDamageByClassGameTable[0], "NpcDamageByClass.txt");
+    LOAD_GT(sNpcDamageByClassGameTable[1], "NpcDamageByClassExp1.txt");
+    LOAD_GT(sNpcDamageByClassGameTable[2], "NpcDamageByClassExp2.txt");
+    LOAD_GT(sNpcDamageByClassGameTable[3], "NpcDamageByClassExp3.txt");
+    LOAD_GT(sNpcTotalHpGameTable[0], "NpcTotalHp.txt");
+    LOAD_GT(sNpcTotalHpGameTable[1], "NpcTotalHpExp1.txt");
+    LOAD_GT(sNpcTotalHpGameTable[2], "NpcTotalHpExp2.txt");
+    LOAD_GT(sNpcTotalHpGameTable[3], "NpcTotalHpExp3.txt");
+    LOAD_GT(sOctBaseHpByClassGameTable, "OCTBaseHPByClass.txt");
+    LOAD_GT(sOctBaseMpByClassGameTable, "OCTBaseMPByClass.txt");
+    LOAD_GT(sOctClassCombatRatingScalarGameTable, "OCTClassCombatRatingScalar.txt");
+    LOAD_GT(sOctHpPerStaminaGameTable, "OCTHPPerStamina.txt");
+    LOAD_GT(sOctRegenHpGameTable, "OCTRegenHP.txt");
+    LOAD_GT(sOctRegenMpGameTable, "OCTRegenMP.txt");
+    LOAD_GT(sRegenHpPerSptTable, "RegenHPPerSpt.txt");
+    LOAD_GT(sRegenMpPerSptTable, "RegenMPPerSpt.txt");
+    LOAD_GT(sShieldBlockRegularTable, "ShieldBlockRegular.txt");
     LOAD_GT(sSpellScalingGameTable, "SpellScaling.txt");
+    LOAD_GT(sTeamContributionPointsGameTable, "TeamContributionPoints.txt");
 
 #undef LOAD_GT
 
@@ -133,38 +156,10 @@ void LoadGameTables(std::string const& dataPath)
     {
         std::ostringstream str;
         for (std::string const& err  : bad_gt_files)
-            TC_LOG_INFO("server.loading", "GameTable file not found or not compatible: {}", err);
+            str << err << std::endl;
+
+        WPFatal(false, "Some required *.txt GameTable files (" SZFMTD ") not found or not compatible:\n%s", bad_gt_files.size(), str.str().c_str());
     }
 
     TC_LOG_INFO("server.loading", ">> Initialized {} GameTables in {} ms", gameTableCount, GetMSTimeDiffToNow(oldMSTime));
 }
-
-template<class T>
-float GetIlvlStatMultiplier(T const* row, InventoryType invType)
-{
-    switch (invType)
-    {
-        case INVTYPE_NECK:
-        case INVTYPE_FINGER:
-            return row->JewelryMultiplier;
-            break;
-        case INVTYPE_TRINKET:
-            return row->TrinketMultiplier;
-            break;
-        case INVTYPE_WEAPON:
-        case INVTYPE_SHIELD:
-        case INVTYPE_RANGED:
-        case INVTYPE_2HWEAPON:
-        case INVTYPE_WEAPONMAINHAND:
-        case INVTYPE_WEAPONOFFHAND:
-        case INVTYPE_HOLDABLE:
-        case INVTYPE_RANGEDRIGHT:
-            return row->WeaponMultiplier;
-            break;
-        default:
-            return row->ArmorMultiplier;
-            break;
-    }
-}
-
-template float GetIlvlStatMultiplier(GtCombatRatingsMultByILvl const* row, InventoryType invType);

@@ -103,7 +103,6 @@ struct TransportTemplate
     double CalculateDistanceMoved(double timePassedInSegment, double segmentDuration, bool isFirstSegment, bool isLastSegment) const;
 
     std::set<uint32> MapIds;
-    bool InInstance = false;
 };
 
 struct TC_GAME_API TransportAnimation
@@ -164,7 +163,7 @@ class TC_GAME_API TransportMgr
         TransportMgr& operator=(TransportMgr&&) = delete;
 
         // Generates and precaches a path for transport to avoid generation each time transport instance is created
-        bool GeneratePath(GameObjectTemplate const* goInfo, TransportTemplate* transport);
+        void GeneratePath(GameObjectTemplate const* goInfo, TransportTemplate* transport);
 
         void AddPathNodeToTransport(uint32 transportEntry, uint32 timeSeg, TransportAnimationEntry const* node);
 

@@ -57,7 +57,7 @@ class ChatLogScript : public PlayerScript
         void OnChat(Player* player, uint32 /*type*/, uint32 lang, std::string& msg, Player* receiver) override
         {
             TC_LOG_CHAT("whisper", "Player {} tells {}: {}",
-               player->GetName(), receiver ? receiver->GetName() : "<unknown>", msg);
+               player->GetName(), receiver ? receiver->GetName().c_str() : "<unknown>", msg);
         }
 
         void OnChat(Player* player, uint32 type, uint32 lang, std::string& msg, Group* group) override

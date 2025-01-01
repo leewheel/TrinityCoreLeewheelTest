@@ -29,17 +29,15 @@ enum class SceneType : uint32
     PetBattle   = 1
 };
 
-class TC_GAME_API SceneObject : public WorldObject, public GridObject<SceneObject>
+class TC_GAME_API SceneObject final : public WorldObject, public GridObject<SceneObject>
 {
 public:
     SceneObject();
     ~SceneObject();
 
 protected:
-    void BuildValuesCreate(ByteBuffer* data, Player const* target) const override;
-    void BuildValuesUpdate(ByteBuffer* data, Player const* target) const override;
-    void BuildValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const override;
-    void BuildDynamicValuesUpdateCompat(ObjectUpdateType updatetype, ByteBuffer* data, Player const* target) const override;
+    void BuildValuesCreate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
+    void BuildValuesUpdate(ByteBuffer* data, UF::UpdateFieldFlag flags, Player const* target) const override;
     void ClearUpdateMask(bool remove) override;
 
 public:
@@ -67,6 +65,7 @@ public:
     bool Create(ObjectGuid::LowType lowGuid, SceneType type, uint32 sceneId, uint32 scriptPackageId, Map* map, Unit* creator,
         Position const& pos, ObjectGuid privateObjectOwner);
 
+    ObjectGuid GetCreatorGUID() const override { return *m_sceneObjectData->CreatedBy; }
     ObjectGuid GetOwnerGUID() const override { return *m_sceneObjectData->CreatedBy; }
     uint32 GetFaction() const override { return 0; }
 

@@ -25,21 +25,19 @@
 
 class WorldPacket;
 
-enum class ObjectUpdateType : uint8
+enum OBJECT_UPDATE_TYPE
 {
-    Values            = 0,
-    CreateObject      = 1,
-    CreateObject2     = 2,
-    OutOfRangeObjects = 3
+    UPDATETYPE_VALUES               = 0,
+    UPDATETYPE_CREATE_OBJECT        = 1,
+    UPDATETYPE_CREATE_OBJECT2       = 2,
+    UPDATETYPE_OUT_OF_RANGE_OBJECTS = 3,
 };
-
-DEFINE_ENUM_FLAG(ObjectUpdateType);
 
 class UpdateData
 {
     public:
         UpdateData(uint32 map);
-        UpdateData(UpdateData&& right) : m_map(right.m_map), m_blockCount(right.m_blockCount),
+        UpdateData(UpdateData&& right) noexcept : m_map(right.m_map), m_blockCount(right.m_blockCount),
             m_outOfRangeGUIDs(std::move(right.m_outOfRangeGUIDs)),
             m_data(std::move(right.m_data))
         {
@@ -48,7 +46,8 @@ class UpdateData
         void AddDestroyObject(ObjectGuid guid);
         void AddOutOfRangeGUID(GuidSet& guids);
         void AddOutOfRangeGUID(ObjectGuid guid);
-        void AddUpdateBlock(ByteBuffer const& block);
+        void AddUpdateBlock() { ++m_blockCount; }
+        ByteBuffer& GetBuffer() { return m_data; }
         bool BuildPacket(WorldPacket* packet);
         bool HasData() const { return m_blockCount > 0 || !m_outOfRangeGUIDs.empty() || !m_destroyGUIDs.empty(); }
         void Clear();

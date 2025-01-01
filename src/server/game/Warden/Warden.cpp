@@ -113,7 +113,7 @@ void Warden::Update(uint32 diff)
             if (_clientResponseTimer > maxClientResponseDelay * IN_MILLISECONDS)
             {
                 TC_LOG_WARN("warden", "{} (latency: {}, IP: {}) exceeded Warden module response delay ({}) - disconnecting client",
-                                _session->GetPlayerInfo().c_str(), _session->GetLatency(), _session->GetRemoteAddress().c_str(), secsToTimeString(maxClientResponseDelay, TimeFormat::ShortText).c_str());
+                                _session->GetPlayerInfo(), _session->GetLatency(), _session->GetRemoteAddress(), secsToTimeString(maxClientResponseDelay, TimeFormat::ShortText));
                 _session->KickPlayer("Warden::Update Warden module response delay exceeded");
             }
             else
@@ -193,7 +193,7 @@ char const* Warden::ApplyPenalty(WardenCheck const* check)
             std::string banReason = "Warden Anticheat Violation";
             // Check can be NULL, for example if the client sent a wrong signature in the warden packet (CHECKSUM FAIL)
             if (check)
-                banReason += Trinity::StringFormat(": {} (CheckId: {}", check->Comment, uint32(check->CheckId));
+                banReason += Trinity::StringFormat(": {} (CheckId: {}", check->Comment, check->CheckId);
 
             sWorld->BanAccount(BAN_ACCOUNT, accountName, sWorld->getIntConfig(CONFIG_WARDEN_CLIENT_BAN_DURATION), banReason, "Server");
 

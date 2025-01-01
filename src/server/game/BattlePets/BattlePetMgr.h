@@ -39,7 +39,6 @@ enum BattlePetMisc
 };
 
 static constexpr uint16 MAX_BATTLE_PET_LEVEL = 25;
-static constexpr Milliseconds REVIVE_BATTLE_PETS_COOLDOWN = 180s;
 
 enum class BattlePetBreedQuality : uint8
 {
@@ -191,6 +190,7 @@ public:
     void UpdateBattlePetData(ObjectGuid guid);
 
     void SummonPet(ObjectGuid guid);
+    void DismissPet();
 
     void SendJournal();
     void SendUpdates(std::vector<std::reference_wrapper<BattlePet>> pets, bool petAdded);

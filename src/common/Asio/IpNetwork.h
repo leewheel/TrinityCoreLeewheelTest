@@ -31,10 +31,6 @@ TC_COMMON_API bool IsInNetwork(boost::asio::ip::network_v4 const& network, boost
 
 TC_COMMON_API bool IsInNetwork(boost::asio::ip::network_v6 const& network, boost::asio::ip::address_v6 const& clientAddress);
 
-TC_COMMON_API bool IsInNetwork(boost::asio::ip::address_v4 const& networkAddress, boost::asio::ip::address_v4 const& mask, boost::asio::ip::address_v4 const& clientAddress);
-
-TC_COMMON_API boost::asio::ip::address_v4 GetDefaultNetmaskV4(boost::asio::ip::address_v4 const& networkAddress);
-
 TC_COMMON_API Optional<std::size_t> SelectAddressForClient(boost::asio::ip::address const& clientAddress, std::span<boost::asio::ip::address const> const& addresses);
 
 TC_COMMON_API void ScanLocalNetworks();

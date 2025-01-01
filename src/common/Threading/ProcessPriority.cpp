@@ -44,11 +44,11 @@ void SetProcessPriority(std::string const& logChannel, uint32 affinity, bool hig
             ULONG_PTR currentAffinity = affinity & appAff;
 
             if (!currentAffinity)
-                TC_LOG_ERROR(logChannel, "Processors marked in UseProcessors bitmask (hex) {} are not accessible. Accessible processors bitmask (hex): {}", affinity, appAff);
+                TC_LOG_ERROR(logChannel, "Processors marked in UseProcessors bitmask (hex) {:x} are not accessible. Accessible processors bitmask (hex): {:x}", affinity, appAff);
             else if (SetProcessAffinityMask(hProcess, currentAffinity))
-                TC_LOG_INFO(logChannel, "Using processors (bitmask, hex): {}", currentAffinity);
+                TC_LOG_INFO(logChannel, "Using processors (bitmask, hex): {:x}", currentAffinity);
             else
-                TC_LOG_ERROR(logChannel, "Can't set used processors (hex): {}", currentAffinity);
+                TC_LOG_ERROR(logChannel, "Can't set used processors (hex): {:x}", currentAffinity);
         }
     }
 
@@ -72,12 +72,12 @@ void SetProcessPriority(std::string const& logChannel, uint32 affinity, bool hig
                 CPU_SET(i, &mask);
 
         if (sched_setaffinity(0, sizeof(mask), &mask))
-            TC_LOG_ERROR(logChannel, "Can't set used processors (hex): {}, error: {}", affinity, strerror(errno));
+            TC_LOG_ERROR(logChannel, "Can't set used processors (hex): {:x}, error: {}", affinity, strerror(errno));
         else
         {
             CPU_ZERO(&mask);
             sched_getaffinity(0, sizeof(mask), &mask);
-            TC_LOG_INFO(logChannel, "Using processors (bitmask, hex): {}x", *(__cpu_mask*)(&mask));
+            TC_LOG_INFO(logChannel, "Using processors (bitmask, hex): {:x}", *(__cpu_mask*)(&mask));
         }
     }
 

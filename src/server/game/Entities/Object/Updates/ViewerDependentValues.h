@@ -67,15 +67,16 @@ public:
         value_type dynamicFlags = objectData->DynamicFlags;
         if (Unit const* unit = object->ToUnit())
         {
-            dynamicFlags &= ~UNIT_DYNFLAG_TAPPED;
-
             if (Creature const* creature = object->ToCreature())
             {
-                if (creature->hasLootRecipient() && !creature->isTappedBy(receiver))
-                    dynamicFlags |= UNIT_DYNFLAG_TAPPED;
+                if (dynamicFlags & UNIT_DYNFLAG_TAPPED && creature->isTappedBy(receiver))
+                    dynamicFlags &= ~UNIT_DYNFLAG_TAPPED;
 
-                if (!receiver->isAllowedToLoot(creature))
+                if (dynamicFlags & UNIT_DYNFLAG_LOOTABLE && !receiver->isAllowedToLoot(creature))
                     dynamicFlags &= ~UNIT_DYNFLAG_LOOTABLE;
+
+                if (dynamicFlags & UNIT_DYNFLAG_CAN_SKIN && creature->IsSkinnedBy(receiver))
+                    dynamicFlags &= ~UNIT_DYNFLAG_CAN_SKIN;
             }
 
             // unit UNIT_DYNFLAG_TRACK_UNIT should only be sent to caster of SPELL_AURA_MOD_STALKED auras
@@ -89,20 +90,28 @@ public:
             uint16 pathProgress = 0xFFFF;
             switch (gameObject->GetGoType())
             {
+                case GAMEOBJECT_TYPE_BUTTON:
+                case GAMEOBJECT_TYPE_GOOBER:
+                    if (gameObject->HasConditionalInteraction() && gameObject->CanActivateForPlayer(receiver))
+                    {
+                        if (gameObject->GetGoStateFor(receiver->GetGUID()) != GO_STATE_ACTIVE)
+                            dynFlags |= GO_DYNFLAG_LO_ACTIVATE;
+                    }
+                    break;
                 case GAMEOBJECT_TYPE_QUESTGIVER:
-                    if (gameObject->ActivateToQuest(receiver))
+                    if (gameObject->CanActivateForPlayer(receiver))
                         dynFlags |= GO_DYNFLAG_LO_ACTIVATE;
                     break;
                 case GAMEOBJECT_TYPE_CHEST:
-                case GAMEOBJECT_TYPE_GOOBER:
-                    if (gameObject->ActivateToQuest(receiver))
-                        dynFlags |= GO_DYNFLAG_LO_ACTIVATE | GO_DYNFLAG_LO_SPARKLE | GO_DYNFLAG_LO_HIGHLIGHT;
+                    if (gameObject->HasConditionalInteraction() && gameObject->CanActivateForPlayer(receiver))
+                        dynFlags |= GO_DYNFLAG_LO_ACTIVATE | GO_DYNFLAG_LO_SPARKLE;
                     else if (receiver->IsGameMaster())
-                        dynFlags |= GO_DYNFLAG_LO_ACTIVATE;
+                        dynFlags |= GO_DYNFLAG_LO_ACTIVATE | GO_DYNFLAG_LO_SPARKLE;
                     break;
                 case GAMEOBJECT_TYPE_GENERIC:
-                    if (gameObject->ActivateToQuest(receiver))
-                        dynFlags |= GO_DYNFLAG_LO_SPARKLE | GO_DYNFLAG_LO_HIGHLIGHT;
+                case GAMEOBJECT_TYPE_SPELL_FOCUS:
+                    if (gameObject->HasConditionalInteraction() && gameObject->CanActivateForPlayer(receiver))
+                        dynFlags |= GO_DYNFLAG_LO_SPARKLE;
                     break;
                 case GAMEOBJECT_TYPE_TRANSPORT:
                 case GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT:
@@ -117,8 +126,28 @@ public:
                     else
                         dynFlags &= ~GO_DYNFLAG_LO_NO_INTERACT;
                     break;
+                case GAMEOBJECT_TYPE_GATHERING_NODE:
+                    if (gameObject->HasConditionalInteraction() && gameObject->CanActivateForPlayer(receiver))
+                        dynFlags |= GO_DYNFLAG_LO_ACTIVATE | GO_DYNFLAG_LO_SPARKLE;
+                    if (gameObject->GetGoStateFor(receiver->GetGUID()) == GO_STATE_ACTIVE)
+                        dynFlags |= GO_DYNFLAG_LO_DEPLETED;
+                    break;
                 default:
                     break;
+            }
+
+            if (!receiver->IsGameMaster())
+            {
+                // GO_DYNFLAG_LO_INTERACT_COND should be applied to GOs with conditional interaction (without GO_FLAG_INTERACT_COND) to disable interaction
+                // (Ignore GAMEOBJECT_TYPE_GATHERING_NODE as some profession-related GOs may include quest loot and can always be interacted with)
+                // (Ignore GAMEOBJECT_TYPE_FLAGSTAND as interaction is handled by GO_DYNFLAG_LO_NO_INTERACT)
+                // (Ignore GAMEOBJECT_TYPE_SPELLCASTER as interaction is handled by GO_DYNFLAG_LO_NO_INTERACT)
+                if (gameObject->GetGoType() != GAMEOBJECT_TYPE_GATHERING_NODE && gameObject->GetGoType() != GAMEOBJECT_TYPE_FLAGSTAND && gameObject->GetGoType() != GAMEOBJECT_TYPE_SPELLCASTER)
+                    if (gameObject->HasConditionalInteraction() && !gameObject->HasFlag(GO_FLAG_INTERACT_COND))
+                        dynFlags |= GO_DYNFLAG_LO_INTERACT_COND;
+
+                if (!gameObject->MeetsInteractCondition(receiver))
+                    dynFlags |= GO_DYNFLAG_LO_NO_INTERACT;
             }
 
             dynamicFlags = (uint32(pathProgress) << 16) | uint32(dynFlags);
@@ -218,6 +247,39 @@ public:
 };
 
 template<>
+class ViewerDependentValue<UF::UnitData::Flags2Tag>
+{
+public:
+    using value_type = UF::UnitData::Flags2Tag::value_type;
+
+    static value_type GetValue(UF::UnitData const* unitData, Unit const* /*unit*/, Player const* receiver)
+    {
+        value_type flags = unitData->Flags2;
+        // Gamemasters should be always able to interact with units - remove uninteractible flag
+        if (receiver->IsGameMaster())
+            flags &= ~UNIT_FLAG2_UNTARGETABLE_BY_CLIENT;
+
+        return flags;
+    }
+};
+
+template<>
+class ViewerDependentValue<UF::UnitData::Flags3Tag>
+{
+public:
+    using value_type = UF::UnitData::Flags3Tag::value_type;
+
+    static value_type GetValue(UF::UnitData const* unitData, Unit const* unit, Player const* receiver)
+    {
+        value_type flags = unitData->Flags3;
+        if (flags & UNIT_FLAG3_ALREADY_SKINNED && unit->IsCreature() && !unit->ToCreature()->IsSkinnedBy(receiver))
+            flags &= ~UNIT_FLAG3_ALREADY_SKINNED;
+
+        return flags;
+    }
+};
+
+template<>
 class ViewerDependentValue<UF::UnitData::AuraStateTag>
 {
 public:
@@ -253,17 +315,80 @@ public:
 };
 
 template<>
+class ViewerDependentValue<UF::UnitData::InteractSpellIDTag>
+{
+public:
+    using value_type = UF::UnitData::InteractSpellIDTag::value_type;
+
+    static value_type GetValue(UF::UnitData const* unitData, Unit const* unit, Player const* receiver)
+    {
+        value_type interactSpellId = unitData->InteractSpellID;
+        if (unitData->NpcFlags & UNIT_NPC_FLAG_SPELLCLICK && !interactSpellId)
+        {
+            // this field is not set if there are multiple available spellclick spells
+            auto clickBounds = sObjectMgr->GetSpellClickInfoMapBounds(unit->GetEntry());
+            for (auto const& [creatureId, spellClickInfo] : clickBounds)
+            {
+                if (!spellClickInfo.IsFitToRequirements(receiver, unit))
+                    continue;
+
+                if (!sConditionMgr->IsObjectMeetingSpellClickConditions(unit->GetEntry(), spellClickInfo.spellId, receiver, unit))
+                    continue;
+
+                interactSpellId = spellClickInfo.spellId;
+                break;
+            }
+
+        }
+        return interactSpellId;
+    }
+};
+
+template<>
 class ViewerDependentValue<UF::UnitData::NpcFlagsTag>
 {
 public:
     using value_type = UF::UnitData::NpcFlagsTag::value_type;
 
-    static value_type GetValue(UF::UnitData const* unitData, uint32 i, Unit const* unit, Player const* receiver)
+    static value_type GetValue(UF::UnitData const* unitData, Unit const* unit, Player const* receiver)
     {
-        value_type npcFlag = unitData->NpcFlags[i];
-        if (i == 0 && unit->IsCreature() && !receiver->CanSeeSpellClickOn(unit->ToCreature()))
-            npcFlag &= ~UNIT_NPC_FLAG_SPELLCLICK;
+        value_type npcFlag = unitData->NpcFlags;
+        if (npcFlag)
+        {
+            if ((!unit->IsInteractionAllowedInCombat() && unit->IsInCombat())
+               || (!unit->IsInteractionAllowedWhileHostile() && unit->IsHostileTo(receiver)))
+                npcFlag = 0;
+            else if (Creature const* creature = unit->ToCreature())
+            {
+                if (!receiver->CanSeeGossipOn(creature))
+                    npcFlag &= ~(UNIT_NPC_FLAG_GOSSIP | UNIT_NPC_FLAG_QUESTGIVER);
 
+                if (!receiver->CanSeeSpellClickOn(creature))
+                    npcFlag &= ~UNIT_NPC_FLAG_SPELLCLICK;
+
+                if (creature->HasNpcFlag(UNIT_NPC_FLAG_TRAINER_CLASS) && !creature->IsClassTrainerFor(receiver))
+                    npcFlag &= ~(UNIT_NPC_FLAG_TRAINER_CLASS | UNIT_NPC_FLAG_TRAINER);
+            }
+        }
+        return npcFlag;
+    }
+};
+
+template<>
+class ViewerDependentValue<UF::UnitData::NpcFlags2Tag>
+{
+public:
+    using value_type = UF::UnitData::NpcFlags2Tag::value_type;
+
+    static value_type GetValue(UF::UnitData const* unitData, Unit const* unit, Player const* receiver)
+    {
+        value_type npcFlag = unitData->NpcFlags2;
+        if (npcFlag)
+        {
+            if ((!unit->IsInteractionAllowedInCombat() && unit->IsInCombat())
+               || (!unit->IsInteractionAllowedWhileHostile() && unit->IsHostileTo(receiver)))
+                npcFlag = 0;
+        }
         return npcFlag;
     }
 };
@@ -282,6 +407,18 @@ public:
                 flags |= GO_FLAG_LOCKED | GO_FLAG_NOT_SELECTABLE;
 
         return flags;
+    }
+};
+
+template<>
+class ViewerDependentValue<UF::GameObjectData::StateTag>
+{
+public:
+    using value_type = UF::GameObjectData::StateTag::value_type;
+
+    static value_type GetValue(UF::GameObjectData const* /*gameObjectData*/, GameObject const* gameObject, Player const* receiver)
+    {
+        return gameObject->GetGoStateFor(receiver->GetGUID());
     }
 };
 

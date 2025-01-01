@@ -28,11 +28,11 @@ struct MovementInfo
 {
     // common
     ObjectGuid guid;
-    uint32 flags;
-    uint32 flags2;
-    uint32 flags3;
+    uint32 flags = 0;
+    uint32 flags2 = 0;
+    uint32 flags3 = 0;
     Position pos;
-    uint32 time;
+    uint32 time = 0;
 
     // transport
     struct TransportInfo
@@ -49,15 +49,25 @@ struct MovementInfo
 
         ObjectGuid guid;
         Position pos;
-        int8 seat;
-        uint32 time;
-        uint32 prevTime;
-        uint32 vehicleId;
+        int8 seat = -1;
+        uint32 time = 0;
+        uint32 prevTime = 0;
+        uint32 vehicleId = 0;
     } transport;
 
     // swimming/flying
-    float pitch;
+    float pitch = 0.0f;
 
+    struct Inertia
+    {
+        Inertia() : id(0), lifetime(0) { }
+
+        int32 id;
+        Position force;
+        uint32 lifetime;
+    };
+
+    Optional<Inertia> inertia;
 
     // jumping
     struct JumpInfo
@@ -68,22 +78,27 @@ struct MovementInfo
             zspeed = sinAngle = cosAngle = xyspeed = 0.0f;
         }
 
-        uint32 fallTime;
+        uint32 fallTime = 0;
 
-        float zspeed, sinAngle, cosAngle, xyspeed;
+        float zspeed = 0.0f;
+        float sinAngle = 0.0f;
+        float cosAngle = 0.0f;
+        float xyspeed = 0.0f;
 
     } jump;
 
-    // spline
-    float splineElevation;
+    float stepUpStartElevation = 0.0f;
 
-    MovementInfo() :
-        flags(0), flags2(0), flags3(0), time(0), pitch(0.0f), splineElevation(0.0f)
+    // advflying
+    struct AdvFlying
     {
-        pos.Relocate(0.0f, 0.0f, 0.0f, 0.0f);
-        transport.Reset();
-        jump.Reset();
-    }
+        float forwardVelocity;
+        float upVelocity;
+    };
+
+    Optional<AdvFlying> advFlying;
+
+    Optional<ObjectGuid> standingOnGameObjectGUID;
 
     uint32 GetMovementFlags() const { return flags; }
     void SetMovementFlags(uint32 flag) { flags = flag; }

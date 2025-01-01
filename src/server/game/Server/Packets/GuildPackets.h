@@ -24,6 +24,7 @@
 #include "MythicPlusPacketsCommon.h"
 #include "ObjectGuid.h"
 #include "PacketUtilities.h"
+#include "WowTime.h"
 
 namespace WorldPackets
 {
@@ -75,7 +76,6 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             ObjectGuid GuildGuid;
-            ObjectGuid PlayerGuid;
             Optional<GuildInfo> Info;
         };
 
@@ -116,7 +116,6 @@ namespace WorldPackets
             uint64 GuildClubMemberID = 0;
             uint8 RaceID = 0;
             bool Authenticated = false;
-            bool SorEligible = false;
             GuildRosterProfessionData Profession[2];
             MythicPlus::DungeonScoreSummary DungeonScore;
         };
@@ -131,19 +130,9 @@ namespace WorldPackets
             std::vector<GuildRosterMemberData> MemberData;
             std::string WelcomeText;
             std::string InfoText;
-            uint32 CreateDate = 0;
+            WowTime CreateDate;
             int32 NumAccounts = 0;
             int32 GuildFlags = 0;
-        };
-
-        class GuildRosterUpdate final : public ServerPacket
-        {
-        public:
-            GuildRosterUpdate() : ServerPacket(SMSG_GUILD_ROSTER_UPDATE, 4) { }
-
-            WorldPacket const* Write() override;
-
-            std::vector<GuildRosterMemberData> MemberData;
         };
 
         class GuildUpdateMotdText final : public ClientPacket
@@ -173,7 +162,9 @@ namespace WorldPackets
         public:
             AcceptGuildInvite(WorldPacket&& packet) : ClientPacket(CMSG_ACCEPT_GUILD_INVITE, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            ObjectGuid GuildGuid;
         };
 
         class GuildDeclineInvitation final : public ClientPacket
@@ -181,7 +172,10 @@ namespace WorldPackets
         public:
             GuildDeclineInvitation(WorldPacket&& packet) : ClientPacket(CMSG_GUILD_DECLINE_INVITATION, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            ObjectGuid GuildGuid;
+            bool IsAuto = false;
         };
 
         class DeclineGuildInvites final : public ClientPacket
@@ -250,7 +244,6 @@ namespace WorldPackets
             ObjectGuid Guid;
             uint32 VirtualRealmAddress = 0;
             std::string Name;
-            bool Mobile = false;
             bool LoggedOn = false;
         };
 
@@ -1074,7 +1067,7 @@ namespace WorldPackets
         struct GuildNewsEvent
         {
             int32 Id = 0;
-            uint32 CompletedDate = 0;
+            WowTime CompletedDate;
             int32 Type = 0;
             int32 Flags = 0;
             std::array<int32, 2> Data = { };

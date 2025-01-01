@@ -290,8 +290,6 @@ public:
                 TouchTimer = 7000;
             }
             else TouchTimer -= diff;
-
-            DoMeleeAttackIfReady();
         }
 
         void ReceiveEmote(Player* player, uint32 emote) override
@@ -325,8 +323,6 @@ public:
 // 31912 - Ysida Saved Credit Trigger
 class spell_ysida_saved_credit : public SpellScript
 {
-    PrepareSpellScript(spell_ysida_saved_credit);
-
     bool Validate(SpellInfo const* /*spell*/) override
     {
         return ValidateSpellInfo({ SPELL_YSIDA_SAVED });
@@ -365,8 +361,6 @@ enum HauntingPhantoms
 // 16336 - Haunting Phantoms
 class spell_stratholme_haunting_phantoms : public AuraScript
 {
-    PrepareAuraScript(spell_stratholme_haunting_phantoms);
-
     void CalcPeriodic(AuraEffect const* /*aurEff*/, bool& isPeriodic, int32& amplitude)
     {
         isPeriodic = true;

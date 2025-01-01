@@ -184,6 +184,23 @@ struct LinkValidator<LinkTags::battlepet>
 };
 
 template <>
+struct LinkValidator<LinkTags::battlePetAbil>
+{
+    static bool IsTextValid(BattlePetAbilLinkData const& data, std::string_view text)
+    {
+        for (LocaleConstant i = LOCALE_enUS; i < TOTAL_LOCALES; i = LocaleConstant(i + 1))
+            if (data.Ability->Name[i] == text)
+                return true;
+        return false;
+    }
+
+    static bool IsColorValid(BattlePetAbilLinkData const&, HyperlinkColor c)
+    {
+        return c == CHAT_LINK_COLOR_BATTLE_PET_ABIL;
+    }
+};
+
+template <>
 struct LinkValidator<LinkTags::currency>
 {
     static bool IsTextValid(CurrencyLinkData const& data, std::string_view text)
@@ -383,32 +400,30 @@ struct LinkValidator<LinkTags::quest>
 };
 
 template <>
-struct LinkValidator<LinkTags::outfit>
+struct LinkValidator<LinkTags::mount>
 {
-    static bool IsTextValid(std::string const&, std::string_view)
+    static bool IsTextValid(MountLinkData const& data, std::string_view text)
     {
-        return true;
+        return LinkValidator<LinkTags::spell>::IsTextValid(data.Spell, text);
     }
 
-    static bool IsColorValid(std::string const&, HyperlinkColor c)
+    static bool IsColorValid(MountLinkData const&, HyperlinkColor c)
     {
-        return c == CHAT_LINK_COLOR_TRANSMOG;
+        return c == CHAT_LINK_COLOR_SPELL;
     }
 };
 
 template <>
-struct LinkValidator<LinkTags::pvptal>
+struct LinkValidator<LinkTags::outfit>
 {
-    static bool IsTextValid(PvpTalentEntry const* pvpTalent, std::string_view text)
+    static bool IsTextValid(std::string_view, std::string_view)
     {
-        if (SpellInfo const* info = sSpellMgr->GetSpellInfo(pvpTalent->SpellID, DIFFICULTY_NONE))
-            return LinkValidator<LinkTags::spell>::IsTextValid(info, text);
-        return false;
+        return true;
     }
 
-    static bool IsColorValid(PvpTalentEntry const*, HyperlinkColor c)
+    static bool IsColorValid(std::string_view, HyperlinkColor c)
     {
-        return c == CHAT_LINK_COLOR_TALENT;
+        return c == CHAT_LINK_COLOR_TRANSMOG;
     }
 };
 
@@ -524,12 +539,17 @@ static bool ValidateLinkInfo(HyperlinkInfo const& info)
 {
     using namespace LinkTags;
     TryValidateAs(achievement);
+    TryValidateAs(api);
     TryValidateAs(area);
     TryValidateAs(areatrigger);
     TryValidateAs(battlepet);
+    TryValidateAs(battlePetAbil);
+    TryValidateAs(clubFinder);
+    TryValidateAs(clubTicket);
     TryValidateAs(creature);
     TryValidateAs(creature_entry);
     TryValidateAs(currency);
+    TryValidateAs(dungeonScore);
     TryValidateAs(enchant);
     TryValidateAs(gameevent);
     TryValidateAs(gameobject);
@@ -539,9 +559,9 @@ static bool ValidateLinkInfo(HyperlinkInfo const& info)
     TryValidateAs(itemset);
     TryValidateAs(journal);
     TryValidateAs(keystone);
+    TryValidateAs(mount);
     TryValidateAs(outfit);
     TryValidateAs(player);
-    TryValidateAs(pvptal);
     TryValidateAs(quest);
     TryValidateAs(skill);
     TryValidateAs(spell);

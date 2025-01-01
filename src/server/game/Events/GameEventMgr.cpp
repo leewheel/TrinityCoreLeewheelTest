@@ -871,40 +871,6 @@ void GameEventMgr::LoadFromDB()
         }
     }
 
-    TC_LOG_INFO("server.loading", "Loading Game Event Battleground Holiday Data...");
-    {
-        uint32 oldMSTime = getMSTime();
-
-        //                                               0           1
-        QueryResult result = WorldDatabase.Query("SELECT EventEntry, BattlegroundID FROM game_event_battleground_holiday");
-
-        if (!result)
-            TC_LOG_INFO("server.loading", ">> Loaded 0 battleground holidays in game events. DB table `game_event_battleground_holiday` is empty.");
-        else
-        {
-            uint32 count = 0;
-            do
-            {
-                Field* fields = result->Fetch();
-
-                uint16 event_id = fields[0].GetUInt8();
-
-                if (event_id >= mGameEvent.size())
-                {
-                    TC_LOG_ERROR("sql.sql", "`game_event_battleground_holiday`: game event id ({}) is out of range compared to max event id in `game_event`.", event_id);
-                    continue;
-                }
-
-                mGameEventBattlegroundHolidays[event_id] = fields[1].GetUInt32();
-
-                ++count;
-            }
-            while (result->NextRow());
-
-            TC_LOG_INFO("server.loading", ">> Loaded {} battleground holidays in game events in {} ms.", count, GetMSTimeDiffToNow(oldMSTime));
-        }
-    }
-
     TC_LOG_INFO("server.loading", "Loading Game Event Pool Data...");
     {
         uint32 oldMSTime = getMSTime();
@@ -986,7 +952,6 @@ void GameEventMgr::Initialize()
         mGameEventCreatureQuests.resize(maxEventId);
         mGameEventGameObjectQuests.resize(maxEventId);
         mGameEventVendors.resize(maxEventId);
-        mGameEventBattlegroundHolidays.resize(maxEventId, 0);
         mGameEventPoolIds.resize(maxEventId * 2 - 1);
         mGameEventNPCFlags.resize(maxEventId);
         mGameEventModelEquip.resize(maxEventId);
@@ -1115,8 +1080,6 @@ void GameEventMgr::UnApplyEvent(uint16 event_id)
     UpdateEventNPCFlags(event_id);
     // remove vendor items
     UpdateEventNPCVendor(event_id, false);
-    // update bg holiday
-    UpdateBattlegroundSettings();
 }
 
 void GameEventMgr::ApplyNewEvent(uint16 event_id)
@@ -1141,8 +1104,6 @@ void GameEventMgr::ApplyNewEvent(uint16 event_id)
     UpdateEventNPCFlags(event_id);
     // add vendor items
     UpdateEventNPCVendor(event_id, true);
-    // update bg holiday
-    UpdateBattlegroundSettings();
 
     //! Run SAI scripts with SMART_EVENT_GAME_EVENT_START
     RunSmartAIScripts(event_id, true);
@@ -1185,14 +1146,6 @@ void GameEventMgr::UpdateEventNPCFlags(uint16 event_id)
     }
 }
 
-void GameEventMgr::UpdateBattlegroundSettings()
-{
-    sBattlegroundMgr->ResetHolidays();
-
-    for (uint16 activeEventId : m_ActiveEvents)
-        sBattlegroundMgr->SetHolidayActive(mGameEventBattlegroundHolidays[activeEventId]);
-}
-
 void GameEventMgr::UpdateEventNPCVendor(uint16 event_id, bool activate)
 {
     for (NPCVendorMap::iterator itr = mGameEventVendors[event_id].begin(); itr != mGameEventVendors[event_id].end(); ++itr)
@@ -1213,7 +1166,7 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
 
     if (internal_event_id < 0 || internal_event_id >= int32(mGameEventCreatureGuids.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventCreatureGuids element {} (size: {}u).",
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventCreatureGuids element {} (size: {}).",
             internal_event_id, mGameEventCreatureGuids.size());
         return;
     }
@@ -1238,7 +1191,7 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
 
     if (internal_event_id >= int32(mGameEventGameobjectGuids.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventGameobjectGuids element {} (size: {}u).",
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventGameobjectGuids element {} (size: {}).",
             internal_event_id, mGameEventGameobjectGuids.size());
         return;
     }
@@ -1273,7 +1226,7 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
 
     if (internal_event_id >= int32(mGameEventPoolIds.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventPoolIds element {} (size: {}u).",
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventSpawn attempted access to out of range mGameEventPoolIds element {} (size: {}).",
             internal_event_id, mGameEventPoolIds.size());
         return;
     }
@@ -1296,7 +1249,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
 
     if (internal_event_id < 0 || internal_event_id >= int32(mGameEventCreatureGuids.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventCreatureGuids element {} (size: {}u).",
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventCreatureGuids element {} (size: {}).",
             internal_event_id, mGameEventCreatureGuids.size());
         return;
     }
@@ -1327,7 +1280,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
 
     if (internal_event_id < 0 || internal_event_id >= int32(mGameEventGameobjectGuids.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventGameobjectGuids element {} (size: {}u).",
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventGameobjectGuids element {} (size: {}).",
             internal_event_id, mGameEventGameobjectGuids.size());
         return;
     }
@@ -1358,7 +1311,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
 
     if (internal_event_id < 0 || internal_event_id >= int32(mGameEventPoolIds.size()))
     {
-        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventPoolIds element {} (size: {}u).", internal_event_id, mGameEventPoolIds.size());
+        TC_LOG_ERROR("gameevent", "GameEventMgr::GameEventUnspawn attempted access to out of range mGameEventPoolIds element {} (size: {}).", internal_event_id, mGameEventPoolIds.size());
         return;
     }
 
@@ -1395,22 +1348,14 @@ void GameEventMgr::ChangeEquipOrModel(int16 event_id, bool activate)
                     itr->second.equipement_id_prev = creature->GetCurrentEquipmentId();
                     itr->second.modelid_prev = creature->GetDisplayId();
                     creature->LoadEquipment(itr->second.equipment_id, true);
-                    if (itr->second.modelid > 0 && itr->second.modelid_prev != itr->second.modelid &&
-                        sObjectMgr->GetCreatureModelInfo(itr->second.modelid))
-                    {
-                        creature->SetDisplayId(itr->second.modelid);
-                        creature->SetNativeDisplayId(itr->second.modelid);
-                    }
+                    if (itr->second.modelid > 0 && itr->second.modelid_prev != itr->second.modelid && sObjectMgr->GetCreatureModelInfo(itr->second.modelid))
+                        creature->SetDisplayId(itr->second.modelid, true);
                 }
                 else
                 {
                     creature->LoadEquipment(itr->second.equipement_id_prev, true);
-                    if (itr->second.modelid_prev > 0 && itr->second.modelid_prev != itr->second.modelid &&
-                        sObjectMgr->GetCreatureModelInfo(itr->second.modelid_prev))
-                    {
-                        creature->SetDisplayId(itr->second.modelid_prev);
-                        creature->SetNativeDisplayId(itr->second.modelid_prev);
-                    }
+                    if (itr->second.modelid_prev > 0 && itr->second.modelid_prev != itr->second.modelid && sObjectMgr->GetCreatureModelInfo(itr->second.modelid_prev))
+                        creature->SetDisplayId(itr->second.modelid_prev, true);
                 }
             }
         });
@@ -1419,14 +1364,20 @@ void GameEventMgr::ChangeEquipOrModel(int16 event_id, bool activate)
         CreatureData& data2 = sObjectMgr->NewOrExistCreatureData(itr->first);
         if (activate)
         {
-            itr->second.modelid_prev = data2.displayid;
+            itr->second.modelid_prev = data2.display ? data2.display->CreatureDisplayID : 0;
             itr->second.equipement_id_prev = data2.equipmentId;
-            data2.displayid = itr->second.modelid;
+            if (itr->second.modelid)
+                data2.display.emplace(itr->second.modelid, DEFAULT_PLAYER_DISPLAY_SCALE, 1.0f);
+            else
+                data2.display.reset();
             data2.equipmentId = itr->second.equipment_id;
         }
         else
         {
-            data2.displayid = itr->second.modelid_prev;
+            if (itr->second.modelid_prev)
+                data2.display.emplace(itr->second.modelid_prev, DEFAULT_PLAYER_DISPLAY_SCALE, 1.0f);
+            else
+                data2.display.reset();
             data2.equipmentId = itr->second.equipement_id_prev;
         }
     }

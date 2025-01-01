@@ -16,12 +16,11 @@
  */
 
 #include "DB2Stores.h"
-#include "GameTables.h"
 #include "World.h"
 #include "ItemTemplate.h"
 #include "Player.h"
 
-int32 const SocketColorToGemTypeMask[19] =
+int32 const SocketColorToGemTypeMask[26] =
 {
     0,
     SOCKET_COLOR_META,
@@ -41,7 +40,14 @@ int32 const SocketColorToGemTypeMask[19] =
     SOCKET_COLOR_RELIC_WATER,
     SOCKET_COLOR_RELIC_LIFE,
     SOCKET_COLOR_RELIC_WIND,
-    SOCKET_COLOR_RELIC_HOLY
+    SOCKET_COLOR_RELIC_HOLY,
+    SOCKET_COLOR_PUNCHCARD_RED,
+    SOCKET_COLOR_PUNCHCARD_YELLOW,
+    SOCKET_COLOR_PUNCHCARD_BLUE,
+    SOCKET_COLOR_DOMINATION,
+    SOCKET_COLOR_CYPHER,
+    SOCKET_COLOR_TINKER,
+    SOCKET_COLOR_PRIMORDIAL
 };
 
 char const* ItemTemplate::GetName(LocaleConstant locale) const
@@ -58,7 +64,7 @@ bool ItemTemplate::HasSignature() const
         GetClass() != ITEM_CLASS_CONSUMABLE &&
         GetClass() != ITEM_CLASS_QUEST &&
         !HasFlag(ITEM_FLAG_NO_CREATOR) &&
-        GetId() != 6948; /*Hearthstone*/
+        GetId() != ITEM_HEARTHSTONE;
 }
 
 bool ItemTemplate::CanChangeEquipStateInCombat() const
@@ -99,6 +105,13 @@ uint32 ItemTemplate::GetSkill() const
         0, SKILL_CLOTH, SKILL_LEATHER, SKILL_MAIL, SKILL_PLATE_MAIL, 0, SKILL_SHIELD, 0, 0, 0, 0
     };
 
+    static uint32 const itemProfessionSkills[MAX_ITEM_SUBCLASS_PROFESSION] =
+    {
+        SKILL_BLACKSMITHING, SKILL_LEATHERWORKING, SKILL_ALCHEMY,     SKILL_HERBALISM,  SKILL_COOKING,
+        SKILL_MINING,        SKILL_TAILORING,      SKILL_ENGINEERING, SKILL_ENCHANTING, SKILL_FISHING,
+        SKILL_SKINNING,      SKILL_JEWELCRAFTING,  SKILL_INSCRIPTION, SKILL_ARCHAEOLOGY
+    };
+
     switch (GetClass())
     {
         case ITEM_CLASS_WEAPON:
@@ -106,13 +119,16 @@ uint32 ItemTemplate::GetSkill() const
                 return 0;
             else
                 return itemWeaponSkills[GetSubClass()];
-
         case ITEM_CLASS_ARMOR:
             if (GetSubClass() >= MAX_ITEM_SUBCLASS_ARMOR)
                 return 0;
             else
                 return itemArmorSkills[GetSubClass()];
-
+        case ITEM_CLASS_PROFESSION:
+            if (GetSubClass() >= MAX_ITEM_SUBCLASS_PROFESSION)
+                return 0;
+            else
+                return itemProfessionSkills[GetSubClass()];
         default:
             return 0;
     }
@@ -121,66 +137,6 @@ uint32 ItemTemplate::GetSkill() const
 char const* ItemTemplate::GetDefaultLocaleName() const
 {
     return ExtendedData->Display[sWorld->GetDefaultDbcLocale()];
-}
-
-uint32 ItemTemplate::GetArmor(uint32 itemLevel) const
-{
-    uint32 quality = ItemQualities(GetQuality()) != ITEM_QUALITY_HEIRLOOM ? ItemQualities(GetQuality()) : ITEM_QUALITY_RARE;
-    if (quality > ITEM_QUALITY_ARTIFACT)
-        return 0;
-
-    // all items but shields
-    if (GetClass() != ITEM_CLASS_ARMOR || GetSubClass() != ITEM_SUBCLASS_ARMOR_SHIELD)
-    {
-        ItemArmorQualityEntry const* armorQuality = sItemArmorQualityStore.LookupEntry(itemLevel);
-        ItemArmorTotalEntry const* armorTotal = sItemArmorTotalStore.LookupEntry(itemLevel);
-        if (!armorQuality || !armorTotal)
-            return 0;
-
-        uint32 inventoryType = GetInventoryType();
-        if (inventoryType == INVTYPE_ROBE)
-            inventoryType = INVTYPE_CHEST;
-
-        ArmorLocationEntry const* location = sArmorLocationStore.LookupEntry(inventoryType);
-        if (!location)
-            return 0;
-
-        if (GetSubClass() < ITEM_SUBCLASS_ARMOR_CLOTH || GetSubClass() > ITEM_SUBCLASS_ARMOR_PLATE)
-            return 0;
-
-        float total = 1.0f;
-        float locationModifier = 1.0f;
-        switch (GetSubClass())
-        {
-            case ITEM_SUBCLASS_ARMOR_CLOTH:
-                total = armorTotal->Cloth;
-                locationModifier = location->Clothmodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_LEATHER:
-                total = armorTotal->Leather;
-                locationModifier = location->Leathermodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_MAIL:
-                total = armorTotal->Mail;
-                locationModifier = location->Chainmodifier;
-                break;
-            case ITEM_SUBCLASS_ARMOR_PLATE:
-                total = armorTotal->Plate;
-                locationModifier = location->Platemodifier;
-                break;
-            default:
-                break;
-        }
-
-        return uint32(armorQuality->Qualitymod[quality] * total * locationModifier + 0.5f);
-    }
-
-    // shields
-    ItemArmorShieldEntry const* shield = sItemArmorShieldStore.LookupEntry(itemLevel);
-    if (!shield)
-        return 0;
-
-    return uint32(shield->Quality[quality] + 0.5f);
 }
 
 float ItemTemplate::GetDPS(uint32 itemLevel) const
@@ -246,39 +202,4 @@ void ItemTemplate::GetDamage(uint32 itemLevel, float& minDamage, float& maxDamag
         minDamage = (GetDmgVariance() * -0.5f + 1.0f) * avgDamage;
         maxDamage = floor(float(avgDamage * (GetDmgVariance() * 0.5f + 1.0f) + 0.5f));
     }
-}
-
-bool ItemTemplate::IsUsableByLootSpecialization(Player const* player, bool alwaysAllowBoundToAccount) const
-{
-    if (HasFlag(ITEM_FLAG_IS_BOUND_TO_ACCOUNT) && alwaysAllowBoundToAccount)
-        return true;
-
-    uint32 spec = player->GetLootSpecId();
-    if (!spec)
-        spec = player->GetPrimarySpecialization();
-    if (!spec)
-        spec = player->GetDefaultSpecId();
-
-    ChrSpecializationEntry const* chrSpecialization = sChrSpecializationStore.LookupEntry(spec);
-    if (!chrSpecialization)
-        return false;
-
-    std::size_t levelIndex = 0;
-    if (player->GetLevel() >= 110)
-        levelIndex = 2;
-    else if (player->GetLevel() > 40)
-        levelIndex = 1;
-
-    return Specializations[levelIndex].test(CalculateItemSpecBit(chrSpecialization));
-}
-
-std::size_t ItemTemplate::CalculateItemSpecBit(ChrSpecializationEntry const* spec)
-{
-    return (spec->ClassID - 1) * MAX_SPECIALIZATIONS + spec->OrderIndex;
-}
-
-int16 ItemTemplate::GetShieldBlockValue(uint32 itemLevel) const
-{
-    GtShieldBlockRegularEntry const* blockEntry = sShieldBlockRegularGameTable.GetRow(itemLevel);
-    return static_cast<int16>(GetShieldBlockRegularColumnForQuality(blockEntry, static_cast<ItemQualities>(GetQuality())));
 }

@@ -115,7 +115,7 @@ void LoadDisables()
                         if (Optional<uint32> mapId = Trinity::StringTo<uint32>(mapStr))
                             data.params[0].insert(*mapId);
                         else
-                            TC_LOG_ERROR("sql.sql", "Disable map '{}' for spell {} is invalid, skipped.", std::string(mapStr).c_str(), entry);
+                            TC_LOG_ERROR("sql.sql", "Disable map '{}' for spell {} is invalid, skipped.", mapStr, entry);
                     }
                 }
 
@@ -126,7 +126,7 @@ void LoadDisables()
                         if (Optional<uint32> areaId = Trinity::StringTo<uint32>(areaStr))
                             data.params[1].insert(*areaId);
                         else
-                            TC_LOG_ERROR("sql.sql", "Disable area '{}' for spell {} is invalid, skipped.", std::string(areaStr).c_str(), entry);
+                            TC_LOG_ERROR("sql.sql", "Disable area '{}' for spell {} is invalid, skipped.", areaStr, entry);
                     }
                 }
 
@@ -239,6 +239,17 @@ void LoadDisables()
                 }
                 if (mapEntry->InstanceType <= MAP_SCENARIO)
                     TC_LOG_INFO("misc", "Pathfinding disabled for {} map {}.", MapTypeNames[mapEntry->InstanceType], entry);
+                break;
+            }
+            case DISABLE_TYPE_PHASE_AREA:
+            {
+                if (!sPhaseStore.LookupEntry(entry))
+                {
+                    TC_LOG_ERROR("sql.sql", "Phase entry {} from `disables` doesn't exist in dbc, skipped.", entry);
+                    continue;
+                }
+                if (flags)
+                    TC_LOG_ERROR("sql.sql", "Disable flags specified for phase {}, useless data.", entry);
                 break;
             }
             default:
@@ -383,6 +394,7 @@ bool IsDisabledFor(DisableType type, uint32 entry, WorldObject const* ref, uint8
         case DISABLE_TYPE_OUTDOORPVP:
         case DISABLE_TYPE_CRITERIA:
         case DISABLE_TYPE_MMAP:
+        case DISABLE_TYPE_PHASE_AREA:
             return true;
         case DISABLE_TYPE_VMAP:
            return (flags & itr->second.flags) != 0;

@@ -33,8 +33,8 @@ enum PetType : uint8
     MAX_PET_TYPE            = 4
 };
 
-#define MAX_ACTIVE_PETS         1
-#define MAX_PET_STABLES         4
+#define MAX_ACTIVE_PETS         5
+#define MAX_PET_STABLES         200
 
 // stored in character_pet.slot
 enum PetSaveMode : int16
@@ -57,6 +57,12 @@ constexpr bool IsStabledPetSlot(PetSaveMode slot)
 {
     return slot >= PET_SAVE_FIRST_STABLE_SLOT && slot < PET_SAVE_LAST_STABLE_SLOT;
 }
+
+enum PetStableFlags : uint8
+{
+    PET_STABLE_ACTIVE   = 0x1,
+    PET_STABLE_INACTIVE = 0x2
+};
 
 enum PetSpellState
 {
@@ -110,7 +116,19 @@ enum class PetTameResult : uint8
     EliteTooHighLevel       = 14
 };
 
+enum class StableResult : uint8
+{
+    NotEnoughMoney        = 1,                              // "you don't have enough money"
+    InvalidSlot           = 3,                              // "That slot is locked"
+    StableSuccess         = 8,                              // stable success
+    UnstableSuccess       = 9,                              // unstable/swap success
+    BuySlotSuccess        = 10,                             // buy slot success
+    CantControlExotic     = 11,                             // "you are unable to control exotic creatures"
+    InternalError         = 12,                             // "Internal pet error"
+};
+
 constexpr uint32 CALL_PET_SPELL_ID = 883;
+constexpr uint32 PET_SUMMONING_DISORIENTATION = 32752;
 
 class PetStable
 {
@@ -154,10 +172,6 @@ public:
             return *unslottedPetIndex < UnslottedPets.size() ? &UnslottedPets[*unslottedPetIndex] : nullptr;
 
         return nullptr;
-    }
-    PetInfo const* GetUnslottedHunterPet() const
-    {
-        return UnslottedPets.size() == 1 && UnslottedPets[0].Type == HUNTER_PET ? &UnslottedPets[0] : nullptr;
     }
 
     Optional<uint32> GetCurrentActivePetIndex() const { return CurrentPetIndex && ((*CurrentPetIndex & UnslottedPetIndexMask) == 0) ? CurrentPetIndex : std::nullopt; }

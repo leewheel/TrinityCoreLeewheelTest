@@ -20,6 +20,7 @@
 
 #include "SpellAuraDefines.h"
 #include "SpellInfo.h"
+#include "UniqueTrackablePtr.h"
 #include <typeinfo>
 
 class SpellInfo;
@@ -105,12 +106,7 @@ struct AuraKey
     uint32 SpellId;
     uint32 EffectMask;
 
-    bool operator<(AuraKey const& right) const
-    {
-        auto comparisonTuple = [](AuraKey const& k) { return std::tie(k.Caster, k.Item, k.SpellId, k.EffectMask); };
-
-        return comparisonTuple(*this) < comparisonTuple(right);
-    }
+    friend std::strong_ordering operator<=>(AuraKey const& left, AuraKey const& right) = default;
 };
 
 struct AuraLoadEffectInfo
@@ -173,7 +169,7 @@ class TC_GAME_API Aura
         void SetMaxDuration(int32 duration) { m_maxDuration = duration; }
         int32 CalcMaxDuration() const { return CalcMaxDuration(GetCaster()); }
         int32 CalcMaxDuration(Unit* caster) const;
-        static int32 CalcMaxDuration(SpellInfo const* spellInfo, WorldObject* caster);
+        static int32 CalcMaxDuration(SpellInfo const* spellInfo, WorldObject const* caster, int32 spentComboPoints = 0);
         int32 GetDuration() const { return m_duration; }
         void SetDuration(int32 duration, bool withMods = false);
         void RefreshDuration(bool withMods = false);
@@ -236,10 +232,10 @@ class TC_GAME_API Aura
 
         // Helpers for targets
         ApplicationMap const& GetApplicationMap() { return m_applications; }
-        void GetApplicationVector(std::vector<AuraApplication*>& applicationVector) const;
-        AuraApplication const* GetApplicationOfTarget(ObjectGuid guid) const { ApplicationMap::const_iterator itr = m_applications.find(guid); if (itr != m_applications.end()) return itr->second; return nullptr; }
-        AuraApplication* GetApplicationOfTarget(ObjectGuid guid) { ApplicationMap::iterator itr = m_applications.find(guid); if (itr != m_applications.end()) return itr->second; return nullptr; }
-        bool IsAppliedOnTarget(ObjectGuid guid) const { return m_applications.find(guid) != m_applications.end(); }
+        void GetApplicationVector(std::vector<AuraApplication*>& applications) const;
+        AuraApplication const* GetApplicationOfTarget(ObjectGuid guid) const;
+        AuraApplication* GetApplicationOfTarget(ObjectGuid guid);
+        bool IsAppliedOnTarget(ObjectGuid guid) const;
 
         void SetNeedClientUpdateForTargets() const;
         void HandleAuraSpecificMods(AuraApplication const* aurApp, Unit* caster, bool apply, bool onReapply);
@@ -261,12 +257,14 @@ class TC_GAME_API Aura
         float CalcPPMProcChance(Unit* actor) const;
         void SetLastProcAttemptTime(TimePoint lastProcAttemptTime) { m_lastProcAttemptTime = lastProcAttemptTime; }
         void SetLastProcSuccessTime(TimePoint lastProcSuccessTime) { m_lastProcSuccessTime = lastProcSuccessTime; }
+        virtual void Heartbeat() { }
 
         // AuraScript
         void LoadScripts();
         bool CallScriptCheckAreaTargetHandlers(Unit* target);
         void CallScriptDispel(DispelInfo* dispelInfo);
         void CallScriptAfterDispel(DispelInfo* dispelInfo);
+        void CallScriptOnHeartbeat();
         bool CallScriptEffectApplyHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, AuraEffectHandleModes mode);
         bool CallScriptEffectRemoveHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, AuraEffectHandleModes mode);
         void CallScriptAfterEffectApplyHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, AuraEffectHandleModes mode);
@@ -277,6 +275,7 @@ class TC_GAME_API Aura
         void CallScriptEffectCalcPeriodicHandlers(AuraEffect const* aurEff, bool& isPeriodic, int32& amplitude);
         void CallScriptEffectCalcSpellModHandlers(AuraEffect const* aurEff, SpellModifier*& spellMod);
         void CallScriptEffectCalcCritChanceHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, Unit const* victim, float& critChance);
+        void CallScriptCalcDamageAndHealingHandlers(AuraEffect const* aurEff, AuraApplication const* aurApp, Unit* victim, int32& damageOrHealing, int32& flatMod, float& pctMod);
         void CallScriptEffectAbsorbHandlers(AuraEffect* aurEff, AuraApplication const* aurApp, DamageInfo& dmgInfo, uint32& absorbAmount, bool & defaultPrevented);
         void CallScriptEffectAfterAbsorbHandlers(AuraEffect* aurEff, AuraApplication const* aurApp, DamageInfo& dmgInfo, uint32& absorbAmount);
         void CallScriptEffectAbsorbHandlers(AuraEffect* aurEff, AuraApplication const* aurApp, HealInfo& healInfo, uint32& absorbAmount, bool& defaultPrevented);
@@ -311,6 +310,8 @@ class TC_GAME_API Aura
         AuraEffectVector const& GetAuraEffects() const { return _effects; }
 
         virtual std::string GetDebugInfo() const;
+
+        Trinity::unique_weak_ptr<Aura> GetWeakPtr() const { return m_scriptRef; }
 
         Aura(Aura const&) = delete;
         Aura(Aura&&) = delete;
@@ -360,6 +361,9 @@ class TC_GAME_API Aura
         std::vector<AuraApplication*> _removedApplications;
 
         AuraEffectVector _effects;
+
+        struct NoopAuraDeleter { void operator()(Aura*) const { /*noop - not managed*/ } };
+        Trinity::unique_trackable_ptr<Aura> m_scriptRef;
 };
 
 class TC_GAME_API UnitAura : public Aura
@@ -380,6 +384,9 @@ class TC_GAME_API UnitAura : public Aura
         DiminishingGroup GetDiminishGroup() const { return m_AuraDRGroup; }
 
         void AddStaticApplication(Unit* target, uint32 effMask);
+
+        void Heartbeat() override;
+        void HandlePeriodicFoodSpellVisualKit();
 
     private:
         DiminishingGroup m_AuraDRGroup;                 // Diminishing

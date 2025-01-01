@@ -42,8 +42,8 @@ namespace WorldPackets
 
             bool QueueAsGroup = false;
             bool Unknown = false;       // Always false in 7.2.5
-            uint8 PartyIndex = 0;
-            uint32 Roles = 0;
+            Optional<uint8> PartyIndex;
+            uint8 Roles = 0;
             Array<uint32, 50> Slots;
         };
 
@@ -77,8 +77,8 @@ namespace WorldPackets
 
             void Read() override;
 
-            uint32 RolesDesired = 0;
-            uint8 PartyIndex = 0;
+            uint8 RolesDesired = 0;
+            Optional<uint8> PartyIndex;
         };
 
         class DFBootPlayerVote final : public ClientPacket
@@ -108,7 +108,7 @@ namespace WorldPackets
 
             void Read() override;
 
-            uint8 PartyIndex = 0;
+            Optional<uint8> PartyIndex;
             bool Player = false;
         };
 
@@ -116,6 +116,22 @@ namespace WorldPackets
         {
         public:
             DFGetJoinStatus(WorldPacket&& packet) : ClientPacket(CMSG_DF_GET_JOIN_STATUS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class LFGListGetStatus final : public ClientPacket
+        {
+        public:
+            LFGListGetStatus(WorldPacket&& packet) : ClientPacket(CMSG_LFG_LIST_GET_STATUS, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
+        class LFGRequestLFGListBlacklist final : public ClientPacket
+        {
+        public:
+            LFGRequestLFGListBlacklist(WorldPacket&& packet) : ClientPacket(CMSG_REQUEST_LFG_LIST_BLACKLIST, std::move(packet)) { }
 
             void Read() override { }
         };
@@ -137,38 +153,6 @@ namespace WorldPackets
         {
             Optional<ObjectGuid> PlayerGuid;
             std::vector<LFGBlackListSlot> Slot;
-        };
-
-        struct LfgPlayerQuestRewardItem
-        {
-            LfgPlayerQuestRewardItem() = default;
-            LfgPlayerQuestRewardItem(int32 itemId, int32 quantity) : ItemID(itemId), Quantity(quantity) { }
-
-            int32 ItemID = 0;
-            int32 Quantity = 0;
-        };
-
-        struct LfgPlayerQuestRewardCurrency
-        {
-            LfgPlayerQuestRewardCurrency() = default;
-            LfgPlayerQuestRewardCurrency(int32 currencyID, int32 quantity) : CurrencyID(currencyID), Quantity(quantity) { }
-
-            int32 CurrencyID = 0;
-            int32 Quantity = 0;
-        };
-
-        struct LfgPlayerQuestReward
-        {
-            uint32 Mask = 0;                                            // Roles required for this reward, only used by ShortageReward in SMSG_LFG_PLAYER_INFO
-            int32 RewardMoney = 0;                                      // Only used by SMSG_LFG_PLAYER_INFO
-            int32 RewardXP = 0;
-            std::vector<LfgPlayerQuestRewardItem> Item;
-            std::vector<LfgPlayerQuestRewardCurrency> Currency;         // Only used by SMSG_LFG_PLAYER_INFO
-            std::vector<LfgPlayerQuestRewardCurrency> BonusCurrency;    // Only used by SMSG_LFG_PLAYER_INFO
-            Optional<int32> RewardSpellID;                              // Only used by SMSG_LFG_PLAYER_INFO
-            Optional<int32> Unused1;
-            Optional<uint64> Unused2;
-            Optional<int32> Honor;                                      // Only used by SMSG_REQUEST_PVP_REWARDS_RESPONSE
         };
 
         struct LfgPlayerDungeonInfo
@@ -226,7 +210,7 @@ namespace WorldPackets
             uint8 SubType = 0;
             uint8 Reason = 0;
             std::vector<uint32> Slots;
-            uint32 RequestedRoles = 0;
+            uint8 RequestedRoles = 0;
             std::vector<ObjectGuid> SuspendedPlayers;
             uint32 QueueMapID = 0;
             bool NotifyUI = false;
@@ -245,18 +229,18 @@ namespace WorldPackets
             WorldPacket const* Write() override;
 
             ObjectGuid Player;
-            uint32 RoleMask = 0;
+            uint8 RoleMask = 0;
             bool Accepted = false;
         };
 
         struct LFGRoleCheckUpdateMember
         {
             LFGRoleCheckUpdateMember() = default;
-            LFGRoleCheckUpdateMember(ObjectGuid guid, uint32 rolesDesired, uint8 level, bool roleCheckComplete)
+            LFGRoleCheckUpdateMember(ObjectGuid guid, uint8 rolesDesired, uint8 level, bool roleCheckComplete)
                 : Guid(guid), RolesDesired(rolesDesired), Level(level), RoleCheckComplete(roleCheckComplete) { }
 
             ObjectGuid Guid;
-            uint32 RolesDesired = 0;
+            uint8 RolesDesired = 0;
             uint8 Level = 0;
             bool RoleCheckComplete = false;
         };
@@ -371,7 +355,7 @@ namespace WorldPackets
 
         struct LFGProposalUpdatePlayer
         {
-            uint32 Roles = 0;
+            uint8 Roles = 0;
             bool Me = false;
             bool SameParty = false;
             bool MyParty = false;

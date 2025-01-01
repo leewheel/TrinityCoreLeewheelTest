@@ -19,54 +19,33 @@
 #include "Containers.h"
 #include "DatabaseEnv.h"
 #include "DB2Stores.h"
+#include "ItemBonusMgr.h"
 #include "ItemTemplate.h"
 #include "Log.h"
 #include "ObjectMgr.h"
-#include "Random.h"
 #include "Timer.h"
-#include "Util.h"
-
 #include <list>
 #include <vector>
-#include <stdlib.h>
 
-struct EnchStoreItem
+namespace
 {
-    ItemRandomEnchantmentType type;
-    uint32  ench;
-    float   chance;
-
-    EnchStoreItem()
-        : type(ItemRandomEnchantmentType::Property), ench(0), chance(0) { }
-
-    EnchStoreItem(ItemRandomEnchantmentType _type, uint32 _ench, float _chance)
-        : type(_type), ench(_ench), chance(_chance) { }
-};
-
-typedef std::vector<EnchStoreItem> EnchStoreList;
-
-class EnchantmentStore
-{
-    std::unordered_map<uint32, EnchStoreList> _data[2];
-
-public:
-    std::unordered_map<uint32, EnchStoreList>& operator[](ItemRandomEnchantmentType type)
+    struct RandomBonusListIds
     {
-        ASSERT(type != ItemRandomEnchantmentType::BonusList, "Random bonus lists do not have their own storage, use Suffix for them");
-        return _data[uint8(type)];
-    }
+        std::vector<int32> BonusListIDs;
+        std::vector<double> Chances;
+    };
 
-} static RandomItemEnch;
+    std::unordered_map<uint32, RandomBonusListIds> _storage;
+}
 
-void LoadRandomEnchantmentsTable()
+void LoadItemRandomBonusListTemplates()
 {
     uint32 oldMSTime = getMSTime();
 
-    RandomItemEnch[ItemRandomEnchantmentType::Property].clear();
-    RandomItemEnch[ItemRandomEnchantmentType::Suffix].clear();
+    _storage.clear();
 
-    //                                                 0      1     2      3
-    QueryResult result = WorldDatabase.Query("SELECT entry, type, ench, chance FROM item_enchantment_template");
+    //                                               0   1            2
+    QueryResult result = WorldDatabase.Query("SELECT Id, BonusListID, Chance FROM item_random_bonus_list_template");
 
     if (result)
     {
@@ -76,128 +55,56 @@ void LoadRandomEnchantmentsTable()
         {
             Field* fields = result->Fetch();
 
-            uint32 entry = fields[0].GetUInt32();
-            ItemRandomEnchantmentType type = ItemRandomEnchantmentType(fields[1].GetUInt8());
-            uint32 ench = fields[2].GetUInt32();
-            float chance = fields[3].GetFloat();
+            uint32 id = fields[0].GetUInt32();
+            uint32 bonusListId = fields[1].GetUInt32();
+            float chance = fields[2].GetFloat();
 
-            switch (type)
+            if (ItemBonusMgr::GetItemBonuses(bonusListId).empty())
             {
-                case ItemRandomEnchantmentType::Property:
-                    if (!sItemRandomPropertiesStore.LookupEntry(ench))
-                    {
-                        TC_LOG_ERROR("sql.sql", "Property {} used in `item_enchantment_template` by entry {} doesn't have exist in ItemRandomProperties.db2", ench, entry);
-                        continue;
-                    }
-                    break;
-                case ItemRandomEnchantmentType::Suffix:
-                    if (!sItemRandomSuffixStore.LookupEntry(ench))
-                    {
-                        TC_LOG_ERROR("sql.sql", "Suffix {} used in `item_enchantment_template` by entry {} doesn't have exist in ItemRandomSuffix.db2", ench, entry);
-                        continue;
-                    }
-                    break;
-                case ItemRandomEnchantmentType::BonusList:
-                    if (!sDB2Manager.GetItemBonusList(ench))
-                    {
-                        TC_LOG_ERROR("sql.sql", "Bonus list {} used in `item_enchantment_template` by entry {} doesn't have exist in ItemBonus.db2", ench, entry);
-                        continue;
-                    }
-                    break;
-                default:
-                    TC_LOG_ERROR("sql.sql", "Invalid random enchantment type specified in `item_enchantment_template` table for `entry` {} `ench` {}", entry, ench);
-                    break;
+                TC_LOG_ERROR("sql.sql", "Bonus list {} used in `item_random_bonus_list_template` by id {} doesn't have exist in ItemBonus.db2", bonusListId, id);
+                continue;
             }
 
             if (chance < 0.000001f || chance > 100.0f)
             {
-                TC_LOG_ERROR("sql.sql", "Random item enchantment for entry {} type {} ench {} has invalid chance {}", entry, uint32(type), ench, chance);
+                TC_LOG_ERROR("sql.sql", "Bonus list {} used in `item_random_bonus_list_template` by id {} has invalid chance {}", bonusListId, id, chance);
                 continue;
             }
 
-            switch (type)
-            {
-                case ItemRandomEnchantmentType::Property:
-                    RandomItemEnch[ItemRandomEnchantmentType::Property][entry].emplace_back(type, ench, chance);
-                    break;
-                case ItemRandomEnchantmentType::Suffix:
-                case ItemRandomEnchantmentType::BonusList: // random bonus lists use RandomSuffix field in Item-sparse.db2
-                    RandomItemEnch[ItemRandomEnchantmentType::Suffix][entry].emplace_back(type, ench, chance);
-                    break;
-                default:
-                    break;
-            }
+            RandomBonusListIds& ids = _storage[id];
+            ids.BonusListIDs.push_back(bonusListId);
+            ids.Chances.push_back(chance);
 
             ++count;
         } while (result->NextRow());
 
-        TC_LOG_INFO("server.loading", ">> Loaded {} Item Enchantment definitions in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+        TC_LOG_INFO("server.loading", ">> Loaded {} Random item bonus list definitions in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     }
     else
-        TC_LOG_ERROR("server.loading", ">> Loaded 0 Item Enchantment definitions. DB table `item_enchantment_template` is empty.");
+        TC_LOG_INFO("server.loading", ">> Loaded 0 Random item bonus list definitions. DB table `item_random_bonus_list_template` is empty.");
 }
 
-ItemRandomEnchantmentId GetItemEnchantMod(int32 entry, ItemRandomEnchantmentType type)
-{
-    if (!entry)
-        return{};
-
-    if (entry == -1)
-        return{};
-
-    auto tab = RandomItemEnch[type].find(entry);
-    if (tab == RandomItemEnch[type].end())
-    {
-        TC_LOG_ERROR("sql.sql", "Item RandomProperty / RandomSuffix id #{} used in ItemSparse.db2 but it does not have records in `item_enchantment_template` table.", entry);
-        return{};
-    }
-
-    auto selectedItr = Trinity::Containers::SelectRandomWeightedContainerElement(tab->second, [](EnchStoreItem const& enchant)
-        {
-            return enchant.chance;
-        });
-
-    return{ selectedItr->type, selectedItr->ench };
-}
-
-ItemRandomEnchantmentId GenerateItemRandomPropertyId(uint32 item_id)
+ItemRandomBonusListId GenerateItemRandomBonusListId(uint32 item_id)
 {
     ItemTemplate const* itemProto = sObjectMgr->GetItemTemplate(item_id);
     if (!itemProto)
-        return{};
+        return 0;
 
     // item must have one from this field values not null if it can have random enchantments
-    if (!itemProto->GetRandomProperty() && !itemProto->GetRandomSuffix())
-        return{};
+    if (!itemProto->RandomBonusListTemplateId)
+        return 0;
 
-    // item can have not null only one from field values
-    if (itemProto->GetRandomProperty() && itemProto->GetRandomSuffix())
+    auto tab = _storage.find(itemProto->RandomBonusListTemplateId);
+    if (tab == _storage.end())
     {
-        TC_LOG_ERROR("sql.sql", "Item template {} have RandomProperty == {} and RandomSuffix == {}, but must have one from field =0", itemProto->GetId(), itemProto->GetRandomProperty(), itemProto->GetRandomSuffix());
-        return{};
+        TC_LOG_ERROR("sql.sql", "Item RandomBonusListTemplateId id #{} used in `item_template_addon` but it does not have records in `item_random_bonus_list_template` table.", itemProto->RandomBonusListTemplateId);
+        return 0;
     }
 
-    // RandomProperty case
-    if (itemProto->GetRandomProperty())
-        return GetItemEnchantMod(itemProto->GetRandomProperty(), ItemRandomEnchantmentType::Property);
-    // RandomSuffix case
-    else
-        return GetItemEnchantMod(itemProto->GetRandomSuffix(), ItemRandomEnchantmentType::Suffix);
+    return *Trinity::Containers::SelectRandomWeightedContainerElement(tab->second.BonusListIDs, std::span(tab->second.Chances));
 }
 
-uint32 GenerateEnchSuffixFactor(uint32 item_id)
-{
-    ItemTemplate const* itemProto = sObjectMgr->GetItemTemplate(item_id);
-
-    if (!itemProto)
-        return 0;
-    if (!itemProto->GetRandomSuffix())
-        return 0;
-
-    return GetRandomPropertyPoints(itemProto->GetBaseItemLevel(), itemProto->GetQuality(), itemProto->GetInventoryType(), itemProto->GetSubClass());
-}
-
-TC_GAME_API uint32 GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
+TC_GAME_API float GetRandomPropertyPoints(uint32 itemLevel, uint32 quality, uint32 inventoryType, uint32 subClass)
 {
     uint32 propIndex;
 

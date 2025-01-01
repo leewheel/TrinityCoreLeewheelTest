@@ -24,6 +24,7 @@ ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Ticket::SupportTicketHead
     data >> header.MapID;
     data >> header.Position;
     data >> header.Facing;
+    data >> header.Program;
 
     return data;
 }
@@ -48,14 +49,14 @@ WorldPacket const* WorldPackets::Ticket::GMTicketCaseStatus::Write()
         _worldPacket << uint64(c.CharacterID);
         _worldPacket << int32(c.WaitTimeOverrideMinutes);
 
-        _worldPacket.WriteBits(c.Url.size(), 11);
-        _worldPacket.WriteBits(c.WaitTimeOverrideMessage.size(), 10);
+        _worldPacket << SizedString::BitsSize<11>(c.Url);
+        _worldPacket << SizedString::BitsSize<10>(c.WaitTimeOverrideMessage);
+        _worldPacket.FlushBits();
 
-        _worldPacket.WriteString(c.Url);
-        _worldPacket.WriteString(c.WaitTimeOverrideMessage);
+        _worldPacket << SizedString::Data(c.Url);
+        _worldPacket << SizedString::Data(c.WaitTimeOverrideMessage);
     }
 
-    _worldPacket.FlushBits();
     return &_worldPacket;
 }
 
@@ -211,6 +212,7 @@ ByteBuffer& operator>>(ByteBuffer& data, Optional<WorldPackets::Ticket::SupportT
 
     data >> lfgListSearchResult->RideTicket;
     data >> lfgListSearchResult->GroupFinderActivityID;
+    data >> lfgListSearchResult->Unknown1007;
     data >> lfgListSearchResult->LastTitleAuthorGuid;
     data >> lfgListSearchResult->LastDescriptionAuthorGuid;
     data >> lfgListSearchResult->LastVoiceChatAuthorGuid;

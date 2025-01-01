@@ -18,9 +18,12 @@
 #ifndef LootPackets_h__
 #define LootPackets_h__
 
-#include "Packet.h"
-#include "ObjectGuid.h"
 #include "ItemPacketsCommon.h"
+#include "LootItemType.h"
+#include "ObjectGuid.h"
+#include "Packet.h"
+
+enum class LootRollIneligibilityReason : uint32;
 
 namespace WorldPackets
 {
@@ -38,7 +41,7 @@ namespace WorldPackets
 
         struct LootItemData
         {
-            uint8 Type              = 0;
+            ::LootItemType Type     = LootItemType::Item;
             uint8 UIType            = 0;
             uint32 Quantity         = 0;
             uint8 LootItemType      = 0;
@@ -73,6 +76,7 @@ namespace WorldPackets
             std::vector<LootCurrency> Currencies;
             bool Acquired        = false;
             bool AELooting       = false;
+            bool Unused_440      = false;
         };
 
         struct LootRequest
@@ -90,6 +94,7 @@ namespace WorldPackets
             void Read() override;
 
             Array<LootRequest, 1000> Loot;
+            bool IsSoftInteract = false;
         };
 
         class MasterLootItem final : public ClientPacket
@@ -130,7 +135,9 @@ namespace WorldPackets
         public:
             LootMoney(WorldPacket&& packet) : ClientPacket(CMSG_LOOT_MONEY, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            bool IsSoftInteract = false;
         };
 
         class LootMoneyNotify final : public ServerPacket
@@ -199,16 +206,6 @@ namespace WorldPackets
             Optional<ObjectGuid> RoundRobinWinner;
         };
 
-        class SetLootSpecialization final : public ClientPacket
-        {
-        public:
-            SetLootSpecialization(WorldPacket&& packet) : ClientPacket(CMSG_SET_LOOT_SPECIALIZATION, std::move(packet)) { }
-
-            void Read() override;
-
-            uint32 SpecID = 0;
-        };
-
         class StartLootRoll final : public ServerPacket
         {
         public:
@@ -218,10 +215,12 @@ namespace WorldPackets
 
             ObjectGuid LootObj;
             int32 MapID = 0;
-            uint32 RollTime = 0;
+            Duration<Milliseconds, uint32> RollTime;
             uint8 Method = 0;
             uint8 ValidRolls = 0;
+            std::array<LootRollIneligibilityReason, 5> LootRollIneligibleReason = { };
             LootItemData Item;
+            int32 DungeonEncounterID = 0;
         };
 
         class LootRollBroadcast final : public ServerPacket
@@ -237,6 +236,8 @@ namespace WorldPackets
             uint8 RollType = 0;
             LootItemData Item;
             bool Autopassed = false;    ///< Triggers message |HlootHistory:%d|h[Loot]|h: You automatically passed on: %s because you cannot loot that item.
+            bool OffSpec = false;
+            int32 DungeonEncounterID = 0;
         };
 
         class LootRollWon final : public ServerPacket
@@ -252,6 +253,7 @@ namespace WorldPackets
             uint8 RollType = 0;
             LootItemData Item;
             bool MainSpec = false;
+            int32 DungeonEncounterID = 0;
         };
 
         class LootAllPassed final : public ServerPacket
@@ -263,6 +265,7 @@ namespace WorldPackets
 
             ObjectGuid LootObj;
             LootItemData Item;
+            int32 DungeonEncounterID = 0;
         };
 
         class LootRollsComplete final : public ServerPacket
@@ -274,6 +277,7 @@ namespace WorldPackets
 
             ObjectGuid LootObj;
             uint8 LootListID = 0;
+            int32 DungeonEncounterID = 0;
         };
 
         class MasterLootCandidateList final : public ServerPacket
@@ -283,7 +287,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            std::vector<ObjectGuid> Players;
+            GuidUnorderedSet Players;
             ObjectGuid LootObj;
         };
 
@@ -294,7 +298,7 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            uint32 Count;
+            uint32 Count = 0;
         };
 
         class AELootTargetsAck final : public ServerPacket

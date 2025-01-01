@@ -113,7 +113,7 @@ public:
             { "gameobject_queststarter",       rbac::RBAC_PERM_COMMAND_RELOAD_GAMEOBJECT_QUESTSTARTER,          true,  &HandleReloadGOQuestStarterCommand,             "" },
             { "gossip_menu",                   rbac::RBAC_PERM_COMMAND_RELOAD_GOSSIP_MENU,                      true,  &HandleReloadGossipMenuCommand,                 "" },
             { "gossip_menu_option",            rbac::RBAC_PERM_COMMAND_RELOAD_GOSSIP_MENU_OPTION,               true,  &HandleReloadGossipMenuOptionCommand,           "" },
-            { "item_enchantment_template",     rbac::RBAC_PERM_COMMAND_RELOAD_ITEM_ENCHANTMENT_TEMPLATE,        true,  &HandleReloadItemEnchantementsCommand,          "" },
+            { "item_random_bonus_list_template", rbac::RBAC_PERM_COMMAND_RELOAD_ITEM_RANDOM_BONUS_LIST_TEMPLATE, true, &HandleReloadItemRandomBonusListTemplatesCommand, "" },
             { "item_loot_template",            rbac::RBAC_PERM_COMMAND_RELOAD_ITEM_LOOT_TEMPLATE,               true,  &HandleReloadLootTemplatesItemCommand,          "" },
             { "lfg_dungeon_rewards",           rbac::RBAC_PERM_COMMAND_RELOAD_LFG_DUNGEON_REWARDS,              true,  &HandleReloadLfgRewardsCommand,                 "" },
             { "achievement_reward_locale",     rbac::RBAC_PERM_COMMAND_RELOAD_ACHIEVEMENT_REWARD_LOCALE,        true,  &HandleReloadLocalesAchievementRewardCommand,   "" },
@@ -163,8 +163,7 @@ public:
             { "support",                       rbac::RBAC_PERM_COMMAND_RELOAD_SUPPORT_SYSTEM,                   true,  &HandleReloadSupportSystemCommand,              "" },
             { "trainer",                       rbac::RBAC_PERM_COMMAND_RELOAD_TRAINER,                          true,  &HandleReloadTrainerCommand,                    "" },
             { "trinity_string",                rbac::RBAC_PERM_COMMAND_RELOAD_TRINITY_STRING,                   true,  &HandleReloadTrinityStringCommand,              "" },
-            { "waypoint_scripts",              rbac::RBAC_PERM_COMMAND_RELOAD_WAYPOINT_SCRIPTS,                 true,  &HandleReloadWpScriptsCommand,                  "" },
-            { "waypoint_data",                 rbac::RBAC_PERM_COMMAND_RELOAD_WAYPOINT_DATA,                    true,  &HandleReloadWpCommand,                         "" },
+            { "waypoint_path",                 rbac::RBAC_PERM_COMMAND_RELOAD_WAYPOINT_PATH,                    true,  &HandleReloadWpCommand,                         "" },
             { "vehicle_template",              rbac::RBAC_PERM_COMMAND_RELOAD_VEHICLE_TEMPLATE,                 true,  &HandleReloadVehicleTemplateCommand,            "" },
             { "vehicle_accessory",             rbac::RBAC_PERM_COMMAND_RELOAD_VEHICLE_ACCESORY,                 true,  &HandleReloadVehicleAccessoryCommand,           "" },
             { "vehicle_template_accessory",    rbac::RBAC_PERM_COMMAND_RELOAD_VEHICLE_TEMPLATE_ACCESSORY,       true,  &HandleReloadVehicleTemplateAccessoryCommand,   "" },
@@ -281,7 +280,6 @@ public:
         HandleReloadSpellScriptsCommand(handler, "a");
         HandleReloadSpellScriptNamesCommand(handler, "a");
         handler->SendGlobalGMSysMessage("DB tables `*_scripts` reloaded.");
-        HandleReloadWpScriptsCommand(handler, "a");
         HandleReloadWpCommand(handler, "a");
         return true;
     }
@@ -316,7 +314,7 @@ public:
     static bool HandleReloadAllItemCommand(ChatHandler* handler, char const* /*args*/)
     {
         HandleReloadPageTextsCommand(handler, "a");
-        HandleReloadItemEnchantementsCommand(handler, "a");
+        HandleReloadItemRandomBonusListTemplatesCommand(handler, "a");
         return true;
     }
 
@@ -377,7 +375,7 @@ public:
 
     static bool HandleReloadAreaTriggerTeleportCommand(ChatHandler* handler, char const* /*args*/)
     {
-        TC_LOG_INFO("misc", "Re-Loading AreaTrigger teleport definitions...");
+        TC_LOG_INFO("misc", "Re-Loading Area Trigger Teleports definitions...");
         sObjectMgr->LoadAreaTriggerTeleports();
         handler->SendGlobalGMSysMessage("DB table `areatrigger_teleport` reloaded.");
         return true;
@@ -879,11 +877,11 @@ public:
         return true;
     }
 
-    static bool HandleReloadItemEnchantementsCommand(ChatHandler* handler, const char* /*args*/)
+    static bool HandleReloadItemRandomBonusListTemplatesCommand(ChatHandler* handler, char const* /*args*/)
     {
-        TC_LOG_INFO("misc", "Re-Loading Item Random Enchantments Table...");
-        LoadRandomEnchantmentsTable();
-        handler->SendGlobalGMSysMessage("DB table `item_enchantment_template` reloaded.");
+        TC_LOG_INFO("misc", "Re-Loading Random item bonus list definitions...");
+        LoadItemRandomBonusListTemplates();
+        handler->SendGlobalGMSysMessage("DB table `item_random_bonus_list_template` reloaded.");
         return true;
     }
 
@@ -907,35 +905,15 @@ public:
         return true;
     }
 
-    static bool HandleReloadWpScriptsCommand(ChatHandler* handler, char const* args)
-    {
-        if (sMapMgr->IsScriptScheduled())
-        {
-            handler->SendSysMessage("DB scripts used currently, please attempt reload later.");
-            handler->SetSentErrorMessage(true);
-            return false;
-        }
-
-        if (*args != 'a')
-            TC_LOG_INFO("misc", "Re-Loading Scripts from `waypoint_scripts`...");
-
-        sObjectMgr->LoadWaypointScripts();
-
-        if (*args != 'a')
-            handler->SendGlobalGMSysMessage("DB table `waypoint_scripts` reloaded.");
-
-        return true;
-    }
-
     static bool HandleReloadWpCommand(ChatHandler* handler, char const* args)
     {
         if (*args != 'a')
-            TC_LOG_INFO("misc", "Re-Loading Waypoints data from 'waypoints_data'");
+            TC_LOG_INFO("misc", "Re-Loading Waypoints data from 'waypoint_path' and 'waypoint_path_node'");
 
-        sWaypointMgr->Load();
+        sWaypointMgr->LoadPaths();
 
         if (*args != 'a')
-            handler->SendGlobalGMSysMessage("DB Table 'waypoint_data' reloaded.");
+            handler->SendGlobalGMSysMessage("DB Tables 'waypoint_path' and 'waypoint_path_node' reloaded.");
 
         return true;
     }

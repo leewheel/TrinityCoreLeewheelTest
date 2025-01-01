@@ -19,9 +19,7 @@
 #define TRINITY_FORMULAS_H
 
 #include "Creature.h"
-#include "DB2Stores.h"
 #include "GameTables.h"
-#include "Log.h"
 #include "Map.h"
 #include "Player.h"
 #include "ScriptMgr.h"
@@ -38,6 +36,12 @@ namespace Trinity
             return EXPANSION_THE_BURNING_CRUSADE;
         else if (level < 80)
             return EXPANSION_WRATH_OF_THE_LICH_KING;
+        else if (level < 85)
+            return EXPANSION_CATACLYSM;
+        else if (level < 90)
+            return EXPANSION_MISTS_OF_PANDARIA;
+        else if (level < 100)
+            return EXPANSION_WARLORDS_OF_DRAENOR;
         else
             return CURRENT_EXPANSION;
     }
@@ -61,8 +65,7 @@ namespace Trinity
     {
         inline uint8 GetGrayLevel(uint8 pl_level)
         {
-            uint8 level;
-
+            uint8 level = 0;
             if (pl_level <= 5)
                 level = 0;
             else if (pl_level <= 39)
@@ -128,27 +131,26 @@ namespace Trinity
             return diff;
         }
 
-        inline uint32 BaseGain(uint8 pl_level, uint8 mob_level, ContentLevels content)
+        inline uint32 BaseGain(uint8 pl_level, uint8 mob_level, int32 targetExpansion)
         {
-            uint32 baseGain;
-            uint32 nBaseExp;
+            uint32 baseGain = 0;
+            uint32 baseExperience = 0;
 
-            switch (content)
+            switch (targetExpansion)
             {
-            case CONTENT_1_60:
-                nBaseExp = 45;
-                break;
-            case CONTENT_61_70:
-                nBaseExp = 235;
-                break;
-            case CONTENT_71_80:
-                nBaseExp = 580;
-                break;
-            default:
-                TC_LOG_ERROR("misc", "BaseGain: Unsupported content level {}", content);
-                nBaseExp = 45;
-                break;
-            }
+                case EXPANSION_CLASSIC:
+                    baseExperience = 45;
+                    break;
+                case EXPANSION_THE_BURNING_CRUSADE:
+                    baseExperience = 235;
+                    break;
+                case EXPANSION_WRATH_OF_THE_LICH_KING:
+                    baseExperience = 580;
+                    break;
+                default: // -1 = latest expansion and 3 = Cataclysm
+                    baseExperience = 1878;
+                    break;
+                }
 
             if (mob_level >= pl_level)
             {
@@ -156,7 +158,7 @@ namespace Trinity
                 if (nLevelDiff > 4)
                     nLevelDiff = 4;
 
-                baseGain = ((pl_level * 5 + nBaseExp) * (20 + nLevelDiff) / 10 + 1) / 2;
+                baseGain = round((mob_level * 5 + baseExperience) * (1 + 0.05f * nLevelDiff));
             }
             else
             {
@@ -164,20 +166,20 @@ namespace Trinity
                 if (mob_level > gray_level)
                 {
                     uint8 ZD = GetZeroDifference(pl_level);
-                    baseGain = (pl_level * 5 + nBaseExp) * (ZD + mob_level - pl_level) / ZD;
+                    baseGain = round((mob_level * 5 + baseExperience) * ((1 - ((pl_level - mob_level) / float(ZD)))));
                 }
                 else
                     baseGain = 0;
             }
 
-            if (sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO))
+            if (sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO) && pl_level != mob_level)
             {
                 // Use mob level instead of player level to avoid overscaling on gain in a min is enforced
-                uint32 baseGainMin = (mob_level * 5 + nBaseExp) * sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO) / 100;
+                uint32 baseGainMin = BaseGain(pl_level, pl_level, targetExpansion) * sWorld->getIntConfig(CONFIG_MIN_CREATURE_SCALED_XP_RATIO) / 100;
                 baseGain = std::max(baseGainMin, baseGain);
             }
 
-            sScriptMgr->OnBaseGainCalculation(baseGain, pl_level, mob_level, content);
+            sScriptMgr->OnBaseGainCalculation(baseGain, pl_level, mob_level);
             return baseGain;
         }
 
@@ -190,11 +192,11 @@ namespace Trinity
             {
                 float xpMod = 1.0f;
 
-                gain = BaseGain(player->GetLevel(), u->GetLevelForTarget(player), sDB2Manager.GetContentLevelsForMapAndZone(u->GetMapId(), u->GetZoneId()));
+                gain = BaseGain(player->GetLevel(), u->GetLevelForTarget(player), creature ? creature->GetCreatureDifficulty()->GetHealthScalingExpansion() : GetExpansionForLevel(u->GetLevelForTarget(player)));
 
                 if (gain && creature)
                 {
-                    if (creature->isElite())
+                    if (creature->IsElite())
                     {
                         // Elites in instances have a 2.75x XP bonus instead of the regular 2x world bonus.
                         if (u->GetMap()->IsDungeon())
