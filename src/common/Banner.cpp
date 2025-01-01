@@ -34,7 +34,6 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(                                 C O R E  /\___/)");
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
 
-    log(Trinity::StringFormat("{}\n ({})", GitRevision::GetFullVersion(), applicationName).c_str());
     log(Trinity::StringFormat("编译时间:{}\n", currentTimeString).c_str());
 
 
