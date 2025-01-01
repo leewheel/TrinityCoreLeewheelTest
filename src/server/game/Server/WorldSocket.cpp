@@ -38,6 +38,11 @@
 #include "WorldSession.h"
 #include <zlib.h>
 
+#include <iostream>
+#include <fstream>
+#include <filesystem> // C++17
+#include <cstring>    // For memcmp
+
 #pragma pack(push, 1)
 
 struct CompressedWorldPacket
@@ -692,6 +697,26 @@ void WorldSocket::HandleAuthSession(std::shared_ptr<WorldPackets::Auth::AuthSess
     }));
 }
 
+void WriteHMACDigestToFile(const std::string& digest) {
+    // 
+    std::string logDir = "./logs";
+    std::string logFile = logDir + "/hmac.log";
+    // 
+    if (!std::filesystem::exists(logDir)) {
+        std::filesystem::create_directory(logDir);
+    }
+    // 
+    std::ofstream ofs(logFile, std::ios::app); // 
+    if (!ofs) {
+        
+        return;
+    }
+    // 
+    ofs << digest << std::endl;
+    // 
+    ofs.close();
+}
+
 void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession,
     std::shared_ptr<JSON::RealmList::RealmJoinTicket> joinTicket, PreparedQueryResult result)
 {
@@ -741,11 +766,40 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::
     hmac.UpdateData(AuthCheckSeed, 16);
     hmac.Finalize();
 
+    // Writing to logs/Socket.txt
+    std::ofstream logFile("logs/Socket.txt", std::ios::app); // Open in append mode
+    if (logFile.is_open())
+    {
+        std::ostringstream logStream;
+
+        // Log hmac.GetDigest().data() (in hexadecimal form for readability)
+        logStream << "hmac.GetDigest().data(): ";
+        for (size_t i = 0; i < hmac.GetDigest().size(); ++i)
+        {
+            logStream << std::hex << (int)(unsigned char)hmac.GetDigest().data()[i] << " ";
+        }
+        logStream << std::endl;
+
+        // Log authSession->Digest.data() (in hexadecimal form for readability)
+        logStream << "authSession->Digest.data(): ";
+        for (size_t i = 0; i < authSession->Digest.size(); ++i)
+        {
+            logStream << std::hex << (int)(unsigned char)authSession->Digest.data()[i] << " ";
+        }
+        logStream << std::endl;
+
+        logFile << logStream.str();
+        logFile.close();
+    }
+
     // Check that Key and account name are the same on client and server
     if (memcmp(hmac.GetDigest().data(), authSession->Digest.data(), authSession->Digest.size()) != 0)
     {
         SendAuthResponseError(ERROR_DENIED);
         TC_LOG_ERROR("network", "WorldSocket::HandleAuthSession: Authentication failed for account: {} ('{}') address: {}", account.Game.Id, joinTicket->gameaccount(), address);
+        //login faild 
+        TC_LOG_ERROR("network", "authSession size {},hmac GetDigest Size {}", authSession->Digest.size(), hmac.GetDigest().size());
+
         DelayedCloseSocket();
         return;
     }
