@@ -18,7 +18,6 @@
 #include "Banner.h"
 #include "GitRevision.h"
 #include "StringFormat.h"
-std::string currentTimeString = std::string(__DATE__) + std::string("/") + std::string(__TIME__);
 
 void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* text), void(*logExtraInfo)())
 {
@@ -33,9 +32,6 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(      \/_/\/_/   \/_/\/_/\/_/\/_/\/__/ `/___/> \)");
     log(R"(                                 C O R E  /\___/)");
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
-
-    log(Trinity::StringFormat("编译时间:{}\n", currentTimeString).c_str());
-
 
     if (logExtraInfo)
         logExtraInfo();

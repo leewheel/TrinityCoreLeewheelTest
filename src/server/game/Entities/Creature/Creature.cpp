@@ -24,8 +24,8 @@
 #include "CreatureAI.h"
 #include "CreatureAISelector.h"
 #include "CreatureGroups.h"
-#include "DatabaseEnv.h"
 #include "DB2Stores.h"
+#include "DatabaseEnv.h"
 #include "Formulas.h"
 #include "GameEventMgr.h"
 #include "GameTime.h"
@@ -36,6 +36,7 @@
 #include "Loot.h"
 #include "LootMgr.h"
 #include "MapManager.h"
+#include "MapUtils.h"
 #include "MiscPackets.h"
 #include "MotionMaster.h"
 #include "ObjectAccessor.h"
@@ -1297,7 +1298,7 @@ void Creature::SetTappedBy(Unit const* unit, bool withGroup)
         return;
     }
 
-    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP)
+    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP && !CanBeMultiTapped())
         return;
 
     if (unit->GetTypeId() != TYPEID_PLAYER && !unit->IsVehicle())
@@ -1314,7 +1315,7 @@ void Creature::SetTappedBy(Unit const* unit, bool withGroup)
                 if (GetMap()->IsRaid() || group->SameSubGroup(player, itr->GetSource()))
                     m_tapList.insert(itr->GetSource()->GetGUID());
 
-    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP)
+    if (m_tapList.size() >= CREATURE_TAPPERS_SOFT_CAP && !CanBeMultiTapped())
         SetDynamicFlag(UNIT_DYNFLAG_TAPPED);
 }
 
