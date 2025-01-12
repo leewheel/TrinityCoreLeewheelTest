@@ -4826,8 +4826,11 @@ void Spell::SendSpellGo()
         && (HasPowerTypeCost(POWER_RUNE_BLOOD) || HasPowerTypeCost(POWER_RUNE_FROST) || HasPowerTypeCost(POWER_RUNE_UNHOLY))
         && !(_triggeredCastFlags & TRIGGERED_IGNORE_POWER_COST))
     {
-        castFlags |= CAST_FLAG_NO_GCD; // not needed, but Blizzard sends it
-        castFlags |= CAST_FLAG_RUNE_LIST; // rune cooldowns list
+        castFlags |= CAST_FLAG_NO_GCD; // not needed, but it's being sent according to sniffs
+
+        // Only send rune cooldowns when there has been a change
+        if (m_runesState != m_caster->ToPlayer()->GetRunesState())
+            castFlags |= CAST_FLAG_RUNE_LIST; // rune cooldowns list
     }
 
     if (m_targets.HasTraj())
@@ -5425,35 +5428,39 @@ void Spell::TakePower()
             return;
     }
 
+    bool hit = true;
+    if (unitCaster->GetTypeId() == TYPEID_PLAYER)
+    {
+        if (m_spellInfo->HasAttribute(SPELL_ATTR1_DISCOUNT_POWER_ON_MISS))
+        {
+            ObjectGuid targetGUID = m_targets.GetUnitTargetGUID();
+            if (!targetGUID.IsEmpty())
+                hit = std::ranges::any_of(m_UniqueTargetInfo, [&](TargetInfo const& targetInfo) { return targetInfo.TargetGUID == targetGUID && targetInfo.MissCondition == SPELL_MISS_NONE; });
+
+            if (m_spendComboPoints)
+                m_spentComboPoints = 0;
+        }
+    }
+
+    bool hasTakenRunePower = false;
     for (SpellPowerCost& cost : m_powerCost)
     {
-        Powers powerType = Powers(cost.Power);
-        bool hit = true;
-        if (unitCaster->GetTypeId() == TYPEID_PLAYER)
+        if (!hit)
         {
-            if (m_spellInfo->HasAttribute(SPELL_ATTR1_DISCOUNT_POWER_ON_MISS))
-            {
-                ObjectGuid targetGUID = m_targets.GetUnitTargetGUID();
-                if (!targetGUID.IsEmpty())
-                {
-                    auto ihit = std::find_if(std::begin(m_UniqueTargetInfo), std::end(m_UniqueTargetInfo), [&](TargetInfo const& targetInfo) { return targetInfo.TargetGUID == targetGUID && targetInfo.MissCondition != SPELL_MISS_NONE; });
-                    if (ihit != std::end(m_UniqueTargetInfo))
-                    {
-                        hit = false;
-                        //lower spell cost on fail (by talent aura)
-                        if (Player* modOwner = unitCaster->GetSpellModOwner())
-                            modOwner->ApplySpellMod(m_spellInfo, SpellModOp::PowerCostOnMiss, cost.Amount);
+            // skipping granting power through negative cost only when spell has SPELL_ATTR1_DISCOUNT_POWER_ON_MISS is correct behavior
+            // tested with 206931 - Blooddrinker
+            if (cost.Amount < 0)
+                continue;
 
-                        if (m_spendComboPoints)
-                            m_spentComboPoints = 0;
-                    }
-                }
-            }
+            //lower spell cost on fail (by talent aura)
+            if (Player* modOwner = unitCaster->GetSpellModOwner())
+                modOwner->ApplySpellMod(m_spellInfo, SpellModOp::PowerCostOnMiss, cost.Amount);
         }
 
-        if (powerType == POWER_RUNE_BLOOD || powerType == POWER_RUNE_FROST || powerType == POWER_RUNE_UNHOLY)
+        if ((cost.Power == POWER_RUNE_BLOOD || cost.Power == POWER_RUNE_FROST || cost.Power == POWER_RUNE_UNHOLY) && !hasTakenRunePower)
         {
             TakeRunePower(hit);
+            hasTakenRunePower = true;
             continue;
         }
 
@@ -5461,19 +5468,13 @@ void Spell::TakePower()
             continue;
 
         // health as power used
-        if (powerType == POWER_HEALTH)
+        if (cost.Power == POWER_HEALTH)
         {
             unitCaster->ModifyHealth(-cost.Amount);
             continue;
         }
 
-        if (powerType >= MAX_POWERS)
-        {
-            TC_LOG_ERROR("spells", "Spell::TakePower: Unknown power type '{}'", powerType);
-            continue;
-        }
-
-        unitCaster->ModifyPower(powerType, -cost.Amount);
+        unitCaster->ModifyPower(cost.Power, -cost.Amount);
     }
 
     if (m_spendComboPoints && m_spentComboPoints)
@@ -5536,6 +5537,12 @@ void Spell::TakeRunePower(bool didHit)
     if (m_caster->GetTypeId() != TYPEID_PLAYER || m_caster->ToPlayer()->GetClass() != CLASS_DEATH_KNIGHT)
         return;
 
+    Player* player = m_caster->ToPlayer();
+    m_runesState = player->GetRunesState();                 // store previous state
+
+    if (!didHit)
+        return;
+
     int32 totalRuneCost = std::accumulate(m_powerCost.begin(), m_powerCost.end(), 0, [](int32 totalCost, SpellPowerCost const& cost)
     {
         return totalCost + ((cost.Power == POWER_RUNE_BLOOD || cost.Power == POWER_RUNE_FROST || cost.Power == POWER_RUNE_UNHOLY) ? cost.Amount : 0);
@@ -5545,8 +5552,6 @@ void Spell::TakeRunePower(bool didHit)
     if (!totalRuneCost)
         return;
 
-    Player* player = m_caster->ToPlayer();
-    m_runesState = player->GetRunesState();                 // store previous state
     player->ClearLastUsedRuneMask();
 
     std::array<int32, AsUnderlyingType(RuneType::Max)> runeCost = { };        // blood, frost, unholy, death
@@ -5571,7 +5576,7 @@ void Spell::TakeRunePower(bool didHit)
         RuneType rune = player->GetCurrentRune(i);
         if (!player->GetRuneCooldown(i) && runeCost[AsUnderlyingType(rune)] > 0)
         {
-            player->SetRuneCooldown(i, didHit ? RUNE_BASE_COOLDOWN : RUNE_MISS_COOLDOWN);
+            player->SetRuneCooldown(i, RUNE_BASE_COOLDOWN);
             player->SetLastUsedRune(rune);
             player->SetLastUsedRuneIndex(i);
             --runeCost[AsUnderlyingType(rune)];
@@ -5588,14 +5593,11 @@ void Spell::TakeRunePower(bool didHit)
             RuneType rune = player->GetCurrentRune(i);
             if (G3D::fuzzyEq(player->GetRuneCooldown(i), 0.0f) && rune == RuneType::Death)
             {
-                player->SetRuneCooldown(i, didHit ? RUNE_BASE_COOLDOWN : RUNE_MISS_COOLDOWN);
+                player->SetRuneCooldown(i, RUNE_BASE_COOLDOWN);
                 player->SetLastUsedRune(rune);
                 player->SetLastUsedRuneIndex(i);
                 runeCost[AsUnderlyingType(rune)]--;
-
-                // keep Death Rune type if missed
-                if (didHit)
-                    player->RestoreBaseRune(i);
+                player->RestoreBaseRune(i);
 
                 if (runeCost[AsUnderlyingType(RuneType::Death)] == 0)
                     break;
@@ -7299,6 +7301,8 @@ SpellCastResult Spell::CheckPower() const
             SpellCastResult failReason = CheckRuneCost();
             if (failReason != SPELL_CAST_OK)
                 return failReason;
+
+            continue;
         }
 
         // Check power amount
@@ -7589,7 +7593,7 @@ SpellCastResult Spell::CheckItems(int32* param1 /*= nullptr*/, int32* param2 /*=
                     if (requiredLevel < m_spellInfo->BaseLevel)
                         return SPELL_FAILED_LOWLEVEL;
                 }
-                if ((m_CastItem || effectInfo->IsEffect(SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC))
+                if ((m_CastItem || spellEffectInfo.IsEffect(SPELL_EFFECT_ENCHANT_ITEM_PRISMATIC))
                     && m_spellInfo->MaxLevel > 0 && targetItem->GetItemLevel(targetItem->GetOwner()) > m_spellInfo->MaxLevel)
                     return SPELL_FAILED_HIGHLEVEL;
 
