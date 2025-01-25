@@ -33,6 +33,8 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(                                 C O R E  /\___/)");
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
 
+    log("这只是一个经典怀旧服....alpha中的alpha版本\n");
+
     if (logExtraInfo)
         logExtraInfo();
 }
