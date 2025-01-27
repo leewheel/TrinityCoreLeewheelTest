@@ -208,6 +208,63 @@ namespace Scripts::Spells::Paladin
             AfterEffectProc += AuraEffectProcFn(spell_pal_seal_of_truth::HandleMeleeProc, EFFECT_0, SPELL_AURA_DUMMY);
         }
     };
+
+    // 31804 - Judgement of Truth
+    class spell_pal_judgement_of_truth : public SpellScript
+    {
+        void CalculateDamage(SpellEffectInfo const& /*spellEffectInfo*/, Unit* victim, int32& /*damage*/, int32& flatMod, float& /*pctMod*/)
+        {
+            // Censure increases the damage of Judgement of Truth by 20% per stack
+            if (AuraEffect const* censureEffect = victim->GetAuraEffect(SPELL_AURA_PERIODIC_DAMAGE, SPELLFAMILY_PALADIN, flag128(0x20000000), GetCaster()->GetGUID()))
+                AddPct(flatMod, 20.f * censureEffect->GetBase()->GetStackAmount());
+        }
+
+        void Register() override
+        {
+            CalcDamage += SpellCalcDamageFn(spell_pal_judgement_of_truth::CalculateDamage);
+        }
+    };
+
+    // 20165 - Seal of Insight
+    class spell_pal_seal_of_insight : public AuraScript
+    {
+        bool CheckMeleeProc(AuraEffect const* aurEff, ProcEventInfo& eventInfo)
+        {
+            // Only single target spells are allowed to trigger the proc
+            if (eventInfo.GetSpellInfo() && (eventInfo.GetSpellInfo()->IsAffectingArea() || eventInfo.GetSpellInfo()->HasAttribute(SPELL_ATTR5_TREAT_AS_AREA_EFFECT)))
+                return false;
+
+            // The proc chance is defined in the aura effect's amount
+            return roll_chance_i(aurEff->GetAmount());
+        }
+
+        void Register() override
+        {
+            DoCheckEffectProc += AuraCheckEffectProcFn(spell_pal_seal_of_insight::CheckMeleeProc, EFFECT_0, SPELL_AURA_PROC_TRIGGER_SPELL);
+        }
+    };
+
+    // 20167 - Judgement of Truth
+    class spell_pal_seal_of_insight_triggered : public SpellScript
+    {
+        void CalculateEnergizeAmount(SpellEffIndex /*effIndex*/)
+        {
+            // Restores 4% of the caster's base mana
+            SetEffectValue(CalculatePct(GetCaster()->GetCreateMana(), GetEffectValue()));
+        }
+
+        void CalculateHeal(SpellEffectInfo const& /*spellEffectInfo*/, Unit* /*victim*/, int32& healing, int32& /*flatMod*/, float& /*pctMod*/)
+        {
+            // Healing formula according to tooltip: ${0.15*$AP+0.15*$SPH}
+            healing = std::round(0.15f * GetCaster()->GetTotalAttackPowerValue(BASE_ATTACK) + 0.15f * GetCaster()->SpellBaseHealingBonusDone(SPELL_SCHOOL_MASK_HOLY, true));
+        }
+
+        void Register() override
+        {
+            OnEffectHitTarget += SpellEffectFn(spell_pal_seal_of_insight_triggered::CalculateEnergizeAmount, EFFECT_1, SPELL_EFFECT_ENERGIZE);
+            CalcHealing += SpellCalcDamageFn(spell_pal_seal_of_insight_triggered::CalculateHeal);
+        }
+    };
 }
 
 void AddSC_paladin_spell_scripts()
@@ -215,6 +272,9 @@ void AddSC_paladin_spell_scripts()
     using namespace Scripts::Spells::Paladin;
     RegisterSpellScript(spell_pal_judgement);
     RegisterSpellScript(spell_pal_judgement_of_righteousness);
+    RegisterSpellScript(spell_pal_judgement_of_truth);
+    RegisterSpellScript(spell_pal_seal_of_insight);
+    RegisterSpellScript(spell_pal_seal_of_insight_triggered);
     RegisterSpellScript(spell_pal_seal_of_justice);
     RegisterSpellScript(spell_pal_seal_of_righteousness);
     RegisterSpellScript(spell_pal_seal_of_truth);
