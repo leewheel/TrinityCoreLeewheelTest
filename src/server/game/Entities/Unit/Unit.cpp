@@ -583,9 +583,9 @@ void Unit::AtEndOfEncounter(EncounterType type)
             break;
     }
 
-    GetSpellHistory()->ResetCooldowns([](SpellHistory::CooldownStorageType::iterator itr)
+    GetSpellHistory()->ResetCooldowns([](SpellHistory::CooldownEntry const& cooldown)
     {
-        SpellInfo const* spellInfo = sSpellMgr->AssertSpellInfo(itr->first, DIFFICULTY_NONE);
+        SpellInfo const* spellInfo = sSpellMgr->AssertSpellInfo(cooldown.SpellId, DIFFICULTY_NONE);
 
         return spellInfo->HasAttribute(SPELL_ATTR10_RESET_COOLDOWN_ON_ENCOUNTER_END);
     }, true);
@@ -7625,7 +7625,7 @@ bool Unit::IsImmunedToSpell(SpellInfo const* spellInfo, WorldObject const* caste
                 if (!immuneSpellInfo || !immuneSpellInfo->HasAttribute(SPELL_ATTR1_IMMUNITY_PURGES_EFFECT))
                     continue;
 
-            if (immuneSpellInfo && !immuneSpellInfo->HasAttribute(SPELL_ATTR1_IMMUNITY_TO_HOSTILE_AND_FRIENDLY_EFFECTS) && caster && !caster->IsFriendlyTo(this))
+            if (!(immuneSpellInfo && immuneSpellInfo->HasAttribute(SPELL_ATTR1_IMMUNITY_TO_HOSTILE_AND_FRIENDLY_EFFECTS)) && caster && caster->IsFriendlyTo(this))
                 continue;
 
             if (spellInfo->CanPierceImmuneAura(immuneSpellInfo))
@@ -7799,7 +7799,7 @@ bool Unit::IsImmunedToSpellEffect(SpellInfo const* spellInfo, SpellEffectInfo co
                 if (!(immuneAuraApply->GetMiscValue() & spellInfo->GetSchoolMask()))               // Check school
                     continue;
 
-                if (spellInfo->HasAttribute(SPELL_ATTR1_IMMUNITY_TO_HOSTILE_AND_FRIENDLY_EFFECTS) || (caster && !IsFriendlyTo(caster))) // Harmful
+                if (immuneAuraApply->GetSpellInfo()->HasAttribute(SPELL_ATTR1_IMMUNITY_TO_HOSTILE_AND_FRIENDLY_EFFECTS) || (caster && !IsFriendlyTo(caster))) // Harmful
                     return true;
             }
         }
