@@ -119,11 +119,23 @@ namespace WorldPackets
 
     namespace AuctionHouse
     {
+        class AuctionBrowseQuery;
+        class AuctionCancelCommoditiesPurchase;
+        class AuctionConfirmCommoditiesPurchase;
+        class AuctionGetCommodityQuote;
         class AuctionHelloRequest;
+        class AuctionListBiddedItems;
+        class AuctionListBucketsByBucketKeys;
+        class AuctionListItemsByBucketKey;
+        class AuctionListItemsByItemID;
+        class AuctionListOwnedItems;
         class AuctionPlaceBid;
         class AuctionRemoveItem;
         class AuctionReplicateItems;
+        class AuctionRequestFavoriteList;
+        class AuctionSellCommodity;
         class AuctionSellItem;
+        class AuctionSetFavoriteItem;
     }
 
     namespace Auth
@@ -1359,11 +1371,23 @@ class TC_GAME_API WorldSession
         void HandleSetTradeItemOpcode(WorldPackets::Trade::SetTradeItem& setTradeItem);
         void HandleUnacceptTradeOpcode(WorldPackets::Trade::UnacceptTrade& unacceptTrade);
 
+        void HandleAuctionBrowseQuery(WorldPackets::AuctionHouse::AuctionBrowseQuery& browseQuery);
+        void HandleAuctionCancelCommoditiesPurchase(WorldPackets::AuctionHouse::AuctionCancelCommoditiesPurchase& cancelCommoditiesPurchase);
+        void HandleAuctionConfirmCommoditiesPurchase(WorldPackets::AuctionHouse::AuctionConfirmCommoditiesPurchase& confirmCommoditiesPurchase);
+        void HandleAuctionGetCommodityQuote(WorldPackets::AuctionHouse::AuctionGetCommodityQuote& startCommoditiesPurchase);
         void HandleAuctionHelloOpcode(WorldPackets::AuctionHouse::AuctionHelloRequest& hello);
+        void HandleAuctionListBiddedItems(WorldPackets::AuctionHouse::AuctionListBiddedItems& listBiddedItems);
+        void HandleAuctionListBucketsByBucketKeys(WorldPackets::AuctionHouse::AuctionListBucketsByBucketKeys& listBucketsByBucketKeys);
+        void HandleAuctionListItemsByBucketKey(WorldPackets::AuctionHouse::AuctionListItemsByBucketKey& listItemsByBucketKey);
+        void HandleAuctionListItemsByItemID(WorldPackets::AuctionHouse::AuctionListItemsByItemID& listItemsByItemID);
+        void HandleAuctionListOwnedItems(WorldPackets::AuctionHouse::AuctionListOwnedItems& listOwnedItems);
         void HandleAuctionPlaceBid(WorldPackets::AuctionHouse::AuctionPlaceBid& placeBid);
         void HandleAuctionRemoveItem(WorldPackets::AuctionHouse::AuctionRemoveItem& removeItem);
         void HandleAuctionReplicateItems(WorldPackets::AuctionHouse::AuctionReplicateItems& replicateItems);
+        void SendAuctionFavoriteList();
+        void HandleAuctionSellCommodity(WorldPackets::AuctionHouse::AuctionSellCommodity& sellCommodity);
         void HandleAuctionSellItem(WorldPackets::AuctionHouse::AuctionSellItem& sellItem);
+        void HandleAuctionSetFavoriteItem(WorldPackets::AuctionHouse::AuctionSetFavoriteItem& setFavoriteItem);
 
         // Bank
         void HandleAutoBankItemOpcode(WorldPackets::Bank::AutoBankItem& packet);
@@ -1740,13 +1764,13 @@ class TC_GAME_API WorldSession
                     POLICY_BAN,
                 };
 
-                uint32 GetMaxPacketCounterAllowed(uint16 opcode) const;
+                uint32 GetMaxPacketCounterAllowed(uint32 opcode) const;
 
                 WorldSession* Session;
 
             private:
                 Policy _policy;
-                typedef std::unordered_map<uint16, PacketCounter> PacketThrottlingMap;
+                typedef std::unordered_map<uint32, PacketCounter> PacketThrottlingMap;
                 // mark this member as "mutable" so it can be modified even in const functions
                 mutable PacketThrottlingMap _PacketThrottlingMap;
 

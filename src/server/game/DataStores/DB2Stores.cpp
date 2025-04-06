@@ -36,6 +36,7 @@
 #include <boost/filesystem/operations.hpp>
 #include <numeric>
 #include <cctype>
+#include <cmath>
 
 DB2Storage<AchievementEntry>                    sAchievementStore("Achievement.db2", &AchievementLoadInfo::Instance);
 DB2Storage<Achievement_CategoryEntry>           sAchievementCategoryStore("Achievement_Category.db2", &AchievementCategoryLoadInfo::Instance);
@@ -1628,7 +1629,7 @@ std::vector<DB2Manager::HotfixOptionalData> const* DB2Manager::GetHotfixOptional
 uint32 DB2Manager::GetEmptyAnimStateID() const
 {
     //return sAnimationDataStore.GetNumRows();
-    return 1788; // Yup, again
+    return 1798;
 }
 
 void DB2Manager::InsertNewHotfix(uint32 tableHash, uint32 recordId)
