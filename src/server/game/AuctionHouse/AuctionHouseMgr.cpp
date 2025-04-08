@@ -50,7 +50,7 @@ enum eAuctionHouse
 
 AuctionsBucketKey::AuctionsBucketKey(WorldPackets::AuctionHouse::AuctionBucketKey const& key) :
     ItemId(key.ItemID), ItemLevel(key.ItemLevel), BattlePetSpeciesId(key.BattlePetSpeciesID.value_or(0)),
-    SuffixItemNameDescriptionId(key.SuffixItemNameDescriptionID.value_or(0))
+    SuffixItemNameDescriptionId(key.ItemSuffix.value_or(0))
 {
 }
 
@@ -109,6 +109,10 @@ void AuctionsBucketData::BuildBucketInfo(WorldPackets::AuctionHouse::BucketInfo*
                 bucketInfo->MaxBattlePetQuality = bucketInfo->MaxBattlePetQuality ? std::max(*bucketInfo->MaxBattlePetQuality, quality) : quality;
                 bucketInfo->MaxBattlePetLevel = bucketInfo->MaxBattlePetLevel ? std::max(*bucketInfo->MaxBattlePetLevel, level) : level;
                 bucketInfo->BattlePetBreedID = breedId;
+                if (!bucketInfo->BattlePetLevelMask)
+                    bucketInfo->BattlePetLevelMask = 0;
+
+                *bucketInfo->BattlePetLevelMask |= 1 << (level - 1);
             }
         }
 
@@ -847,13 +851,11 @@ AuctionPosting* AuctionHouseObject::GetAuction(uint32 auctionId)
 void AuctionHouseObject::AddAuction(CharacterDatabaseTransaction trans, AuctionPosting auction)
 {
     AuctionsBucketKey key = AuctionsBucketKey::ForItem(auction.Items[0]);
-    AuctionsBucketData* bucket;
-    auto bucketItr = _buckets.find(key);
-    if (bucketItr == _buckets.end())
+    auto [bucketItr, isNew] = _buckets.try_emplace(key);
+    AuctionsBucketData* bucket = &bucketItr->second;
+    if (isNew)
     {
         // we don't have any item for this key yet, create new bucket
-        bucketItr = _buckets.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple()).first;
-        bucket = &bucketItr->second;
         bucket->Key = key;
 
         ItemTemplate const* itemTemplate = auction.Items[0]->GetTemplate();
@@ -900,8 +902,6 @@ void AuctionHouseObject::AddAuction(CharacterDatabaseTransaction trans, AuctionP
             bucket->FullName[locale] = wstrCaseAccentInsensitiveParse(utf16name, locale);
         }
     }
-    else
-        bucket = &bucketItr->second;
 
     // update cache fields
     uint64 priceToDisplay = auction.BuyoutOrUnitPrice ? auction.BuyoutOrUnitPrice : auction.BidAmount;
@@ -910,10 +910,10 @@ void AuctionHouseObject::AddAuction(CharacterDatabaseTransaction trans, AuctionP
 
     if (ItemModifiedAppearanceEntry const* itemModifiedAppearance = auction.Items[0]->GetItemModifiedAppearance())
     {
-        auto itr = std::ranges::find(bucket->ItemModifiedAppearanceId, itemModifiedAppearance->ID, &std::pair<uint32, uint32>::first);
+        auto itr = std::ranges::find(bucket->ItemModifiedAppearanceId, itemModifiedAppearance->ID, Trinity::TupleElement<0>);
 
         if (itr == bucket->ItemModifiedAppearanceId.end())
-            itr = std::ranges::find(bucket->ItemModifiedAppearanceId, 0u, &std::pair<uint32, uint32>::first);
+            itr = std::ranges::find(bucket->ItemModifiedAppearanceId, 0u, Trinity::TupleElement<0>);
 
         if (itr != bucket->ItemModifiedAppearanceId.end())
         {

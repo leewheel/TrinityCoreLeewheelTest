@@ -153,8 +153,9 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
         objectType = TYPEID_ACTIVE_PLAYER;
     }
 
-    if (WorldObject const* worldObject = dynamic_cast<WorldObject const*>(this))
+    if (IsWorldObject())
     {
+        WorldObject const* worldObject = static_cast<WorldObject const*>(this);
         if (!flags.MovementUpdate && !worldObject->m_movementInfo.transport.guid.IsEmpty())
             flags.MovementTransport = true;
 
@@ -247,11 +248,16 @@ void Object::BuildEntityFragments(ByteBuffer* data, std::span<WowCS::EntityFragm
     *data << WorldPackets::As<uint8>(WowCS::EntityFragment::End);
 }
 
-void Object::BuildEntityFragmentsForValuesUpdateForPlayerWithMask(ByteBuffer* data, EnumFlag<UF::UpdateFieldFlag> flags)
+void Object::BuildEntityFragmentsForValuesUpdateForPlayerWithMask(ByteBuffer* data, EnumFlag<UF::UpdateFieldFlag> flags) const
 {
+    uint8 contentsChangedMask = WowCS::CGObjectChangedMask;
+    for (WowCS::EntityFragment updateableFragmentId : m_entityFragments.GetUpdateableIds())
+        if (WowCS::IsIndirectFragment(updateableFragmentId))
+            contentsChangedMask |= m_entityFragments.GetUpdateMaskFor(updateableFragmentId) >> 1;   // set the "fragment exists" bit
+
     *data << uint8(flags.HasFlag(UF::UpdateFieldFlag::Owner));
     *data << uint8(false);                                  // m_entityFragments.IdsChanged
-    *data << uint8(WowCS::CGObjectUpdateMask);
+    *data << uint8(contentsChangedMask);
 }
 
 void Object::BuildDestroyUpdateBlock(UpdateData* data) const
@@ -869,7 +875,6 @@ void Object::ClearUpdateMask(bool remove)
 {
     m_values.ClearChangesMask(&Object::m_objectData);
     m_entityFragments.IdsChanged = false;
-    m_entityFragments.ContentsChangedMask = WowCS::CGObjectActiveMask;
 
     if (m_objectUpdated)
     {
@@ -2994,24 +2999,19 @@ SpellCastResult WorldObject::CastSpell(CastSpellTargetArg const& targets, uint32
     SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId, args.CastDifficulty != DIFFICULTY_NONE ? args.CastDifficulty : GetMap()->GetDifficultyID());
     if (!info)
     {
-        TC_LOG_ERROR("entities.unit", "CastSpell: unknown spell {} by caster {}", spellId, GetGUID().ToString());
+        TC_LOG_ERROR("entities.unit", "CastSpell: unknown spell {} by caster {}", spellId, GetGUID());
         return SPELL_FAILED_SPELL_UNAVAILABLE;
     }
 
     if (!targets.Targets)
     {
-        TC_LOG_ERROR("entities.unit", "CastSpell: Invalid target passed to spell cast {} by {}", spellId, GetGUID().ToString());
+        TC_LOG_ERROR("entities.unit", "CastSpell: Invalid target passed to spell cast {} by {}", spellId, GetGUID());
         return SPELL_FAILED_BAD_TARGETS;
     }
 
     Spell* spell = new Spell(this, info, args.TriggerFlags, args.OriginalCaster, args.OriginalCastId);
-    for (auto const& [Type, Value] : args.SpellValueOverrides)
-    {
-        if (Type < SPELLVALUE_INT_END)
-            spell->SetSpellValue(SpellValueMod(Type), Value.I);
-        else
-            spell->SetSpellValue(SpellValueModFloat(Type), Value.F);
-    }
+    for (CastSpellExtraArgsInit::SpellValueOverride const& value : args.SpellValueOverrides)
+        spell->SetSpellValue(value);
 
     spell->m_CastItem = args.CastItem;
     if (args.OriginalCastItemLevel)

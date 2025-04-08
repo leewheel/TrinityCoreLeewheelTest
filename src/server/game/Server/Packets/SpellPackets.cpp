@@ -610,6 +610,15 @@ WorldPacket const* ModifyCooldown::Write()
     return &_worldPacket;
 }
 
+WorldPacket const* UpdateCooldown::Write()
+{
+    _worldPacket << int32(SpellID);
+    _worldPacket << float(ModChange);
+    _worldPacket << float(ModRate);
+
+    return &_worldPacket;
+}
+
 ByteBuffer& operator<<(ByteBuffer& data, SpellCooldownStruct const& cooldown)
 {
     data << uint32(cooldown.SrecID);
@@ -682,6 +691,17 @@ WorldPacket const* SetSpellCharges::Write()
     _worldPacket << uint8(ConsumedCharges);
     _worldPacket << float(ChargeModRate);
     _worldPacket.WriteBit(IsPet);
+    _worldPacket.FlushBits();
+
+    return &_worldPacket;
+}
+
+WorldPacket const* UpdateChargeCategoryCooldown::Write()
+{
+    _worldPacket << int32(Category);
+    _worldPacket << float(ModChange);
+    _worldPacket << float(ModRate);
+    _worldPacket << Bits<1>(Snapshot);
     _worldPacket.FlushBits();
 
     return &_worldPacket;
