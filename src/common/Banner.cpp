@@ -19,6 +19,35 @@
 #include "GitRevision.h"
 #include "StringFormat.h"
 
+#include "GitRevision.h"
+#include <sstream>
+#include <unordered_map>
+
+std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
+{
+    std::unordered_map<std::string, std::string> monthMap = {
+        {"Jan", "1"}, {"Feb", "2"}, {"Mar", "3"}, {"Apr", "4"},
+        {"May", "5"}, {"Jun", "6"}, {"Jul", "7"}, {"Aug", "8"},
+        {"Sep", "9"}, {"Oct", "10"}, {"Nov", "11"}, {"Dec", "12"}
+    };
+
+    std::istringstream dateStream(dateStr);
+    std::string mon, day, year;
+    dateStream >> mon >> day >> year;
+    if (day[0] == '0') day = day.substr(1);
+
+    std::istringstream timeStream(timeStr);
+    std::string hour, minute, second;
+    std::getline(timeStream, hour, ':');
+    std::getline(timeStream, minute, ':');
+    std::getline(timeStream, second, ':');
+
+    return year + "年" + monthMap[mon] + "月" + day + "日 " +
+        hour + "时" + minute + "分" + second + "秒";
+}
+
+std::string FormatBuildDateTime(const char* dateStr = __DATE__, const char* timeStr = __TIME__);
+
 void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* text), void(*logExtraInfo)())
 {
     log(Trinity::StringFormat("{} ({})", GitRevision::GetFullVersion(), applicationName).c_str());
@@ -34,6 +63,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
 
     log("这只是一个经典怀旧服....alpha中的alpha版本\n");
+    log(FormatBuildDateTime().c_str());
 
     if (logExtraInfo)
         logExtraInfo();
