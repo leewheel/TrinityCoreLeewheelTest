@@ -9,3 +9,4 @@ max_line_length = 160
 
 [*.{c,h,cpp,hpp,inl}]
 charset = utf-8
+finput-charset = UTF-8
