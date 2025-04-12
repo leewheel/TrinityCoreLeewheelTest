@@ -42,8 +42,15 @@ std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
     std::getline(timeStream, minute, ':');
     std::getline(timeStream, second, ':');
 
-    return year + "年" + monthMap[mon] + "月" + day + "日 " +
-        hour + "时" + minute + "分" + second + "秒";
+    std::ostringstream ss;
+    ss << year << "年"
+        << monthMap[mon] << "月"
+        << day << "日 "
+        << hour << "时"
+        << minute << "分"
+        << second << "秒";
+
+    return ss.str();
 }
 
 std::string FormatBuildDateTime(const char* dateStr = __DATE__, const char* timeStr = __TIME__);
@@ -63,6 +70,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
     log(R"(http://TrinityCore.org                    \/__/)" "\n");
 
     log("这只是一个经典怀旧服....alpha中的alpha版本\n");
+
     log(FormatBuildDateTime().c_str());
 
     if (logExtraInfo)
