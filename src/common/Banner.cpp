@@ -43,12 +43,12 @@ std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
     std::getline(timeStream, second, ':');
 
     std::ostringstream ss;
-    ss << year << "年"
-        << monthMap[mon] << "月"
-        << day << "日 "
-        << hour << "时"
-        << minute << "分"
-        << second << "秒";
+    ss << year << "\u5e74"  // "年"
+        << monthMap[mon] << "\u6708"  // "月"
+        << day << "\u65e5 "
+        << hour << "\u65f6"
+        << minute << "\u5206"
+        << second << "\u79d2";
 
     return ss.str();
 }
