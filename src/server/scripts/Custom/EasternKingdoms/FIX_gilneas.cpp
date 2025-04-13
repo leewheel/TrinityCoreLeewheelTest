@@ -573,7 +573,7 @@ public:
 
 };
 
-void AddSC_elwynn_forest()
+void AddSC_FixMyGilneasQuest()
 {
     new FixMyGilneasQuest();
 }

@@ -17,11 +17,11 @@
 
 // This is where scripts' loading functions should be declared:
 void AddSC_elwynn_forest_Fix();
-void AddSC_elwynn_forest();
+void AddSC_FixMyGilneasQuest();
 // The name of this function should match:
 // void Add${NameOfDirectory}Scripts()
 void AddCustomScripts()
 {
     AddSC_elwynn_forest_Fix();
-    AddSC_elwynn_forest();
+    AddSC_FixMyGilneasQuest();
 }
