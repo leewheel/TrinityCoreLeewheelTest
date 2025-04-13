@@ -18,7 +18,7 @@
 #include "Banner.h"
 #include "GitRevision.h"
 #include "StringFormat.h"
-
+#include <string>
 #include "GitRevision.h"
 #include <sstream>
 #include <unordered_map>
@@ -31,29 +31,27 @@ std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
         {"Sep", "9"}, {"Oct", "10"}, {"Nov", "11"}, {"Dec", "12"}
     };
 
+    // 解析日期
     std::istringstream dateStream(dateStr);
     std::string mon, day, year;
     dateStream >> mon >> day >> year;
-    if (day[0] == '0') day = day.substr(1);
 
+    // 去除前导0
+    if (day[0] == '0')
+        day = day.substr(1);
+
+    // 解析时间
     std::istringstream timeStream(timeStr);
     std::string hour, minute, second;
     std::getline(timeStream, hour, ':');
     std::getline(timeStream, minute, ':');
     std::getline(timeStream, second, ':');
 
-    std::ostringstream ss;
-    ss << year << "\u5e74"  // "年"
-        << monthMap[mon] << "\u6708"  // "月"
-        << day << "\u65e5 "
-        << hour << "\u65f6"
-        << minute << "\u5206"
-        << second << "\u79d2";
-
-    return ss.str();
+    return year + "Y" + monthMap[mon] + "M" + day + "D" +
+        hour + "h" + minute + "m" + second + "sec";
 }
 
-std::string FormatBuildDateTime(const char* dateStr = __DATE__, const char* timeStr = __TIME__);
+
 
 void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* text), void(*logExtraInfo)())
 {
@@ -71,7 +69,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
 
     log("这只是一个经典怀旧服....alpha中的alpha版本\n");
 
-    log(FormatBuildDateTime().c_str());
+    log(Trinity::StringFormat("编译时间: {}", FormatBuildDateTime(__DATE__, __TIME__)).c_str());
 
     if (logExtraInfo)
         logExtraInfo();
