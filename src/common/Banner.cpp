@@ -47,8 +47,8 @@ std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
     std::getline(timeStream, minute, ':');
     std::getline(timeStream, second, ':');
 
-    return year + "Y" + monthMap[mon] + "M" + day + "D" +
-        hour + "h" + minute + "m" + second + "sec";
+    return year + "年 " + monthMap[mon] + "月 " + day + "日 " +
+        hour + "时 " + minute + "分 " + second + "秒 ";
 }
 
 
