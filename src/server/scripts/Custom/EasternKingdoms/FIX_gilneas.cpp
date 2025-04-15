@@ -560,16 +560,6 @@ public:
         }
     }
 
-    //void OnUpdate(uint32 diff,Player player)
-    //{
-    //    if (player->hasQuest(Lockdown))
-    //    {
-    //        if (player->GetQuestStatus(Lockdown) == QUEST_STATUS_INCOMPLETE)
-    //        {
-    //            player->SetDBPhase(Lieutenant_Walden_Phase);
-    //        }
-    //    }
-    //}
 
 };
 
