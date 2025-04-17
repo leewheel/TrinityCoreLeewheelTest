@@ -427,7 +427,8 @@ int main(int argc, char** argv)
 
     sScriptMgr->OnStartup();
 
-    TC_LOG_INFO("server.worldserver", "{} (worldserver-daemon) ready...", GitRevision::GetFullVersion());
+    TC_LOG_INFO("server.worldserver", "{} (worldserver-daemon) ready...\n", GitRevision::GetFullVersion());
+    TC_LOG_INFO("server.worldserver", "Now you can start playing happily.Please use client ver4.4.2.60192, Default username: leewheel@wow.com Password:1\n");
 
     // Launch CliRunnable thread
     std::unique_ptr<std::thread, ShutdownCLIThread> cliThread;

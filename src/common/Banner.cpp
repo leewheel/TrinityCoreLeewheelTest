@@ -47,10 +47,32 @@ std::string FormatBuildDateTime(const char* dateStr, const char* timeStr)
     std::getline(timeStream, minute, ':');
     std::getline(timeStream, second, ':');
 
-    return +"YEAR" + year + "MONTH" + monthMap[mon] + "DAY" + day +
-        hour + "HOUR" + minute + "MIN" + second + "SEC";
+    return +"YEAR:" + year + "-MONTH:" + monthMap[mon] + "-DAY:" + day + "||" +
+        hour + "HOUR-" + minute + "MIN-" + second + "SEC";
 }
 
+std::string GetFormattedBuildTime(const std::string& dateStr, const std::string& timeStr)
+{
+    // 映射月份英文缩写 -> 数字，带前导0
+    std::unordered_map<std::string, std::string> monthMap = {
+        {"Jan", "01"}, {"Feb", "02"}, {"Mar", "03"}, {"Apr", "04"},
+        {"May", "05"}, {"Jun", "06"}, {"Jul", "07"}, {"Aug", "08"},
+        {"Sep", "09"}, {"Oct", "10"}, {"Nov", "11"}, {"Dec", "12"}
+    };
+
+    std::istringstream dateStream(dateStr);
+    std::string monStr, day, year;
+    dateStream >> monStr >> day >> year;
+
+    // 如果日期只有1位，加前导0
+    if (day.size() == 1)
+        day = "0" + day;
+
+    std::string month = monthMap[monStr];
+
+    // 构造目标格式：YYYY-MM-DD HH:MM:SS
+    return year + "-" + month + "-" + day + " " + timeStr;
+}
 
 
 void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* text), void(*logExtraInfo)())
@@ -69,7 +91,12 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
 
     log("这只是一个经典怀旧服....alpha中的alpha版本\n");
 
-    log(Trinity::StringFormat("编译时间: {}\n", FormatBuildDateTime(__DATE__, __TIME__)).c_str());
+    std::string formatted = GetFormattedBuildTime(__DATE__, __TIME__);
+    std::cout << "编译时间: " << formatted << std::endl;
+
+    //log("默认用户名:leewheel@wow.com,默认密码:1\n");
+
+    std::cout << "Please use client ver4.4.2.60192,Default user:leewheel@wow.com,Password:1\n " << std::endl;
 
     if (logExtraInfo)
         logExtraInfo();
