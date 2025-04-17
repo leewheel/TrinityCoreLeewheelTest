@@ -69,7 +69,7 @@ void Trinity::Banner::Show(char const* applicationName, void(*log)(char const* t
 
     log("这只是一个经典怀旧服....alpha中的alpha版本\n");
 
-    log(Trinity::StringFormat("编译时间: {}", FormatBuildDateTime(__DATE__, __TIME__)).c_str());
+    log(Trinity::StringFormat("编译时间: {}\n", FormatBuildDateTime(__DATE__, __TIME__)).c_str());
 
     if (logExtraInfo)
         logExtraInfo();
