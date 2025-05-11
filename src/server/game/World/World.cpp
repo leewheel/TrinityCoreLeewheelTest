@@ -103,10 +103,7 @@
 #include "WeatherMgr.h"
 #include "WhoListStorage.h"
 #include "WorldSession.h"
-#include "WorldSocket.h"
 #include "WorldStateMgr.h"
-
-#include <boost/algorithm/string.hpp>
 
 TC_GAME_API std::atomic<bool> World::m_stopEvent(false);
 TC_GAME_API uint8 World::m_ExitCode = SHUTDOWN_EXIT_CODE;
@@ -263,7 +260,13 @@ void World::SetMotd(std::string motd)
     sScriptMgr->OnMotdChange(motd);
 
     _motd.clear();
-    boost::split(_motd, motd, boost::is_any_of("@"));
+
+    std::vector<std::string_view> tokens = Trinity::Tokenize(motd, '@', true);
+
+    _motd.reserve(tokens.size());
+
+    for (std::string_view const& token : tokens)
+        _motd.emplace_back(token);
 }
 
 std::vector<std::string> const& World::GetMotd() const
@@ -432,30 +435,6 @@ void World::AddSession_(WorldSession* s)
         LoginDatabase.Execute(stmt);
 
         TC_LOG_INFO("misc", "Server Population ({}).", popu);
-    }
-}
-
-void World::ProcessLinkInstanceSocket(std::pair<std::weak_ptr<WorldSocket>, uint64> linkInfo)
-{
-    if (std::shared_ptr<WorldSocket> sock = linkInfo.first.lock())
-    {
-        if (!sock->IsOpen())
-            return;
-
-        WorldSession::ConnectToKey key;
-        key.Raw = linkInfo.second;
-
-        WorldSession* session = FindSession(uint32(key.Fields.AccountId));
-        if (!session || session->GetConnectToInstanceKey() != linkInfo.second)
-        {
-            sock->SendAuthResponseError(ERROR_TIMED_OUT);
-            sock->DelayedCloseSocket();
-            return;
-        }
-
-        sock->SetWorldSession(session);
-        session->AddInstanceConnection(sock);
-        session->HandleContinuePlayerLogin();
     }
 }
 
@@ -3379,10 +3358,6 @@ void World::SendServerMessage(ServerMessageType messageID, std::string_view stri
 
 void World::UpdateSessions(uint32 diff)
 {
-    std::pair<std::weak_ptr<WorldSocket>, uint64> linkInfo;
-    while (_linkSocketQueue.next(linkInfo))
-        ProcessLinkInstanceSocket(std::move(linkInfo));
-
     {
         TC_METRIC_DETAILED_NO_THRESHOLD_TIMER("world_update_time",
             TC_METRIC_TAG("type", "Add sessions"),
@@ -3391,6 +3366,15 @@ void World::UpdateSessions(uint32 diff)
         WorldSession* sess = nullptr;
         while (addSessQueue.next(sess))
             AddSession_(sess);
+    }
+
+    {
+        std::pair<std::weak_ptr<WorldSocket>, uint64> linkInfo;
+        while (_linkSocketQueue.next(linkInfo))
+        {
+            WorldSession::ConnectToKey key = { .Raw = linkInfo.second };
+            WorldSession::AddInstanceConnection(FindSession(key.Fields.AccountId), linkInfo.first, key);
+        }
     }
 
     ///- Then send an update signal to remaining ones
