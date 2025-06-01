@@ -964,8 +964,6 @@ void Player::Update(uint32 p_time)
     // If mute expired, remove it from the DB
     if (GetSession()->m_muteTime && GetSession()->m_muteTime < now)
     {
-        using namespace std::string_view_literals;
-
         GetSession()->m_muteTime = 0;
         LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME);
         stmt->setInt64(0, 0); // Set the mute time to 0
@@ -2950,7 +2948,7 @@ void Player::RemoveSpell(uint32 spell_id, bool disabled /*= false*/, bool learn_
             RemovePetAura(petSpell);
 
     // update free primary prof.points (if not overflow setting, can be in case GM use before .learn prof. learning)
-    if (spellInfo && spellInfo->IsPrimaryProfessionFirstRank())
+    if (spellInfo->IsPrimaryProfessionFirstRank())
     {
         uint32 freeProfs = GetFreePrimaryProfessionPoints()+1;
         if (freeProfs <= sWorld->getIntConfig(CONFIG_MAX_PRIMARY_TRADE_SKILL))
@@ -3087,7 +3085,7 @@ void Player::RemoveSpell(uint32 spell_id, bool disabled /*= false*/, bool learn_
 
     if (m_canTitanGrip)
     {
-        if (spellInfo && spellInfo->IsPassive() && spellInfo->HasEffect(SPELL_EFFECT_TITAN_GRIP))
+        if (spellInfo->IsPassive() && spellInfo->HasEffect(SPELL_EFFECT_TITAN_GRIP))
         {
             RemoveAurasDueToSpell(m_titanGripPenaltySpellId);
             SetCanTitanGrip(false);
@@ -3096,7 +3094,7 @@ void Player::RemoveSpell(uint32 spell_id, bool disabled /*= false*/, bool learn_
 
     if (m_canDualWield)
     {
-        if (spellInfo && spellInfo->IsPassive() && spellInfo->HasEffect(SPELL_EFFECT_DUAL_WIELD))
+        if (spellInfo->IsPassive() && spellInfo->HasEffect(SPELL_EFFECT_DUAL_WIELD))
             SetCanDualWield(false);
     }
 
@@ -13673,7 +13671,7 @@ Quest const* Player::GetNextQuest(Object const* questGiver, Quest const* quest) 
 
     //we should obtain map pointer from GetMap() in 99% of cases. Special case
     //only for quests which cast teleport spells on player
-    if (WorldObject const* worldObjectQuestGiver = dynamic_cast<WorldObject const*>(questGiver))
+    if (WorldObject const* worldObjectQuestGiver = questGiver->ToWorldObject())
         if (!IsInMap(worldObjectQuestGiver))
             return nullptr;
 
@@ -16232,6 +16230,23 @@ bool Player::IsQuestObjectiveCompletable(uint16 slot, Quest const* quest, QuestO
     }
 
     return true;
+}
+
+bool Player::IsQuestObjectiveCompletable(uint32 questId, uint32 objectiveId) const
+{
+    Quest const* quest = sObjectMgr->GetQuestTemplate(questId);
+    if (!quest)
+        return false;
+
+    uint16 slot = FindQuestSlot(questId);
+    if (slot >= MAX_QUEST_LOG_SIZE)
+        return false;
+
+    QuestObjective const* obj = sObjectMgr->GetQuestObjective(objectiveId);
+    if (!obj)
+        return false;
+
+    return IsQuestObjectiveCompletable(slot, quest, *obj);
 }
 
 bool Player::IsQuestObjectiveComplete(uint16 slot, Quest const* quest, QuestObjective const& objective) const
@@ -22795,11 +22810,11 @@ bool Player::IsNeverVisibleFor(WorldObject const* seer, bool allowServersideObje
     return false;
 }
 
-bool Player::CanNeverSee(WorldObject const* obj) const
+bool Player::CanNeverSee(WorldObject const* obj, bool ignorePhaseShift /*= false*/) const
 {
     // the intent is to delay sending visible objects until client is ready for them
     // some gameobjects dont function correctly if they are sent before TransportServerTime is correctly set (after CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE)
-    return !HasPlayerLocalFlag(PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME) || WorldObject::CanNeverSee(obj);
+    return !HasPlayerLocalFlag(PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME) || WorldObject::CanNeverSee(obj, ignorePhaseShift);
 }
 
 bool Player::CanAlwaysSee(WorldObject const* obj) const
@@ -22960,7 +22975,7 @@ void Player::UpdateVisibilityOf(WorldObject* target)
 {
     if (HaveAtClient(target))
     {
-        if (!CanSeeOrDetect(target, false, true))
+        if (!CanSeeOrDetect(target, { .DistanceCheck = true }))
         {
             switch (target->GetTypeId())
             {
@@ -22991,7 +23006,7 @@ void Player::UpdateVisibilityOf(WorldObject* target)
     }
     else
     {
-        if (CanSeeOrDetect(target, false, true))
+        if (CanSeeOrDetect(target, { .DistanceCheck = true }))
         {
             target->SendUpdateToPlayer(this);
             m_clientGUIDs.insert(target->GetGUID());
@@ -23086,7 +23101,7 @@ void Player::UpdateVisibilityOf(T* target, UpdateData& data, std::set<WorldObjec
 {
     if (HaveAtClient(target))
     {
-        if (!CanSeeOrDetect(target, false, true))
+        if (!CanSeeOrDetect(target, { .DistanceCheck = true }))
         {
             BeforeVisibilityDestroy<T>(target, this);
 
@@ -23104,7 +23119,7 @@ void Player::UpdateVisibilityOf(T* target, UpdateData& data, std::set<WorldObjec
     }
     else
     {
-        if (CanSeeOrDetect(target, false, true))
+        if (CanSeeOrDetect(target, { .DistanceCheck = true }))
         {
             target->BuildCreateUpdateBlockForPlayer(&data, this);
             m_clientGUIDs.insert(target->GetGUID());
